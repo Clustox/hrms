@@ -3,6 +3,8 @@
 if [ -d "/home/frappe/frappe-bench/apps/frappe" ]; then
     echo "Bench already exists, skipping init"
     cd frappe-bench
+    # Bind dev server to all interfaces so Docker's published port is reachable
+    sed -i 's|^web:.*bench serve.*|web: bench serve --port 8000 --host 0.0.0.0|' ./Procfile
     bench start
 else
     echo "Creating new bench..."
@@ -38,5 +40,10 @@ bench --site hrms.localhost set-config developer_mode 1
 bench --site hrms.localhost enable-scheduler
 bench --site hrms.localhost clear-cache
 bench use hrms.localhost
+
+# Bind dev server to all interfaces so Docker's published port is reachable.
+# Re-applied here (not just above) because bench/get-app/new-site regenerate
+# the Procfile along the way, silently dropping an earlier edit.
+sed -i 's|^web:.*bench serve.*|web: bench serve --port 8000 --host 0.0.0.0|' ./Procfile
 
 bench start
