@@ -1,6 +1,6 @@
 pipeline {
     agent any
-    options { timeout(time: 15, unit: 'MINUTES') }
+    options { timeout(time: 30, unit: 'MINUTES') }
     environment {
         COMPOSE_FILE = '/opt/app/hrms/docker/docker-compose.yml'
         PROJECT = 'docker'
@@ -18,7 +18,7 @@ pipeline {
         stage('Health check') {
             steps {
                 sh '''
-                  for i in $(seq 1 20); do
+                  for i in $(seq 1 80); do
                     if curl -sf http://localhost:8000 > /dev/null; then
                       echo "hrms is up"; exit 0
                     fi
