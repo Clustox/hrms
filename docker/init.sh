@@ -28,6 +28,8 @@ sed -i '/watch/d' ./Procfile
 
 bench get-app erpnext
 bench get-app hrms
+bench get-app telephony
+bench get-app helpdesk
 
 bench new-site hrms.localhost \
 --force \
@@ -36,6 +38,8 @@ bench new-site hrms.localhost \
 --no-mariadb-socket
 
 bench --site hrms.localhost install-app hrms
+# helpdesk requires telephony; bench installs it automatically as a dependency
+bench --site hrms.localhost install-app helpdesk
 bench --site hrms.localhost set-config developer_mode 1
 bench --site hrms.localhost enable-scheduler
 bench --site hrms.localhost clear-cache
