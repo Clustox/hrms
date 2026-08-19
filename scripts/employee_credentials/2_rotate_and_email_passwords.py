@@ -32,6 +32,9 @@ import frappe
 import json
 import secrets
 import string
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).parent
 
 COUNT_ONLY = True   # run this first on a new environment -- touches nothing
 SEND_EMAILS = False  # flip to True only on the machine where SMTP auth works
@@ -133,37 +136,67 @@ for t in targets:
 	email = t.user_id
 	pwd = password_by_email[email]
 	record = {"email": email, "employee": t.employee_number}
+
+	# Step 1: stage the password change, but do NOT commit yet. As long as
+	# this stays uncommitted, it's fully reversible -- a failure here means
+	# nothing was sent and nothing durable happened, so a later run will
+	# simply pick this employee up again with a fresh password.
 	try:
 		user = frappe.get_doc("User", email)
 		full_name = user.full_name or t.employee_name or email
+		subject, text, html = build_email(full_name, email, pwd)
 
 		user.new_password = pwd
 		user.send_welcome_email = 0
 		user.save(ignore_permissions=True)
-		record["password_set"] = True
-
-		subject, text, html = build_email(full_name, email, pwd)
-		audit.append({"email": email, "password": pwd})
-
-		if SEND_EMAILS:
-			frappe.sendmail(recipients=[email], subject=subject, message=html, now=True)
-			record["status"] = "SENT"
-		else:
-			record["status"] = "DRY_RUN_PREVIEW"
-			record["preview_subject"] = subject
-			record["preview_text"] = text
-
-		results.append(record)
 	except Exception as e:
-		record["status"] = "ERROR"
+		frappe.db.rollback()
+		record["status"] = "ERROR_BEFORE_SEND"
 		record["error"] = str(e)
 		results.append(record)
+		continue
 
-frappe.db.commit()
+	record["password_set"] = True
+	audit.append({"email": email, "password": pwd})
+
+	# Step 2: send, while the password change is still only staged. If this
+	# fails, roll back -- the account keeps its old, still-valid password,
+	# and nobody was ever told about a password that doesn't work.
+	if SEND_EMAILS:
+		try:
+			frappe.sendmail(recipients=[email], subject=subject, message=html, now=True)
+		except Exception as e:
+			frappe.db.rollback()
+			record["status"] = "ERROR_SEND_FAILED"
+			record["error"] = str(e)
+			results.append(record)
+			continue
+		record["status"] = "SENT"
+	else:
+		record["status"] = "DRY_RUN_PREVIEW"
+		record["preview_subject"] = subject
+		record["preview_text"] = text
+
+	# Step 3: commit. By now the email (if any) has already been sent, so
+	# this is the one step that can't be undone by rolling back -- a failure
+	# here is rare (a local DB write, not a network call) but means the
+	# emailed password may not actually be valid yet. Never silently retry
+	# or regenerate for this account -- flag it for a human to reconcile.
+	try:
+		frappe.db.commit()
+	except Exception as e:
+		record["status"] = "CRITICAL_SENT_BUT_NOT_COMMITTED"
+		record["error"] = str(e)
+
+	results.append(record)
 
 # Audit file kept local for our own recovery only -- never printed to logs/chat.
+# Resolved next to this script (not the process's cwd -- the README has you
+# run this from frappe-bench/sites, which is a different directory) so it
+# always lands somewhere covered by this folder's .gitignore.
 # Delete this file once you've confirmed all emails arrived correctly.
-with open('password_audit_DO_NOT_SHARE.json', 'w') as f:
+audit_path = SCRIPT_DIR / 'password_audit_DO_NOT_SHARE.json'
+with open(audit_path, 'w') as f:
 	json.dump(audit, f, indent=2)
 
 # Printed summary intentionally omits password values.
@@ -176,3 +209,19 @@ if not SEND_EMAILS and results:
 	print("SAMPLE_EMAIL_PREVIEW_START")
 	print(results[0].get("preview_text", "(no preview available)"))
 	print("SAMPLE_EMAIL_PREVIEW_END")
+
+SAFE_TO_RETRY_STATUSES = {"ERROR_BEFORE_SEND", "ERROR_SEND_FAILED"}
+critical = [r for r in results if r.get("status") == "CRITICAL_SENT_BUT_NOT_COMMITTED"]
+retryable_errors = [r for r in results if r.get("status") in SAFE_TO_RETRY_STATUSES]
+
+if critical:
+	print(f"CRITICAL: {len(critical)} account(s) were emailed a password whose DB commit then "
+	      f"failed -- do NOT rerun this script for these accounts. Verify/fix each one by hand:")
+	print(json.dumps([{"email": r["email"], "error": r.get("error")} for r in critical], indent=2))
+
+if retryable_errors:
+	print(f"COMPLETED_WITH_ERRORS: {len(retryable_errors)} of {len(results)} account(s) were not "
+	      f"touched or notified and are safe to retry on the next run.")
+
+if critical or retryable_errors:
+	raise SystemExit(1)

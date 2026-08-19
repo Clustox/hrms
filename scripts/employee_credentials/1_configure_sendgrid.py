@@ -1,8 +1,12 @@
 import frappe
 import json
+from pathlib import Path
 
 SITE_NAME = 'hrms.localhost'  # change to the real site name on the target machine
-CONFIG_PATH = 'smtp_config.json'  # keep this file next to the script, never commit it
+# Resolved next to this script regardless of the process's working directory --
+# a bare relative path here would instead resolve against wherever the script
+# happens to be launched from (e.g. frappe-bench/sites, per the README).
+CONFIG_PATH = Path(__file__).parent / 'smtp_config.json'
 
 frappe.init(site=SITE_NAME)
 frappe.connect()
