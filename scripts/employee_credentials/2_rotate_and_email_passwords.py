@@ -44,6 +44,12 @@ SITE_URL = "http://localhost:8000"  # change to the real login URL on the target
 # Accounts to never touch even if they match the query below.
 EXCLUDE_EMAILS = {"Administrator", "Guest"}
 
+# Optional allow-list for a restricted run (e.g. a small test batch before the
+# full rollout). Leave empty ({}) to process every Active/enabled match from
+# the query below -- the normal, reviewed behavior. When non-empty, ONLY
+# these emails are touched, even if more employees match the query.
+ONLY_EMAILS = set()  # e.g. {"hamad@clustox.com", "batool.fatima@clustox.com"}
+
 frappe.init(site=SITE_NAME)
 frappe.connect()
 ALPHABET = string.ascii_letters + string.digits
@@ -100,6 +106,13 @@ def build_email(full_name, email, password):
 
 
 targets = get_target_users()
+
+if ONLY_EMAILS:
+	targets = [t for t in targets if t.user_id in ONLY_EMAILS]
+	missing = ONLY_EMAILS - {t.user_id for t in targets}
+	if missing:
+		print(f"ONLY_EMAILS_NOT_MATCHED: {sorted(missing)} did not match the Active/enabled query above "
+		      f"-- double-check status/enabled state if you expected them to be included.")
 
 if COUNT_ONLY:
 	print("COUNT_ONLY_RESULT_START")
