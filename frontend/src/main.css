@@ -28,3 +28,189 @@ body {
 	-ms-overflow-style: none; /* IE and Edge */
 	scrollbar-width: none; /* Firefox */
 }
+
+/*
+ * Screens are laid out mobile-first and cap at a fixed 24rem
+ * (Tailwind's `sm:w-96`) once the viewport passes 640px — that phone-width
+ * card is correct on an actual phone, but anything wider than that (a
+ * tablet, a half-width laptop window, a real desktop) was left with the
+ * same narrow card and dead space beside it. This widens the shell as
+ * soon as a screen is wider than a phone (>=640px), independently of the
+ * `lg` (1024px) breakpoint where SidebarNav takes over navigation from
+ * BottomTabs — so 640-1024px keeps the bottom tab bar but gets full-width
+ * content, and 1024px+ additionally gets the sidebar (TabbedView reserves
+ * space for it via `lg:ml-56` matching the sidebar's `lg:w-56`). No
+ * markup or component behavior changes — width/position only.
+ */
+@media (min-width: 640px) {
+	body {
+		background: var(--ion-background-color, #f4f5f6);
+	}
+
+	.sm\:w-96 {
+		width: 100% !important;
+		max-width: 100% !important;
+		margin-left: 0 !important;
+		margin-right: 0 !important;
+		padding-left: 2rem;
+		padding-right: 2rem;
+	}
+}
+
+/*
+ * At >=1024px, SidebarNav sits fixed at the left edge (14rem wide). It
+ * renders in two places: inside TabbedView (router/index.js: the five
+ * dashboard routes -- /home and /dashboard/*) and inside FormView.vue
+ * (the request/detail forms -- attendance, leave, expense claim, advance,
+ * salary slip -- which are top-level routes, not nested in TabbedView, so
+ * they render their own SidebarNav directly rather than getting one for
+ * free). Both need the same "clear the sidebar" treatment on their
+ * content; neither is a descendant of the other, so this is two scoped
+ * rules, not one shared ancestor selector. Every OTHER standalone route
+ * (profile, settings, login, ...) still has no sidebar at all and keeps
+ * the plain full-width rule above, unshifted -- correct, since nothing
+ * needs to be cleared there.
+ */
+@media (min-width: 1024px) {
+	/*
+	 * form-view-shell's own background switches to the page's gray here
+	 * (it's white on mobile/tablet, matching a full-bleed screen) so the
+	 * card treatment inside it (header/body/footer, given lg:border +
+	 * lg:rounded-lg in FormView.vue) actually reads as a card sitting on
+	 * a page, instead of a white card invisible against a white page.
+	 */
+	.form-view-shell {
+		background: var(--ion-background-color, #f4f5f6);
+	}
+
+	ion-tabs .sm\:w-96,
+	.form-view-shell.sm\:w-96 {
+		margin-left: 11rem !important;
+		width: calc(100vw - 11rem) !important;
+		max-width: calc(100vw - 11rem) !important;
+	}
+
+	/*
+	 * Full-width now, matching Home's own card (views/Home.vue's wrapper:
+	 * `my-7 p-4 gap-7` -- 28px vertical margin, 16px padding, 28px gap
+	 * between stacked sections) instead of the earlier centered/capped
+	 * card. header/card/footer are separate flex siblings of
+	 * form-view-shell here (not one shared padded wrapper like Home's),
+	 * so each gets its own matching 16px side inset via margin (not
+	 * padding -- the card's visible border should sit inset from the
+	 * topbar's edges, the way Home's card sits inset within its wrapper's
+	 * own p-4) and the same ~28px vertical rhythm via margin-top/bottom.
+	 */
+	.attendance-request-card {
+		width: calc(100% - 2rem) !important;
+		max-width: calc(100% - 2rem) !important;
+		margin-left: 1rem !important;
+		margin-right: 1rem !important;
+		margin-top: 1.75rem !important;
+		margin-bottom: 1.75rem !important;
+	}
+
+	.attendance-request-header {
+		width: calc(100% - 2rem) !important;
+		max-width: calc(100% - 2rem) !important;
+		margin-left: 1rem !important;
+		margin-right: 1rem !important;
+		margin-top: 1.75rem !important;
+	}
+
+	/*
+	 * The footer divs (both of them, in FormView.vue) also carry
+	 * `form-view-shell sm:w-96`, and .form-view-shell.sm\:w-96 above sets
+	 * its OWN !important width/margin-left at equal-or-higher specificity
+	 * (2 classes vs 1) -- without a matching rule here, that one would
+	 * win outright and leave the footer at the base full-bleed width
+	 * (correct in principle, but not inset to match header/card's 16px
+	 * margin). Same 2-class specificity, positioned after it, so this
+	 * one applies instead.
+	 */
+	.form-view-shell.attendance-request-action {
+		width: calc(100% - 2rem) !important;
+		max-width: calc(100% - 2rem) !important;
+		margin-left: 1rem !important;
+		margin-right: 1rem !important;
+	}
+
+	.attendance-request-header {
+		padding: 1.25rem 0.5rem 0.75rem;
+		box-shadow: none;
+	}
+
+	.attendance-request-header h2 {
+		font-size: 1rem;
+	}
+
+	.attendance-request-action {
+		padding: 0;
+		border: 0;
+		box-shadow: none;
+		background: transparent;
+	}
+
+	.attendance-request-action .lg\\:flex {
+		display: block;
+	}
+
+	.attendance-request-action button {
+		width: 100%;
+		min-height: 2.1rem;
+		padding-top: 0.45rem;
+		padding-bottom: 0.45rem;
+		font-size: 0.75rem;
+	}
+
+	.attendance-request-fields {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1rem;
+		padding: 1.25rem;
+	}
+
+	.attendance-request-fields > * {
+		margin-top: 0 !important;
+	}
+
+	.attendance-request-fields > [data-fieldname="column_break_5"],
+	.attendance-request-fields > [data-fieldname="column_break_4"] {
+		display: none;
+	}
+
+	.attendance-request-fields > [data-fieldname="from_date"],
+	.attendance-request-fields > [data-fieldname="half_day"] {
+		grid-column: 1;
+	}
+
+	.attendance-request-fields > [data-fieldname="to_date"],
+	.attendance-request-fields > [data-fieldname="include_holidays"] {
+		grid-column: 2;
+	}
+
+	.attendance-request-fields > [data-fieldname="shift"],
+	.attendance-request-fields > [data-fieldname="reason_section"],
+	.attendance-request-fields > [data-fieldname="reason"],
+	.attendance-request-fields > [data-fieldname="explanation"] {
+		grid-column: 1 / -1;
+	}
+
+	.attendance-request-fields > [data-fieldname="reason_section"] {
+		margin-top: 0.25rem;
+		padding-top: 0.9rem;
+		border-top: 1px solid #e5e7eb;
+	}
+
+	.attendance-request-fields > [data-fieldname="reason_section"] h2 {
+		padding-top: 0;
+		font-size: 0.75rem;
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.attendance-request-fields > [data-fieldname="half_day"],
+	.attendance-request-fields > [data-fieldname="include_holidays"] {
+		align-self: end;
+	}
+}

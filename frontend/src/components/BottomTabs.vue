@@ -1,7 +1,12 @@
 <template>
+	<!--
+		The bottom tab bar is a mobile pattern; on large screens SidebarNav
+		takes over the same navigation, so this bar simply hides there
+		instead of staying pinned to the bottom of a laptop-width screen.
+	-->
 	<ion-tab-bar
 		slot="bottom"
-		class="bg-white shadow-md sm:w-96 py-2 pb-2 standalone:pb-safe-bottom"
+		class="bg-white shadow-md sm:w-96 py-2 pb-2 standalone:pb-safe-bottom lg:hidden"
 	>
 		<ion-tab-button
 			v-for="item in tabItems"
@@ -26,42 +31,12 @@ import { useRoute } from "vue-router"
 
 import { IonTabBar, IonTabButton, IonLabel } from "@ionic/vue"
 
-import HomeIcon from "@/components/icons/HomeIcon.vue"
-import LeaveIcon from "@/components/icons/LeaveIcon.vue"
-import ExpenseIcon from "@/components/icons/ExpenseIcon.vue"
-import SalaryIcon from "@/components/icons/SalaryIcon.vue"
-import AttendanceIcon from "@/components/icons/AttendanceIcon.vue"
+import { getNavItems } from "@/data/config/navItems"
 import { inject } from "vue"
 
 const __ = inject("$translate")
 
 const route = useRoute()
 
-const tabItems = [
-	{
-		icon: HomeIcon,
-		title: __("Home"),
-		route: "/home",
-	},
-	{
-		icon: AttendanceIcon,
-		title: __("Attendance"),
-		route: "/dashboard/attendance",
-	},
-	{
-		icon: LeaveIcon,
-		title: __("Leaves"),
-		route: "/dashboard/leaves",
-	},
-	{
-		icon: ExpenseIcon,
-		title: __("Expenses"),
-		route: "/dashboard/expense-claims",
-	},
-	{
-		icon: SalaryIcon,
-		title: __("Salary"),
-		route: "/dashboard/salary-slips",
-	},
-]
+const tabItems = getNavItems(__)
 </script>

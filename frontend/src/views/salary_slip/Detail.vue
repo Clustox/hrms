@@ -4,6 +4,7 @@
 			<FormView
 				v-if="formFields.data"
 				doctype="Salary Slip"
+			sectionTitle="Salary"
 				v-model="salarySlip"
 				:fields="formFields.data"
 				:id="props.id"

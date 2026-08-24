@@ -4,6 +4,7 @@
 			<FormView
 				v-if="formFields.data"
 				doctype="Attendance Request"
+			sectionTitle="Attendance"
 				v-model="attendanceRequest"
 				:isSubmittable="true"
 				:fields="formFields.data"

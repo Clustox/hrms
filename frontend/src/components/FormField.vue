@@ -1,5 +1,9 @@
 <template>
-	<div v-if="showField" class="flex flex-col gap-1.5">
+	<div
+		v-if="showField"
+		class="flex flex-col gap-1.5"
+		:data-fieldname="props.fieldname"
+	>
 		<!-- Label -->
 		<span
 			v-if="!['Check', 'Section Break', 'Column Break'].includes(props.fieldtype)"

@@ -3,7 +3,7 @@
 		v-if="actions.length > 0"
 		:class="[
 			props.view === 'form'
-				? 'px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg'
+				? 'px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 form-view-shell bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg lg:max-w-2xl lg:mx-auto lg:rounded-lg lg:border lg:mb-6'
 				: 'flex w-full flex-row items-center justify-between gap-3 sticky bottom-0 border-t z-[100] p-4',
 		]"
 	>

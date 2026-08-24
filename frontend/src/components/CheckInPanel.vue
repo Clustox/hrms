@@ -1,36 +1,46 @@
 <template>
-	<div class="flex flex-col bg-white rounded w-full py-6 px-4 border-none">
-		<h2 class="text-lg font-bold text-gray-900">
-			{{ __("Hey, {0} 👋", [employee?.data?.first_name]) }}
-		</h2>
+	<!--
+		Stacked on mobile (heading, then subtext, then a full-width button
+		below). On large screens there's room to put the button beside the
+		greeting instead of under it — same content, same click handler.
+	-->
+	<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between lg:gap-4 bg-white rounded w-full py-6 px-4 border-none">
+		<div>
+			<h2 class="text-lg font-bold text-gray-900">
+				{{ __("Hey, {0} 👋", [employee?.data?.first_name]) }}
+			</h2>
 
-		<template v-if="settings.data?.allow_employee_checkin_from_mobile_app">
-			<div class="font-medium text-sm text-gray-500 mt-1.5" v-if="lastLog">
+			<div
+				class="font-medium text-sm text-gray-500 mt-1.5"
+				v-if="settings.data?.allow_employee_checkin_from_mobile_app && lastLog"
+			>
 				<span>{{ __("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)]) }}</span>
 				<span class="whitespace-pre"> &middot; </span>
 				<router-link :to="{ name: 'EmployeeCheckinListView' }" v-slot="{ navigate }">
 					<span @click="navigate" class="underline">View List</span>
 				</router-link>
 			</div>
-			<Button
-				class="mt-4 mb-1 drop-shadow-sm py-5 text-base"
-				id="open-checkin-modal"
-				:loading="checkins.list.loading"
-				@click="handleEmployeeCheckin"
-			>
-				<template #prefix>
-					<FeatherIcon
-						:name="nextAction.action === 'IN' ? 'arrow-right-circle' : 'arrow-left-circle'"
-						class="w-4"
-					/>
-				</template>
-				{{ nextAction.label }}
-			</Button>
-		</template>
 
-		<div v-else class="font-medium text-sm text-gray-500 mt-1.5">
-			{{ dayjs().format("ddd, D MMMM, YYYY") }}
+			<div v-if="!settings.data?.allow_employee_checkin_from_mobile_app" class="font-medium text-sm text-gray-500 mt-1.5">
+				{{ dayjs().format("ddd, D MMMM, YYYY") }}
+			</div>
 		</div>
+
+		<Button
+			v-if="settings.data?.allow_employee_checkin_from_mobile_app"
+			class="mt-4 mb-1 lg:mt-0 lg:mb-0 lg:shrink-0 drop-shadow-sm py-5 text-base"
+			id="open-checkin-modal"
+			:loading="checkins.list.loading"
+			@click="handleEmployeeCheckin"
+		>
+			<template #prefix>
+				<FeatherIcon
+					:name="nextAction.action === 'IN' ? 'arrow-right-circle' : 'arrow-left-circle'"
+					class="w-4"
+				/>
+			</template>
+			{{ nextAction.label }}
+		</Button>
 	</div>
 
 	<ion-modal

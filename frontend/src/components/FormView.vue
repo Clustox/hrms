@@ -1,8 +1,72 @@
 <template>
+	<!--
+		These forms are top-level routes (router/index.js), not nested inside
+		TabbedView, so they never had SidebarNav or BottomTabs at all. On
+		large screens that read as "losing" navigation entirely while
+		filling a request out. SidebarNav is viewport-fixed and only shows
+		at `lg:` (see its own root class) -- same component TabbedView uses,
+		rendered here too so it's never actually absent. `form-view-shell`
+		is what main.css's matching >=1024px rule hooks into to clear it
+		(mirrors the `ion-tabs .sm:w-96` rule already used for tabbed
+		screens) -- nothing else about this template changes.
+	-->
+	<SidebarNav />
 	<div class="flex flex-col h-full w-full" v-if="isFormReady">
-		<div class="w-full h-full bg-white sm:w-96 flex flex-col">
+		<div class="w-full h-full bg-white sm:w-96 form-view-shell flex flex-col">
+			<!--
+				Large-screen-only top bar -- the same bell/avatar BaseLayout.vue
+				renders on the tabbed dashboards (real notification count and
+				user, not a decorative copy), plus this form's section name.
+				Full width of the content area, unlike the header/body/footer
+				below it: it's page-level chrome sitting above the form, not
+				part of the form's own centered column.
+			-->
+			<div
+				class="hidden lg:flex lg:items-center lg:justify-between lg:px-8 lg:py-4 lg:bg-white lg:border-b lg:border-gray-200"
+			>
+				<div class="text-lg font-bold text-gray-900">
+					{{ props.sectionTitle || __(props.doctype) }}
+				</div>
+				<div class="flex flex-row items-center gap-4">
+					<router-link
+						:to="{ name: 'Notifications' }"
+						v-slot="{ navigate }"
+						class="flex flex-col items-center"
+					>
+						<span class="relative inline-block" @click="navigate">
+							<FeatherIcon name="bell" class="h-5 w-5 text-gray-600" />
+							<span
+								v-if="unreadNotificationsCount.data"
+								class="absolute top-0 right-0.5 inline-block w-2 h-2 bg-red-600 rounded-full border border-white"
+							>
+							</span>
+						</span>
+					</router-link>
+					<router-link
+						:to="{ name: 'Profile' }"
+						class="flex flex-col items-center"
+					>
+						<Avatar
+							:image="user.data.user_image"
+							:label="user.data.first_name"
+							size="sm"
+						/>
+					</router-link>
+				</div>
+			</div>
+
+			<!--
+				Clearing the sidebar (form-view-shell, above) only stopped this
+				shell from rendering UNDER it -- the shell itself still filled
+				the whole remaining width, so every field still stretched
+				edge-to-edge instead of reading as a form. header/body/footer
+				each get their own `lg:max-w-2xl lg:mx-auto` below to cap
+				and center as a single column, the way the approved mockup
+				actually showed it -- not just clear the sidebar.
+			-->
 			<header
-				class="flex flex-row bg-white shadow-sm py-4 px-3 items-center sticky top-0 z-[1000]"
+				class="flex flex-row bg-white shadow-sm py-4 px-3 items-center sticky top-0 z-[1000] lg:max-w-2xl lg:mx-auto lg:w-full"
+				:class="{ 'attendance-request-header': props.doctype === 'Attendance Request' && !props.id }"
 			>
 				<Button
 					variant="ghost"
@@ -60,7 +124,10 @@
 			</header>
 
 			<!-- Form -->
-			<div class="bg-white grow overflow-y-auto">
+			<div
+				class="bg-white grow overflow-y-auto lg:max-w-2xl lg:mx-auto lg:w-full lg:mt-6 lg:mb-6 lg:border lg:border-gray-200 lg:rounded-lg lg:shadow-sm"
+				:class="{ 'attendance-request-card': props.doctype === 'Attendance Request' && !props.id }"
+			>
 				<!-- Tabs -->
 				<template v-if="tabbedView">
 					<div
@@ -134,7 +201,11 @@
 					</template>
 				</template>
 
-				<div class="flex flex-col space-y-4 p-4" v-else>
+				<div
+					class="flex flex-col space-y-4 p-4"
+					:class="{ 'attendance-request-fields': props.doctype === 'Attendance Request' && !props.id }"
+					v-else
+				>
 					<FormField
 						v-for="field in props.fields"
 						:key="field.name"
@@ -176,7 +247,8 @@
 			<!-- custom form button eg: Download button in salary slips -->
 			<div
 				v-if="!showFormButton"
-				class="px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg"
+				class="px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 form-view-shell bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg lg:max-w-2xl lg:mx-auto lg:rounded-lg lg:border lg:mb-6"
+				:class="{ 'attendance-request-action': props.doctype === 'Attendance Request' && !props.id }"
 			>
 				<slot name="formButton"></slot>
 			</div>
@@ -192,7 +264,8 @@
 			<!-- save/submit/cancel -->
 			<div
 				v-else-if="isFormDirty || (!workflow?.hasWorkflow && formButton)"
-				class="px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg"
+				class="px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 form-view-shell bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg lg:max-w-2xl lg:mx-auto lg:rounded-lg lg:border lg:mb-6"
+				:class="{ 'attendance-request-action': props.doctype === 'Attendance Request' && !props.id }"
 			>
 				<ErrorMessage
 					class="mb-2"
@@ -203,17 +276,39 @@
 					"
 				/>
 
-				<Button
-					class="w-full rounded py-5 text-base disabled:bg-gray-700 disabled:text-white"
-					:class="formButton === 'Cancel' ? 'shadow' : ''"
-					@click="formButton === 'Save' ? saveForm() : submitOrCancelForm()"
-					:variant="formButton === 'Cancel' ? 'subtle' : 'solid'"
-					:loading="
-						docList.insert.loading || documentResource?.setValue?.loading
-					"
-				>
-					{{ __(formButton) }}
-				</Button>
+				<!--
+					Large screens only: a second, right-aligned "Cancel" next to
+					Save, doing exactly what the header's back-chevron already
+					does (router.back() -- no new navigation behavior, just a
+					second way to trigger the existing one). This is a distinct
+					button from formButton's own "Cancel" state below (that one
+					is the workflow cancel/void action for an already-submitted
+					document -- a data mutation, not a "leave without saving").
+					Mobile is unchanged: still the single full-width button,
+					stacked (the wrapper is only a flex row from `lg:` up).
+				-->
+				<div class="lg:flex lg:flex-row lg:justify-end lg:items-center">
+					<Button
+						v-if="formButton === 'Save'"
+						variant="outline"
+						class="!hidden lg:!inline-flex rounded py-5 px-6 text-base mr-3"
+						@click="router.back()"
+					>
+						{{ __("Cancel") }}
+					</Button>
+
+					<Button
+						class="w-full lg:w-auto rounded py-5 lg:px-8 text-base disabled:bg-gray-700 disabled:text-white"
+						:class="formButton === 'Cancel' ? 'shadow' : ''"
+						@click="formButton === 'Save' ? saveForm() : submitOrCancelForm()"
+						:variant="formButton === 'Cancel' ? 'subtle' : 'solid'"
+						:loading="
+							docList.insert.loading || documentResource?.setValue?.loading
+						"
+					>
+						{{ __(formButton) }}
+					</Button>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -321,6 +416,7 @@ import {
 	ErrorMessage,
 	Badge,
 	FeatherIcon,
+	Avatar,
 	createListResource,
 	createDocumentResource,
 	toast,
@@ -332,12 +428,17 @@ import {
 import FormField from "@/components/FormField.vue"
 import FileUploaderView from "@/components/FileUploaderView.vue"
 import WorkflowActionSheet from "@/components/WorkflowActionSheet.vue"
+import SidebarNav from "@/components/SidebarNav.vue"
 
 import { FileAttachment, guessStatusColor } from "@/composables"
 import useWorkflow from "@/composables/workflow"
 import { getCompanyCurrency } from "@/data/currencies"
 import { formatCurrency } from "@/utils/formatters"
 import { useDownloadPDF } from "@/utils/commonUtils"
+// Same bell/avatar the tabbed dashboards use (BaseLayout.vue) -- reused
+// here rather than re-implemented, so it's the same real notification
+// count and the same user, not a decorative copy.
+import { unreadNotificationsCount } from "@/data/notifications"
 
 const props = defineProps({
 	doctype: {
@@ -380,6 +481,16 @@ const props = defineProps({
 		required: false,
 		default: true,
 	},
+	// Large-screen-only top bar (see the SidebarNav block above the header):
+	// which sidebar section this form lives under, e.g. "Attendance" for
+	// the attendance/shift request forms. Purely a label -- falls back to
+	// the doctype name if a caller doesn't pass one, same as the header
+	// below it already does for the page title.
+	sectionTitle: {
+		type: String,
+		required: false,
+		default: "",
+	},
 	showDownloadPDFButton: {
 		type: Boolean,
 		required: false,
@@ -391,6 +502,7 @@ const router = useRouter()
 const { downloadPDF } = useDownloadPDF()
 
 const __ = inject("$translate")
+const user = inject("$user")
 
 let activeTab = ref(props.tabs?.[0].name)
 let fileAttachments = ref([])
