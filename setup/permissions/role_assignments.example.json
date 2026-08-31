@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to a git-ignored path, replace with real employee codes -> roles, and pass via --kwargs mapping_file. Roles must exist (standard, or created by apply_rights_matrix.py: Team Lead, Department Head, CEO/COO, IT User, Admin User).",
+  "CT-00001": ["HR Manager"],
+  "CT-00002": ["HR User"],
+  "CT-00003": ["Accounts Manager"],
+  "CT-00004": ["IT User"],
+  "CT-00005": ["Department Head", "CEO/COO"],
+  "CT-00006": ["Team Lead"]
+}
