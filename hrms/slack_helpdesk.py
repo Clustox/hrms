@@ -112,7 +112,7 @@ def slack_command():
     data = parse_qs(body)
     trigger_id = data.get("trigger_id", [""])[0]
     _slack_post("views.open", {"trigger_id": trigger_id, "view": _modal()})
-    return ""  # 200; the modal is shown via views.open
+    return None  # 200 with no message body; the modal is shown via views.open
 
 
 @frappe.whitelist(allow_guest=True)
@@ -143,6 +143,10 @@ def slack_interact():
 
 def _create_ticket(subject, desc, team, priority, slack_uid):
     """Runs in a background worker (no 3s limit)."""
+    # The job is enqueued as Guest (the endpoint is allow_guest). Helpdesk's
+    # on_communication_update calls ticket.save() WITHOUT ignore_permissions, so
+    # it enforces write perms — run as Administrator so that internal save passes.
+    frappe.set_user("Administrator")
     try:
         email = _slack_email(slack_uid) or f"slack-{slack_uid}@clustox.com"
         doc = {
