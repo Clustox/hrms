@@ -112,7 +112,12 @@ def slack_command():
     data = parse_qs(body)
     trigger_id = data.get("trigger_id", [""])[0]
     _slack_post("views.open", {"trigger_id": trigger_id, "view": _modal()})
-    return None  # 200 with no message body; the modal is shown via views.open
+    # Acknowledge with an ephemeral reply (only the invoker sees it). Returning
+    # a value would make Frappe emit a JSON body ("{}" or {"message": ...}) that
+    # Slack posts verbatim; response_type/text at the top level avoids that.
+    frappe.local.response["response_type"] = "ephemeral"
+    frappe.local.response["text"] = ":memo: Opening the ticket form…"
+    return None
 
 
 @frappe.whitelist(allow_guest=True)
