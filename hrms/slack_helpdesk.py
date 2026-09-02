@@ -123,36 +123,46 @@ def slack_interact():
         return ""
 
     vals = payload["view"]["state"]["values"]
-    subject = vals["subject_b"]["subject"]["value"]
-    desc = vals["desc_b"]["desc"]["value"]
-    team = vals["team_b"]["team"]["selected_option"]["value"]
     prio_opt = vals.get("prio_b", {}).get("prio", {}).get("selected_option")
-    priority = prio_opt["value"] if prio_opt else "Medium"
-
-    slack_uid = payload["user"]["id"]
-    email = _slack_email(slack_uid) or f"slack-{slack_uid}@clustox.com"
-
-    doc = {
-        "doctype": "HD Ticket",
-        "subject": subject,
-        "description": desc or subject,
-        "priority": priority if priority in PRIORITIES else "Medium",
-        "raised_by": email,
+    args = {
+        "subject": vals["subject_b"]["subject"]["value"],
+        "desc": vals["desc_b"]["desc"]["value"],
+        "team": vals["team_b"]["team"]["selected_option"]["value"],
+        "priority": prio_opt["value"] if prio_opt else "Medium",
+        "slack_uid": payload["user"]["id"],
     }
-    if team in TEAMS and frappe.db.exists("HD Team", team):
-        doc["agent_group"] = team
+    # Create the ticket in the background so we ACK Slack within its 3s limit.
+    frappe.enqueue("hrms.slack_helpdesk._create_ticket", queue="short", **args)
+    return ""  # fast empty 200 closes the modal
 
-    tk = frappe.get_doc(doc)
-    tk.insert(ignore_permissions=True)
-    frappe.db.commit()
 
-    # DM the reporter their ticket number
+def _create_ticket(subject, desc, team, priority, slack_uid):
+    """Runs in a background worker (no 3s limit)."""
     try:
+        email = _slack_email(slack_uid) or f"slack-{slack_uid}@clustox.com"
+        doc = {
+            "doctype": "HD Ticket",
+            "subject": subject,
+            "description": desc or subject,
+            "priority": priority if priority in PRIORITIES else "Medium",
+            "raised_by": email,
+        }
+        if team in TEAMS and frappe.db.exists("HD Team", team):
+            doc["agent_group"] = team
+        tk = frappe.get_doc(doc)
+        tk.insert(ignore_permissions=True)
+        frappe.db.commit()
         _slack_post("chat.postMessage", {
             "channel": slack_uid,
             "text": f":ticket: Ticket *{tk.name}* created for *{team}* — we're on it.",
         })
     except Exception:
-        pass
-
-    return ""  # empty 200 closes the modal
+        frappe.db.rollback()
+        frappe.log_error(title="slack_helpdesk create", message=frappe.get_traceback())
+        try:
+            _slack_post("chat.postMessage", {
+                "channel": slack_uid,
+                "text": ":warning: Sorry, I couldn't create that ticket — support has been notified.",
+            })
+        except Exception:
+            pass
