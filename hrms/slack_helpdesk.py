@@ -119,21 +119,26 @@ def slack_command():
 def slack_interact():
     body = _verify_slack()
     payload = json.loads(parse_qs(body).get("payload", ["{}"])[0])
-    if payload.get("type") != "view_submission":
-        return ""
+    if payload.get("type") == "view_submission":
+        vals = payload["view"]["state"]["values"]
+        prio_opt = vals.get("prio_b", {}).get("prio", {}).get("selected_option")
+        args = {
+            "subject": vals["subject_b"]["subject"]["value"],
+            "desc": vals["desc_b"]["desc"]["value"],
+            "team": vals["team_b"]["team"]["selected_option"]["value"],
+            "priority": prio_opt["value"] if prio_opt else "Medium",
+            "slack_uid": payload["user"]["id"],
+        }
+        # Create the ticket in the background so we ACK Slack within its 3s limit.
+        frappe.enqueue("hrms.slack_helpdesk._create_ticket", queue="short", **args)
 
-    vals = payload["view"]["state"]["values"]
-    prio_opt = vals.get("prio_b", {}).get("prio", {}).get("selected_option")
-    args = {
-        "subject": vals["subject_b"]["subject"]["value"],
-        "desc": vals["desc_b"]["desc"]["value"],
-        "team": vals["team_b"]["team"]["selected_option"]["value"],
-        "priority": prio_opt["value"] if prio_opt else "Medium",
-        "slack_uid": payload["user"]["id"],
-    }
-    # Create the ticket in the background so we ACK Slack within its 3s limit.
-    frappe.enqueue("hrms.slack_helpdesk._create_ticket", queue="short", **args)
-    return ""  # fast empty 200 closes the modal
+    # Close the modal. Slack needs `response_action` at the JSON top level; a plain
+    # return would be wrapped by Frappe as {"message": ...}, which Slack rejects
+    # (it posts that as a message and leaves the modal open). Setting it on
+    # frappe.local.response puts it at the top level. Return None so Frappe does
+    # not also add a "message" key.
+    frappe.local.response["response_action"] = "clear"
+    return None
 
 
 def _create_ticket(subject, desc, team, priority, slack_uid):
