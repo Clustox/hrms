@@ -16,6 +16,7 @@
   "column_break_11",
   "send_work_anniversary_reminders",
   "send_birthday_reminders",
+  "send_birthday_slack_notification",
   "send_holiday_reminders",
   "frequency",
   "column_break_hyec",
@@ -176,6 +177,13 @@
    "fieldname": "send_birthday_reminders",
    "fieldtype": "Check",
    "label": "Birthdays"
+  },
+  {
+   "default": "0",
+   "description": "Also posts a birthday card to Slack. Requires 'hr_birthday_slack_webhook_url' to be set in site_config.json.",
+   "fieldname": "send_birthday_slack_notification",
+   "fieldtype": "Check",
+   "label": "Birthdays on Slack"
   },
   {
    "fieldname": "column_break_11",

@@ -276,6 +276,18 @@ scheduler_events = {
 	],
 	"weekly": ["hrms.controllers.employee_reminders.send_reminders_in_advance_weekly"],
 	"monthly": ["hrms.controllers.employee_reminders.send_reminders_in_advance_monthly"],
+	"cron": {
+		# Fixed office-hours time rather than the "daily" bucket above -- that
+		# bucket has no guaranteed wall-clock time (it fires once every ~24h
+		# based on scheduler tick history), which is fine for an email digest
+		# but not for a Slack post meant to land while people are online.
+		#
+		# Cron entries run against the server's OS clock, not the site's
+		# System Settings timezone -- this reads "7:05" because the server
+		# runs UTC and the target is 12:05 PM PKT (UTC+5, no DST). If the
+		# server's OS timezone ever changes, this needs re-deriving too.
+		"5 7 * * *": ["hrms.controllers.slack_notifications.send_birthday_slack_notifications"],
+	},
 }
 
 advance_payment_payable_doctypes = ["Leave Encashment", "Gratuity", "Employee Advance"]

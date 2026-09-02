@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<!--
+	Standalone HTML document (not a Frappe email template) rendered to a PNG
+	via wkhtmltoimage by hrms.controllers.slack_notifications.render_birthday_card().
+	Built to match the real Clustox birthday-card template (see the
+	Faraz-Sohail.jpg reference the design was sourced from).
+
+	`logo_path` and `alex_brush_font_path` are file:// URIs computed by
+	render_birthday_card() -- see hrms/templates/slack/assets/ for the
+	bundled logo PNG and Alex Brush TTF this points at.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+
+	@font-face {
+		font-family: 'Alex Brush';
+		src: url('{{ alex_brush_font_path }}') format('truetype');
+	}
+
+	body {
+		width: 700px;
+		background: #ffffff;
+		font-family: 'Segoe UI', Arial, sans-serif;
+		color: #14213d;
+	}
+
+	.card {
+		width: 700px;
+		background: #ffffff;
+		padding: 40px 48px 0 48px;
+	}
+
+	.top-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+	}
+
+	.logo {
+		height: 62px;
+	}
+
+	.hashtag {
+		font-size: 16px;
+		font-style: italic;
+		color: #14213d;
+		padding-top: 14px;
+	}
+
+	.headline {
+		text-align: center;
+		margin-top: 4px;
+		position: relative;
+	}
+	.headline .script {
+		display: block;
+		font-family: 'Alex Brush', cursive;
+		font-size: 92px;
+		color: #3fae4a;
+		line-height: 1;
+	}
+	.headline .bold {
+		display: block;
+		font-family: 'DejaVu Serif', 'Georgia', serif;
+		font-size: 72px;
+		font-weight: 700;
+		color: #14328c;
+		letter-spacing: 1px;
+		margin-top: -20px;
+	}
+
+	.quote-mark {
+		margin-top: 10px;
+	}
+	.quote-mark svg {
+		display: block;
+	}
+
+	.photo-placeholder {
+		width: 280px;
+		height: 280px;
+		margin: 8px auto 0 auto;
+		background: #ff00ff;
+	}
+
+	.name {
+		text-align: center;
+		font-size: 32px;
+		font-weight: 800;
+		color: #14328c;
+		margin-top: 46px;
+	}
+
+	.message {
+		text-align: center;
+		font-size: 17px;
+		color: #33415c;
+		line-height: 1.55;
+		max-width: 500px;
+		margin: 16px auto 0 auto;
+	}
+
+	.photo-section {
+		position: relative;
+	}
+	.spark {
+		position: absolute;
+		right: 40px;
+		top: 130px;
+		color: #3fae4a;
+		font-size: 32px;
+	}
+
+	.footer {
+		display: block;
+		width: 700px;
+		margin-top: 36px;
+	}
+</style>
+</head>
+<body>
+	<div class="card">
+		<div class="top-row">
+			<img class="logo" src="{{ logo_path }}">
+			<div class="hashtag">#BirthdayWishes</div>
+		</div>
+
+		<div class="headline">
+			<span class="script">Happy</span>
+			<span class="bold">Birthday</span>
+		</div>
+
+		<div class="photo-section">
+			<div class="quote-mark">
+				<svg width="70" height="46" viewBox="0 0 70 46">
+					<path d="M0 46 C0 20 8 4 24 0 L24 10 C14 14 10 22 10 32 L24 32 L24 46 Z" fill="#14328c"/>
+					<path d="M34 46 C34 20 42 4 58 0 L58 10 C48 14 44 22 44 32 L58 32 L58 46 Z" fill="#14328c"/>
+				</svg>
+			</div>
+
+			<div class="photo-placeholder"></div>
+
+			<div class="spark">&#10038;</div>
+		</div>
+
+		<div class="name">{{ employee_name }}</div>
+		<div class="message">{{ message }}</div>
+	</div>
+
+	<!-- Deliberately a sibling of .card, not nested inside it: .card carries
+	     the 48px horizontal padding everything else above needs, but this bar
+	     has to bleed to the true 700px edges (see Faraz-Sohail.jpg). A plain,
+	     unnested 700px-wide block does that with no margin tricks needed.
+
+	     The bar itself -- background, circle decorations, icon badges, and
+	     handle text -- is identical on every card (nothing here is
+	     per-employee), so rather than hand-drawn SVG/CSS approximations that
+	     kept drifting from the source design, this is a pixel-perfect crop
+	     of the real footer straight out of Faraz-Sohail.jpg (rows 1399-1500
+	     of that 1080-wide reference, rescaled to this card's 700px width --
+	     see hrms/templates/slack/assets/footer.png). -->
+	<img class="footer" src="{{ footer_path }}">
+</body>
+</html>

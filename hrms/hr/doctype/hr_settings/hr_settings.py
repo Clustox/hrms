@@ -44,6 +44,7 @@ class HRSettings(Document):
 		retirement_age: DF.Data | None
 		role_allowed_to_create_backdated_leave_application: DF.Link | None
 		send_birthday_reminders: DF.Check
+		send_birthday_slack_notification: DF.Check
 		send_holiday_reminders: DF.Check
 		send_interview_feedback_reminder: DF.Check
 		send_interview_reminder: DF.Check
