@@ -14,7 +14,10 @@ pipeline {
                 // The agent has Docker but no sonar-scanner CLI and no SonarQube Scanner
                 // tool installation, so the official scanner image is used. withSonarQubeEnv
                 // injects SONAR_HOST_URL / SONAR_AUTH_TOKEN and records the report task that
-                // the Quality Gate stage below waits on.
+                // the Quality Gate stage below waits on. sonar.working.directory is
+                // overridden because the image's baked-in /tmp/.scannerwork is owned by
+                // uid 1000 and unwritable under -u; putting it in the mounted workspace
+                // also lands report-task.txt where waitForQualityGate looks for it.
                 withSonarQubeEnv('MySonarQube') {
                     sh '''
                       docker run --rm \
@@ -25,6 +28,7 @@ pipeline {
                         -v "$WORKSPACE:/usr/src" \
                         -w /usr/src \
                         sonarsource/sonar-scanner-cli:latest \
+                        -Dsonar.working.directory=/usr/src/.scannerwork \
                         -Dsonar.projectVersion="${GIT_COMMIT:-$BUILD_NUMBER}"
                     '''
                 }
