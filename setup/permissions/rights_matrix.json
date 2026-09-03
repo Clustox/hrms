@@ -1,0 +1,1064 @@
+{
+ "Employee": {
+  "Employee Self Service": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Employee Group": {
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ]
+ },
+ "Department": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Designation": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Branch": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Employee Grade": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ]
+ },
+ "Leave Type": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ]
+ },
+ "Leave Allocation": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ]
+ },
+ "Leave Application": {
+  "Employee Self Service": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Team Lead": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Department Head": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "CEO/COO": [
+   "read",
+   "submit"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit",
+   "cancel"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Leave Ledger Entry": {
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read"
+  ],
+  "HR Manager": [
+   "read",
+   "create"
+  ]
+ },
+ "Attendance": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit",
+   "cancel"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Employee Checkin": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Admin User": [
+   "read",
+   "create"
+  ]
+ },
+ "Shift Type": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Shift Assignment": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Holiday List": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Holiday": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Leave Period": {
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ]
+ },
+ "Leave Block List": {
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ]
+ },
+ "HR Settings": {
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write"
+  ],
+  "HR Manager": [
+   "read",
+   "write"
+  ]
+ },
+ "Salary Structure": {
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Accounts Manager": [
+   "read"
+  ]
+ },
+ "Salary Structure Assignment": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Accounts Manager": [
+   "read"
+  ]
+ },
+ "Salary Slip": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit",
+   "cancel"
+  ],
+  "Accounts Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ]
+ },
+ "Payroll Entry": {
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit",
+   "cancel"
+  ],
+  "Accounts Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ]
+ },
+ "Additional Salary": {
+  "Employee Self Service": [
+   "read",
+   "write",
+   "create"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit",
+   "cancel"
+  ],
+  "Accounts Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ]
+ },
+ "Employee Incentive": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Accounts Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ]
+ },
+ "Expense Claim": {
+  "Employee Self Service": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Team Lead": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Department Head": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "CEO/COO": [
+   "read",
+   "submit"
+  ],
+  "HR User": [
+   "read"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Accounts Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Employee Advance": {
+  "Employee Self Service": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Team Lead": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Department Head": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "CEO/COO": [
+   "read",
+   "submit"
+  ],
+  "HR User": [
+   "read"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Accounts Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Appraisal": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Department Head": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit",
+   "cancel"
+  ]
+ },
+ "Employee Performance Feedback": {
+  "Employee Self Service": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Team Lead": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Department Head": [
+   "read",
+   "write",
+   "create"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ]
+ },
+ "Goal": {
+  "Employee Self Service": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Team Lead": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Department Head": [
+   "read",
+   "write",
+   "create"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ]
+ },
+ "Training Program": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Training Event": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Training Result": {
+  "Employee Self Service": [
+   "read"
+  ],
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ],
+  "IT User": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ },
+ "Job Opening": {
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ]
+ },
+ "Job Applicant": {
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ]
+ },
+ "Interview": {
+  "Team Lead": [
+   "read",
+   "write",
+   "create"
+  ],
+  "Department Head": [
+   "read",
+   "write",
+   "create"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create"
+  ]
+ },
+ "Job Offer": {
+  "Team Lead": [
+   "read"
+  ],
+  "Department Head": [
+   "read"
+  ],
+  "CEO/COO": [
+   "read"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ]
+ },
+ "Employee Separation": {
+  "Employee Self Service": [
+   "create",
+   "read"
+  ],
+  "Team Lead": [
+   "read",
+   "create"
+  ],
+  "Department Head": [
+   "read",
+   "create"
+  ],
+  "CEO/COO": [
+   "read",
+   "submit"
+  ],
+  "HR User": [
+   "read",
+   "write",
+   "create"
+  ],
+  "HR Manager": [
+   "read",
+   "write",
+   "create",
+   "submit"
+  ],
+  "Accounts Manager": [
+   "read"
+  ],
+  "Admin User": [
+   "read"
+  ]
+ }
+}
