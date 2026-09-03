@@ -64,17 +64,28 @@ pipeline {
                               "https://sonar.theclustox.com/api/issues/search?componentKeys=hrms&resolved=false&ps=$PS&p=$page"
                             total=$(jq -r '.paging.total' "$TMP/page-$page.json")
                             fetched=$(( page * PS ))
-                            echo "fetched $fetched of $total open issues"
+                            echo "fetched page $page (up to $fetched of $total open issues)"
                             [ "$fetched" -ge "$total" ] && break
                             # api/issues/search refuses p*ps beyond 10000
                             [ "$fetched" -ge 10000 ] && { echo "WARNING: capped at 10000 issues"; break; }
                             page=$(( page + 1 ))
                           done
-                          jq -s '{
-                            issues:     (map(.issues)          | add),
-                            components: (map(.components // []) | add | unique_by(.key)),
-                            paging:     {total: .[0].paging.total}
-                          }' "$TMP"/page-*.json > sonar-issues.json
+                          # The warnings-ng SonarQube parser sniffs the response format from the
+                          # top-level keys, so the merged document has to look like one big
+                          # api/issues/search page -- dropping total/p/ps makes it silently
+                          # parse to zero issues.
+                          jq -s '
+                            (map(.issues) | add)   as $iss |
+                            (.[0].paging.total)    as $tot |
+                            {
+                              total:       $tot,
+                              p:           1,
+                              ps:          ($iss | length),
+                              paging:      {pageIndex: 1, pageSize: ($iss | length), total: $tot},
+                              effortTotal: (map(.effortTotal // 0) | add),
+                              issues:      $iss,
+                              components:  (map(.components // []) | add | unique_by(.key))
+                            }' "$TMP"/page-*.json > sonar-issues.json
                           echo "merged $(jq '.issues | length' sonar-issues.json) issues into sonar-issues.json"
                         '''
                     }
