@@ -43,6 +43,51 @@ pipeline {
                 }
             }
         }
+        stage('Fetch Sonar Issues') {
+            steps {
+                // Read-only reporting. Wrapped in catchError so that a SonarQube outage or
+                // an expired token marks the build UNSTABLE instead of blocking the deploy
+                // stages that follow. The token goes in an Authorization header, never in
+                // the query string, so it cannot leak into proxy or access logs.
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    withCredentials([string(credentialsId: 'sonarqube-readonly-token', variable: 'SONAR_RO_TOKEN')]) {
+                        sh '''
+                          set -eu
+                          PS=500
+                          TMP=$(mktemp -d)
+                          trap 'rm -rf "$TMP"' EXIT
+                          page=1
+                          while : ; do
+                            curl --fail --silent --show-error \
+                              -H "Authorization: Bearer $SONAR_RO_TOKEN" \
+                              -o "$TMP/page-$page.json" \
+                              "https://sonar.theclustox.com/api/issues/search?componentKeys=hrms&resolved=false&ps=$PS&p=$page"
+                            total=$(jq -r '.paging.total' "$TMP/page-$page.json")
+                            fetched=$(( page * PS ))
+                            echo "fetched $fetched of $total open issues"
+                            [ "$fetched" -ge "$total" ] && break
+                            # api/issues/search refuses p*ps beyond 10000
+                            [ "$fetched" -ge 10000 ] && { echo "WARNING: capped at 10000 issues"; break; }
+                            page=$(( page + 1 ))
+                          done
+                          jq -s '{
+                            issues:     (map(.issues)          | add),
+                            components: (map(.components // []) | add | unique_by(.key)),
+                            paging:     {total: .[0].paging.total}
+                          }' "$TMP"/page-*.json > sonar-issues.json
+                          echo "merged $(jq '.issues | length' sonar-issues.json) issues into sonar-issues.json"
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Publish Issue Report') {
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    recordIssues(tools: [sonarQube(pattern: 'sonar-issues.json')])
+                }
+            }
+        }
         stage('Redeploy dev stack') {
             steps {
                 sh 'docker compose -f $COMPOSE_FILE -p $PROJECT down'
