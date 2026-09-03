@@ -1,0 +1,14 @@
+# /etc/systemd/system/clustox-attendance-sync.service
+# Runs one sync pass. Paired with the .timer below (do not "enable" this unit
+# directly; enable the timer instead).
+[Unit]
+Description=Clustox biometric -> Frappe HR check-in sync (one pass)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# adjust User and paths to the deploy location
+User=frappe
+WorkingDirectory=/opt/clustox-attendance-sync
+ExecStart=/opt/clustox-attendance-sync/venv/bin/python /opt/clustox-attendance-sync/sync_checkins.py
