@@ -72,6 +72,13 @@ doctype_js = {
 # 	"Role": "home_page"
 # }
 
+# Clustox: self-service employees resolve to the /hrms PWA on a bare /login.
+# app_home stays "/desk/hr-setup" so the "Frappe HR" app tile opens the HR admin
+# desk workspace for staff; employees primarily enter via /hrms/login.
+role_home_page = {
+	"Employee Self Service": "hrms",
+}
+
 calendars = ["Leave Application"]
 
 # Generators
