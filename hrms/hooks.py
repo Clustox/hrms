@@ -7,7 +7,7 @@ app_license = "GNU General Public License (v3)"
 required_apps = ["frappe/erpnext"]
 source_link = "http://github.com/frappe/hrms"
 app_logo_url = "/assets/hrms/images/frappe-hr-logo.svg"
-app_home = "/desk/hr-setup"
+app_home = "/hrms"
 
 # Clustox customization: Pakistan-specific Employee fields, shipped as fixtures
 # so every deployment (dev/test/prod) has them without running a setup script.
