@@ -68,6 +68,32 @@
 							</div>
 						</div>
 
+						<!-- Education & Experience -->
+						<div class="flex flex-col gap-5 my-4 w-full">
+							<div class="flex flex-col bg-white rounded">
+								<div
+									class="flex flex-row cursor-pointer flex-start p-4 items-center justify-between border-b"
+									v-for="section in childSections"
+									:key="section.title"
+									@click="openInfoModal(section)"
+								>
+									<div class="flex flex-row items-center gap-3 grow">
+										<FeatherIcon
+											:name="section.icon"
+											class="h-5 w-5 text-gray-500"
+										/>
+										<div class="text-base font-normal text-gray-800">
+											{{ section.title }}
+										</div>
+									</div>
+									<FeatherIcon
+										name="chevron-right"
+										class="h-5 w-5 text-gray-500"
+									/>
+								</div>
+							</div>
+						</div>
+
 						<!-- Settings -->
 						<div
 							class="flex flex-col gap-5 my-4 w-full"
@@ -116,8 +142,14 @@
 				:initial-breakpoint="1"
 				:breakpoints="[0, 1]"
 			>
+				<ProfileChildTableModal
+					v-if="selectedItem && selectedItem.childDoctype"
+					:title="selectedItem.title"
+					:rows="employeeDoc.doc?.[selectedItem.fieldname] || []"
+					:fields="childFields[selectedItem.childDoctype] || []"
+				/>
 				<ProfileInfoModal
-					v-if="selectedItem"
+					v-else-if="selectedItem"
 					:title="selectedItem.title"
 					:data="
 						selectedItem.fields.map((field) => {
@@ -138,7 +170,7 @@
 </template>
 
 <script setup>
-import { computed, inject, ref, watch, onMounted, onBeforeUnmount } from "vue"
+import { computed, inject, reactive, ref, watch, onMounted, onBeforeUnmount } from "vue"
 import { useRouter } from "vue-router"
 import { IonPage, IonContent } from "@ionic/vue"
 import { FeatherIcon, createDocumentResource, createResource, toast } from "frappe-ui"
@@ -147,6 +179,7 @@ import { showErrorAlert } from "@/utils/dialogs"
 import { formatCurrency } from "@/utils/formatters"
 
 import ProfileInfoModal from "@/components/ProfileInfoModal.vue"
+import ProfileChildTableModal from "@/components/ProfileChildTableModal.vue"
 
 import { arePushNotificationsEnabled } from "@/data/notifications"
 
@@ -213,6 +246,37 @@ const profileLinks = [
 		],
 	},
 ]
+
+// Child-table sections (rendered from the employee's own doc, read-only).
+// `fieldname` is the child table on Employee; `childDoctype` supplies field labels.
+const childSections = [
+	{
+		icon: "book",
+		title: __("Education"),
+		fieldname: "education",
+		childDoctype: "Employee Education",
+	},
+	{
+		icon: "briefcase",
+		title: __("Work Experience"),
+		fieldname: "external_work_history",
+		childDoctype: "Employee External Work History",
+	},
+]
+
+// childDoctype -> field meta (from hrms.api.get_doctype_fields), loaded once
+const childFields = reactive({})
+const loadChildFields = (doctype) => {
+	if (childFields[doctype]) return
+	createResource({
+		url: "hrms.api.get_doctype_fields",
+		params: { doctype },
+		auto: true,
+		onSuccess: (data) => {
+			childFields[doctype] = data
+		},
+	})
+}
 
 const isInfoModalOpen = ref(false)
 const selectedItem = ref(null)
@@ -293,6 +357,7 @@ const logout = async () => {
 
 
 onMounted(() => {
+	childSections.forEach((section) => loadChildFields(section.childDoctype))
 	socket.emit("doctype_subscribe", DOCTYPE)
 	socket.on("list_update", (data) => {
 		if (data.doctype === DOCTYPE && data.name === employee.data.name) {

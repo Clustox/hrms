@@ -61,6 +61,10 @@ def get_current_employee_info() -> dict:
 
 @frappe.whitelist()
 def get_all_employees() -> list[dict]:
+	# Clustox: ignore_permissions so the company directory / org chart still
+	# lists everyone even though the Employee doctype is record-scoped for
+	# self-service employees (see setup/permissions/apply_self_service.py).
+	# Only these 9 non-confidential fields are ever returned here.
 	return frappe.get_list(
 		"Employee",
 		fields=[
@@ -75,6 +79,7 @@ def get_all_employees() -> list[dict]:
 			"status",
 		],
 		limit=999999,
+		ignore_permissions=True,
 	)
 
 
