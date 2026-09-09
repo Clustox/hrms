@@ -109,13 +109,21 @@ def ensure_leave_period():
 
 
 def ensure_leave_policy():
-    if frappe.db.exists("Leave Policy", {"title": POLICY_NAME}):
-        return frappe.db.get_value("Leave Policy", {"title": POLICY_NAME}, "name"), False
+    # Leave Policy is submittable — it must be SUBMITTED (docstatus 1), not left
+    # in Draft, to be a valid active policy.
+    existing = frappe.db.get_value("Leave Policy", {"title": POLICY_NAME}, "name")
+    if existing:
+        doc = frappe.get_doc("Leave Policy", existing)
+        if doc.docstatus == 0:
+            doc.submit()  # self-heal a policy created in Draft by an older run
+            frappe.db.commit()
+        return existing, False
     doc = frappe.new_doc("Leave Policy")
     doc.title = POLICY_NAME
     for lt, alloc in POLICY_ALLOCATION.items():
         doc.append("leave_policy_details", {"leave_type": lt, "annual_allocation": alloc})
     doc.insert(ignore_permissions=True)
+    doc.submit()
     frappe.db.commit()
     return doc.name, True
 
@@ -203,8 +211,12 @@ def run():
         d = frappe.get_doc("Leave Type", lt)
         print(f"  {lt:20} max={d.max_leaves_allowed} cf={d.is_carry_forward} "
               f"maxcf={d.get('maximum_carry_forwarded_leaves')} after={d.applicable_after}")
-    print(f"  Leave Allocations now : {frappe.db.count('Leave Allocation')}")
-    print(f"  Policy Assignments now: {frappe.db.count('Leave Policy Assignment')}")
+    pol_ds = frappe.db.get_value("Leave Policy", policy, "docstatus")
+    print(f"  Leave Policy docstatus: {pol_ds} ({'Submitted' if pol_ds == 1 else 'DRAFT' if pol_ds == 0 else 'Cancelled'})")
+    print(f"  Leave Allocations now : {frappe.db.count('Leave Allocation')} "
+          f"(submitted {frappe.db.count('Leave Allocation', {'docstatus': 1})})")
+    print(f"  Policy Assignments now: {frappe.db.count('Leave Policy Assignment')} "
+          f"(submitted {frappe.db.count('Leave Policy Assignment', {'docstatus': 1})})")
     # sample one employee's balances
     sample = frappe.get_all("Leave Allocation",
                             filters={"docstatus": 1}, fields=["employee", "leave_type",
