@@ -167,6 +167,14 @@ override_doctype_class = {
 # Hook on document methods and events
 
 doc_events = {
+	# Clustox: Leave Policy v1.3 rule enforcement (see hrms/leave_rules.py)
+	"Leave Application": {
+		"validate": "hrms.leave_rules.validate_leave_application",
+		"before_submit": "hrms.leave_rules.validate_leave_application_on_submit",
+	},
+	"Leave Allocation": {
+		"validate": "hrms.leave_rules.cap_compensatory_off_expiry",
+	},
 	"User": {
 		"validate": [
 			"erpnext.setup.doctype.employee.employee.validate_employee_role",
