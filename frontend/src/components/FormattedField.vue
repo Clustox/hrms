@@ -5,7 +5,7 @@
 		v-else-if="props.fieldtype === 'Select'"
 		variant="outline"
 		:theme="colorMap[props.value]"
-		:label="__(props.value)"
+		:label="statusLabelMap[props.value] || __(props.value)"
 		size="md"
 	/>
 
@@ -64,6 +64,7 @@ import { Badge, FormControl, Input } from "frappe-ui"
 import EmployeeAvatar from "@/components/EmployeeAvatar.vue"
 
 const dayjs = inject("$dayjs")
+const __ = inject("$translate")
 
 const props = defineProps({
 	value: [String, Number, Boolean, Array, Object],
@@ -75,6 +76,14 @@ const colorMap = {
 	Approved: "green",
 	Rejected: "red",
 	Open: "orange",
+}
+
+// "Open" is Leave Application's real status value (used for queries/filters
+// elsewhere); "Pending" is only how it should read here. No other doctype
+// rendered through this shared field component has "Open" as an actual
+// status value, so this relabel is safe to apply unconditionally.
+const statusLabelMap = {
+	Open: __("Pending", null, "Leave Application"),
 }
 
 const getCoordinates = (value) => {

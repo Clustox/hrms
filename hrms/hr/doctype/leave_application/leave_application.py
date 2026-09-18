@@ -80,7 +80,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		color: DF.Color | None
 		company: DF.Link
 		department: DF.Link | None
-		description: DF.SmallText | None
+		description: DF.SmallText
 		employee: DF.Link
 		employee_name: DF.Data | None
 		follow_via_email: DF.Check
