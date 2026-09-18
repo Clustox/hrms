@@ -21,4 +21,47 @@ frappe.listview_settings["Leave Application"] = {
 			!doc.docstatus && ["Approved", "Rejected"].includes(doc.status) ? "Draft" : doc.status;
 		return [__(status), status_color[status], "status,=," + doc.status];
 	},
+	onload: function (listview) {
+		if (!listview.page.add_actions_menu_item) return;
+		listview.page.add_actions_menu_item(
+			__("Approve"),
+			() => bulk_set_leave_status(listview, "Approved"),
+			false
+		);
+		listview.page.add_actions_menu_item(
+			__("Reject"),
+			() => bulk_set_leave_status(listview, "Rejected"),
+			false
+		);
+	},
 };
+
+function bulk_set_leave_status(listview, status) {
+	const docnames = listview.get_checked_items(true);
+	if (!docnames.length) {
+		frappe.msgprint(__("Select at least one Leave Application"));
+		return;
+	}
+
+	frappe.confirm(
+		__("Set {0} selected Leave Application(s) to {1}?", [docnames.length, __(status)]),
+		() => {
+			frappe.call({
+				method: "hrms.hr.doctype.leave_application.leave_application.bulk_approve_or_reject",
+				args: { docnames, status },
+				freeze: true,
+				freeze_message: __("Updating..."),
+				callback: function (r) {
+					const failed = r.message?.failed || [];
+					if (failed.length) {
+						frappe.msgprint(
+							__("Could not update: {0}. See Error Log for details.", [failed.join(", ")])
+						);
+					}
+					listview.clear_checked_items();
+					listview.refresh();
+				},
+			});
+		}
+	);
+}

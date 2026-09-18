@@ -1626,3 +1626,41 @@ def validate_leave_access(employee):
 		not frappe.has_permission("Employee", "read", employee)
 	):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+
+@frappe.whitelist()
+def bulk_approve_or_reject(docnames: str | list[str], status: str) -> dict:
+	"""Set `status` and submit each of `docnames` -- the List View's bulk
+	"Approve"/"Reject" actions (see leave_application_list.js). Mirrors what
+	approving one from its own form does (set Status, then Submit): status
+	has to be set before submit() since on_submit() rejects anything still
+	"Pending"/"Cancelled". One failure doesn't stop the rest.
+
+	`docnames` arrives as a JSON-encoded string over frappe.call (the client
+	JSON.stringify's array args before POSTing; Frappe's typed-argument
+	validation does not auto-parse that back into list[str]) -- accept
+	either that or an already-decoded list, e.g. when called directly from
+	Python.
+	"""
+	docnames = frappe.parse_json(docnames)
+	if status not in ("Approved", "Rejected"):
+		frappe.throw(_("Status must be Approved or Rejected"))
+
+	succeeded, failed = [], []
+	for docname in docnames:
+		try:
+			doc = frappe.get_doc("Leave Application", docname)
+			doc.check_permission("write")
+			doc.status = status
+			doc.save()
+			if doc.docstatus == 0:
+				doc.submit()
+			succeeded.append(docname)
+		except Exception:
+			frappe.log_error(
+				title=f"Bulk {status.lower()} failed for Leave Application {docname}",
+				message=frappe.get_traceback(),
+			)
+			failed.append(docname)
+
+	return {"succeeded": succeeded, "failed": failed}
