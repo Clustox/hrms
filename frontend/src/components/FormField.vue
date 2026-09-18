@@ -208,12 +208,7 @@ const selectionList = computed(() => {
 	} else if (props.fieldtype == "Select" && props.options) {
 		const options = props.options.split("\n")
 		return options.map((option) => ({
-			// "Open" is Leave Application's real status value (used for
-			// queries/validate()/filters elsewhere) -- "Pending" is only how
-			// it should read here. Scoped to the "status" field specifically,
-			// not every Select field this same generic control renders,
-			// since no other doctype's status field uses "Open" as a value.
-			label: props.fieldname === "status" && option === "Open" ? __("Pending") : __(option),
+			label: __(option),
 			value: option,
 		}))
 	}

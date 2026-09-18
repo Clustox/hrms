@@ -357,7 +357,7 @@ def get_filters(
 				"Leave Application": "leave_approver",
 				"Expense Claim": "expense_approver",
 			}
-			filters.status = "Open" if doctype == "Leave Application" else "Draft"
+			filters.status = "Pending" if doctype == "Leave Application" else "Draft"
 			if approver_id:
 				filters[approver_field_map[doctype]] = approver_id
 	else:

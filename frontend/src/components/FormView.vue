@@ -27,7 +27,7 @@
 					/>
 					<Badge
 						v-if="status"
-						:label="statusLabel"
+						:label="__(status, null, doctype)"
 						:theme="statusColor"
 						class="whitespace-nowrap text-[8px]"
 					/>
@@ -424,17 +424,6 @@ const status = computed(() => {
 	return formModel.value.status || formModel.value.approval_status
 })
 
-// Leave Application's "Open" status reads as "Pending" to a user -- the real
-// value used for queries/validate()/filters is untouched, this only affects
-// this one doctype's display here (see also FormattedField.vue,
-// LeaveRequestItem.vue, leave_application_list.js for the other 3 places
-// this same doctype's status badge is independently rendered).
-const statusLabel = computed(() => {
-	if (props.doctype === "Leave Application" && status.value === "Open") {
-		return __("Pending", null, "Leave Application")
-	}
-	return __(status.value, null, props.doctype)
-})
 
 watch(
 	() => formModel.value,

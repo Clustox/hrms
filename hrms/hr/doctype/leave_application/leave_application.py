@@ -95,7 +95,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		naming_series: DF.Literal["HR-LAP-.YYYY.-"]
 		posting_date: DF.Date
 		salary_slip: DF.Link | None
-		status: DF.Literal["Open", "Approved", "Rejected", "Cancelled"]
+		status: DF.Literal["Pending", "Approved", "Rejected", "Cancelled"]
 		to_date: DF.Date
 		total_leave_days: DF.Float
 	# end: auto-generated types
@@ -126,7 +126,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		self.set_leave_approver_name()
 
 	def on_update(self):
-		if self.status == "Open" and self.docstatus < 1:
+		if self.status == "Pending" and self.docstatus < 1:
 			# notify leave approver about creation
 			if frappe.db.get_single_value("HR Settings", "send_leave_notification"):
 				self.notify_leave_approver()
@@ -136,7 +136,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		self.notify_approval_status()
 
 	def on_submit(self):
-		if self.status in ["Open", "Cancelled"]:
+		if self.status in ["Pending", "Cancelled"]:
 			frappe.throw(_("Only Leave Applications with status 'Approved' and 'Rejected' can be submitted"))
 
 		self.validate_back_dated_application()
@@ -522,7 +522,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 			.where(
 				(LeaveApplication.employee == self.employee)
 				& (LeaveApplication.docstatus < 2)
-				& (LeaveApplication.status.isin(["Open", "Approved"]))
+				& (LeaveApplication.status.isin(["Pending", "Approved"]))
 				& (LeaveApplication.to_date >= self.from_date)
 				& (LeaveApplication.from_date <= self.to_date)
 				& (LeaveApplication.name != self.name)
@@ -561,7 +561,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 			.where(
 				(LeaveApplication.employee == self.employee)
 				& (LeaveApplication.docstatus < 2)
-				& (LeaveApplication.status.isin(["Open", "Approved"]))
+				& (LeaveApplication.status.isin(["Pending", "Approved"]))
 				& (LeaveApplication.half_day == 1)
 				& (LeaveApplication.half_day_date == self.half_day_date)
 				& (LeaveApplication.name != self.name)
@@ -603,7 +603,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 					"leave_type": self.leave_type,
 					"to_date": prev_date,
 					"docstatus": ["!=", 2],
-					"status": ["in", ["Open", "Approved"]],
+					"status": ["in", ["Pending", "Approved"]],
 				},
 				["name", "from_date"],
 				as_dict=True,
@@ -623,7 +623,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 					"leave_type": self.leave_type,
 					"from_date": next_date,
 					"docstatus": ["!=", 2],
-					"status": ["in", ["Open", "Approved"]],
+					"status": ["in", ["Pending", "Approved"]],
 				},
 				["name", "to_date"],
 				as_dict=True,
@@ -1205,7 +1205,7 @@ def get_leaves_pending_approval_for_period(
 	"""Returns leaves that are pending for approval"""
 	leaves = frappe.get_all(
 		"Leave Application",
-		filters={"employee": employee, "leave_type": leave_type, "status": "Open"},
+		filters={"employee": employee, "leave_type": leave_type, "status": "Pending"},
 		or_filters={
 			"from_date": ["between", (from_date, to_date)],
 			"to_date": ["between", (from_date, to_date)],
@@ -1453,7 +1453,7 @@ def add_leaves(events, start, end, filters=None):
 		[
 			["from_date", "<=", getdate(end)],
 			["to_date", ">=", getdate(start)],
-			["status", "in", ["Approved", "Open"]],
+			["status", "in", ["Approved", "Pending"]],
 			["docstatus", "<", 2],
 		]
 	)

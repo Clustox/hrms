@@ -1031,7 +1031,7 @@ class TestLeaveApplication(HRMSTestSuite):
 			"_Test Leave Type",
 			submit=False,
 		)
-		leave_application.status = "Open"
+		leave_application.status = "Pending"
 		leave_application.save()
 
 		details = get_leave_details(employee.name, allocation.from_date)

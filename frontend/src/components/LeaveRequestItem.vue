@@ -18,14 +18,14 @@
 			</div>
 		</template>
 		<template #right>
-			<Badge variant="outline" :theme="colorMap[status]" :label="statusLabelMap[status] || __(status, null, 'Leave Application')" size="md" />
+			<Badge variant="outline" :theme="colorMap[status]" :label="__(status, null, 'Leave Application')" size="md" />
 			<FeatherIcon name="chevron-right" class="h-5 w-5 text-gray-500" />
 		</template>
 	</ListItem>
 </template>
 
 <script setup>
-import { computed, inject } from "vue"
+import { computed } from "vue"
 import { FeatherIcon, Badge } from "frappe-ui"
 
 import ListItem from "@/components/ListItem.vue"
@@ -53,15 +53,6 @@ const status = computed(() => {
 const colorMap = {
 	Approved: "green",
 	Rejected: "red",
-	Open: "orange",
-}
-
-// "Open" is the real status value used for queries/filters everywhere else;
-// "Pending" is only how it should read on this badge. `__` is a template
-// global here, not available in <script setup> -- inject "$translate"
-// instead, same as List.vue does for its own in-script translations.
-const __ = inject("$translate")
-const statusLabelMap = {
-	Open: __("Pending", null, "Leave Application"),
+	Pending: "orange",
 }
 </script>

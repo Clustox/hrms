@@ -171,13 +171,13 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "Open",
+   "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Open\nApproved\nRejected\nCancelled",
+   "options": "Pending\nApproved\nRejected\nCancelled",
    "permlevel": 1,
    "reqd": 1
   },
