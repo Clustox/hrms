@@ -6,14 +6,14 @@
 					<Button variant="ghost" class="!px-1 mr-1 hover:bg-white" @click="router.back()">
 						<FeatherIcon name="chevron-left" class="h-5 w-5" />
 					</Button>
-					<h2 class="text-xl font-semibold text-gray-900">{{ __("Employee Checkin History") }}</h2>
+					<h2 class="text-xl font-semibold text-gray-900">{{ __("Timesheet") }}</h2>
 				</div>
 			</div>
 		</ion-header>
 
 		<ion-content>
 			<div class="flex flex-col p-4 gap-5 w-full sm:w-96">
-				<!-- Month change, same pattern as the Timesheet view -->
+				<!-- Month change, same pattern as AttendanceCalendar -->
 				<div class="flex flex-row justify-between items-center px-1">
 					<Button
 						icon="chevron-left"
@@ -30,20 +30,21 @@
 					/>
 				</div>
 
-				<div class="flex flex-col gap-3" v-if="!checkinHistory.loading && checkinHistory.data?.length">
+				<div class="flex flex-col gap-3" v-if="!timesheet.loading && timesheet.data?.length">
 					<DayAttendanceCard
-						v-for="day in checkinHistory.data"
+						v-for="day in timesheet.data"
 						:key="day.attendance_date"
 						:date="day.attendance_date"
 						:inTime="day.in_time"
 						:outTime="day.out_time"
 						:workingHours="day.working_hours"
+						:status="day.status"
 					/>
 				</div>
 
-				<EmptyState :message="__('No checkins for this month')" v-else-if="!checkinHistory.loading" />
+				<EmptyState :message="__('No attendance records for this month')" v-else-if="!timesheet.loading" />
 
-				<div v-if="checkinHistory.loading" class="flex mt-2 items-center justify-center">
+				<div v-if="timesheet.loading" class="flex mt-2 items-center justify-center">
 					<LoadingIndicator class="w-8 h-8 text-gray-800" />
 				</div>
 			</div>
@@ -66,12 +67,14 @@ const router = useRouter()
 
 const firstOfMonth = ref(dayjs().date(1).startOf("D"))
 
-// One card per day (earliest IN, latest OUT), same layout as the Timesheet
-// view -- see hrms.api.get_employee_checkin_history. No status badge here:
-// unlike the Timesheet (sourced from Attendance), this is raw checkin logs
-// with no Attendance record backing them.
-const checkinHistory = createResource({
-	url: "hrms.api.get_employee_checkin_history",
+// Basic timesheet: Date / Check-in / Check-out / Worked Hours, sourced from
+// Attendance's own in_time/out_time/working_hours (see
+// hrms.api.get_attendance_timesheet) -- not re-derived from raw Employee
+// Checkin rows, and not the "Late/On Time/Overtime" breakdown some other
+// attendance tools show, which needs Shift Type timing that isn't set up
+// here yet.
+const timesheet = createResource({
+	url: "hrms.api.get_attendance_timesheet",
 	auto: true,
 	makeParams() {
 		return {
@@ -84,7 +87,7 @@ const checkinHistory = createResource({
 watch(
 	() => firstOfMonth.value,
 	() => {
-		checkinHistory.fetch()
+		timesheet.fetch()
 	}
 )
 </script>

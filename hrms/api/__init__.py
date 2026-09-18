@@ -165,6 +165,90 @@ def get_attendance_for_calendar(employee: str, from_date: str, to_date: str) -> 
 	return {d["attendance_date"]: d["status"] for d in attendance}
 
 
+@frappe.whitelist()
+def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
+	"""Per-day check-in/check-out/worked-hours for the current employee --
+	the "basic" timesheet view (Date, Check-in, Check-out, Worked Hours),
+	built primarily from Attendance's own in_time/out_time/working_hours
+	rather than re-deriving them from raw Employee Checkin rows.
+
+	A day can have checkins but no Attendance record at all -- nothing on
+	this site auto-creates one from a checkin (that needs a Shift Type with
+	auto-attendance configured, which isn't set up), so e.g. forgetting to
+	check out just means no Attendance record ever gets made for that day.
+	Those days are merged in from get_employee_checkin_history's grouping so
+	they still show up here, just with `status: None` (no badge) instead of
+	silently vanishing from the timesheet.
+	"""
+	employee = get_current_employee()
+	attendance_by_date = {
+		d["attendance_date"].isoformat(): d
+		for d in frappe.get_all(
+			"Attendance",
+			filters={
+				"employee": employee,
+				"attendance_date": ["between", [from_date, to_date]],
+				"docstatus": 1,
+			},
+			fields=["attendance_date", "status", "in_time", "out_time", "working_hours"],
+		)
+	}
+
+	rows = dict(attendance_by_date)
+	for checkin_day in _group_checkins_by_day(employee, from_date, to_date):
+		date_str = checkin_day["attendance_date"]
+		if date_str not in rows:
+			rows[date_str] = {**checkin_day, "status": None}
+
+	return sorted(rows.values(), key=lambda r: str(r["attendance_date"]), reverse=True)
+
+
+@frappe.whitelist()
+def get_employee_checkin_history(from_date: str, to_date: str) -> list[dict]:
+	"""Raw Employee Checkin logs for the current employee, grouped into one
+	row per day (earliest IN, latest OUT) for the same day-card display as
+	get_attendance_timesheet -- unlike that one, this has no `status` (no
+	Attendance record involved) and computes working_hours directly from the
+	two timestamps rather than reading it off a submitted Attendance doc.
+	"""
+	employee = get_current_employee()
+	return _group_checkins_by_day(employee, from_date, to_date)
+
+
+def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[dict]:
+	logs = frappe.get_all(
+		"Employee Checkin",
+		filters={"employee": employee, "time": ["between", [from_date, f"{to_date} 23:59:59"]]},
+		fields=["log_type", "time"],
+		order_by="time asc",
+	)
+
+	days = {}
+	for log in logs:
+		day = days.setdefault(getdate(log.time).isoformat(), {"in_time": None, "out_time": None})
+		if log.log_type == "IN" and not day["in_time"]:
+			day["in_time"] = log.time  # first IN of the day
+		elif log.log_type == "OUT":
+			day["out_time"] = log.time  # last OUT of the day (logs are time-ascending)
+
+	rows = []
+	for date_str, times in days.items():
+		working_hours = None
+		if times["in_time"] and times["out_time"]:
+			working_hours = round((times["out_time"] - times["in_time"]).total_seconds() / 3600, 2)
+		rows.append(
+			{
+				"attendance_date": date_str,
+				"in_time": times["in_time"],
+				"out_time": times["out_time"],
+				"working_hours": working_hours,
+			}
+		)
+
+	rows.sort(key=lambda r: r["attendance_date"], reverse=True)
+	return rows
+
+
 def get_holidays_for_calendar(employee: str, from_date: str, to_date: str) -> list[str]:
 	if holiday_list := get_holiday_list_for_employee(employee, raise_exception=False):
 		return frappe.get_all(
