@@ -18,9 +18,20 @@ pipeline {
                 // overridden because the image's baked-in /tmp/.scannerwork is owned by
                 // uid 1000 and unwritable under -u; putting it in the mounted workspace
                 // also lands report-task.txt where waitForQualityGate looks for it.
+                //
+                // --network=host: this agent's default Docker bridge network can't
+                // resolve external DNS reliably since the box's firewalld migration,
+                // so the scanner container intermittently can't reach
+                // sonar.theclustox.com at all ("Failed to query server version...
+                // failed: null"), hard-failing the whole build since this stage isn't
+                // wrapped in catchError. Same recurring cause and fix already applied
+                // in be-automation's Jenkinsfile (Build image / Generate specs /
+                // SonarQube Analysis stages) -- the server itself is reachable and
+                // healthy, this is always the container's network, not the server.
                 withSonarQubeEnv('MySonarQube') {
                     sh '''
                       docker run --rm \
+                        --network=host \
                         -u "$(id -u):$(id -g)" \
                         -e SONAR_HOST_URL="$SONAR_HOST_URL" \
                         -e SONAR_TOKEN="$SONAR_AUTH_TOKEN" \
