@@ -31,3 +31,19 @@ services:
 volumes:
   mariadb-data:
   frappe-bench:
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      # Fixed bridge interface name (instead of Docker's default random
+      # br-<network-id-hash>). Without this, every `docker compose down`
+      # (which deletes the network) + `up` (which recreates it) gets a new
+      # bridge name, and firewalld only trusts bridges explicitly listed by
+      # name in the "trusted" zone -- a freshly-named bridge lands in the
+      # default "public" zone, which default-denies inter-container
+      # forwarding and breaks Frappe -> Redis/MariaDB connectivity
+      # (EHOSTUNREACH). A fixed name lets a one-time firewalld trust rule
+      # (`firewall-cmd --permanent --zone=trusted --add-interface=br-hrms-dev`)
+      # survive every redeploy instead of needing to be re-applied each time.
+      com.docker.network.bridge.name: br-hrms-dev
