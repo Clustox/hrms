@@ -24,6 +24,28 @@ services:
     volumes:
       - .:/workspace
       - frappe-bench:/home/frappe
+      # Bind-mount the actual Clustox/hrms checkout over the bench's
+      # apps/hrms. Without this, `bench get-app hrms` (no URL given, in
+      # init.sh's from-scratch path) resolves the bare app name through
+      # Frappe's app registry to plain upstream https://github.com/frappe/hrms
+      # -- not this repo -- so the site had been running an unrelated
+      # upstream clone with ad-hoc hand-edits layered on top, completely
+      # disconnected from CI/this repo's `develop`. This makes the checkout
+      # itself the running app: `git pull` here + a container restart is a
+      # real deploy, and Jenkins's Sonar/quality-gate scan now covers the
+      # code that's actually live. See docs/runbook.md 2026-09-22 entries.
+      # Hardcoded to this host's path, matching the Jenkinsfile's existing
+      # COMPOSE_FILE convention (this whole file is already host-specific).
+      - /opt/app/hrms:/home/frappe/frappe-bench/apps/hrms
+    # frappe/bench's container user is uid/gid 1000:1000. /opt/app/hrms on
+    # the host is root:hrms (gid 1010, see `getent group hrms`), rw for
+    # owner+group -- without also being in that group, uid 1000 can read
+    # the mount (traversable, world-readable files) but can't write, which
+    # breaks `bench build`/asset generation and anything else that writes
+    # into the app tree. Adding gid 1010 as a supplementary group is
+    # narrower than chmod'ing the repo world-writable on the host.
+    group_add:
+      - "1010"
     ports:
       - 8000:8000
       - 9000:9000
