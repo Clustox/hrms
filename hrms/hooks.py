@@ -9,6 +9,27 @@ source_link = "http://github.com/frappe/hrms"
 app_logo_url = "/assets/hrms/images/frappe-hr-logo.svg"
 app_home = "/desk/hr-setup"
 
+# Clustox customization: Pakistan-specific Employee fields, shipped as fixtures
+# so every deployment (dev/test/prod) has them without running a setup script.
+fixtures = [
+	{
+		"doctype": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Employee-custom_cnic_no",
+					"Employee-custom_cnic_expiry_date",
+					"Employee-custom_father_or_husband_name",
+					"Employee-custom_religion",
+					"Employee-custom_nationality",
+				],
+			]
+		],
+	},
+]
+
 add_to_apps_screen = [
 	{
 		"name": "hrms",
