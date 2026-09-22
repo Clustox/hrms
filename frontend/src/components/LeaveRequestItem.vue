@@ -53,6 +53,6 @@ const status = computed(() => {
 const colorMap = {
 	Approved: "green",
 	Rejected: "red",
-	Open: "orange",
+	Pending: "orange",
 }
 </script>

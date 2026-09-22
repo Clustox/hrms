@@ -4,6 +4,13 @@
 			<div class="flex flex-col mt-7 mb-7 p-4 gap-7">
 				<AttendanceCalendar />
 				<div class="w-full">
+					<router-link :to="{ name: 'TimesheetView' }" v-slot="{ navigate }">
+						<Button @click="navigate" variant="outline" class="w-full py-5 text-base">
+							{{ __("View Timesheet") }}
+						</Button>
+					</router-link>
+				</div>
+				<div class="w-full">
 					<router-link :to="{ name: 'AttendanceRequestFormView' }" v-slot="{ navigate }">
 						<Button @click="navigate" variant="solid" class="w-full py-5 text-base">
 							{{ __("Request Attendance") }}
