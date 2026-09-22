@@ -58,7 +58,14 @@ services:
       - "1010"
     ports:
       - 8000:8000
-      - 9000:9000
+      # Loopback-only: an nginx stream{} block now owns the public-facing
+      # 9000 (TLS-terminated, reusing the frappe.theclustox.com cert) and
+      # proxies plaintext to this loopback port. Needed because Frappe's
+      # dev-server socket.io client always connects directly to
+      # <host>:<socketio_port> (window.dev_server=1 under `bench serve`),
+      # which can't be a raw unencrypted port exposed to the internet.
+      # See docs/runbook.md, 2026-09-22.
+      - 127.0.0.1:9000:9000
 
 volumes:
   mariadb-data:
