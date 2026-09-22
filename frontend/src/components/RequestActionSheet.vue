@@ -81,7 +81,7 @@
 		/>
 
 		<div
-			v-else-if="['Open', 'Draft'].includes(document?.doc?.[approvalField]) && hasPermission('approval')"
+			v-else-if="['Pending', 'Draft'].includes(document?.doc?.[approvalField]) && hasPermission('approval')"
 			class="flex w-full flex-row items-center justify-between gap-3 sticky bottom-0 border-t z-[100] p-4"
 		>
 			<Button

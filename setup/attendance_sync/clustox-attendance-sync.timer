@@ -1,0 +1,13 @@
+# /etc/systemd/system/clustox-attendance-sync.timer
+# Fires the sync every 15 minutes. Enable with:
+#   sudo systemctl enable --now clustox-attendance-sync.timer
+[Unit]
+Description=Run Clustox attendance sync every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Unit=clustox-attendance-sync.service
+
+[Install]
+WantedBy=timers.target

@@ -68,6 +68,16 @@ const formFields = createResource({
 
 			if (field.fieldname === "posting_date") field.default = today
 
+			// This field only ever renders for an *existing* application (new
+			// ones exclude it entirely, see getFilteredFields) -- as an open,
+			// full-company search box it lets a viewer pick a different name
+			// while looking like nothing happens, since validateForm() always
+			// forces `employee` back to the session user's own record before
+			// save regardless of what's shown here. Read-only so it's just
+			// what it actually is: whose application this is, not a field
+			// anyone -- applicant or approver -- should be reassigning.
+			if (field.fieldname === "employee") field.read_only = true
+
 			return field
 		})
 	},

@@ -216,8 +216,55 @@ function notify_assignment_created(action, doc) {
 	});
 }
 
+// Connection-list item labels come straight from the linked doctype's own
+// name (see frappe/public/js/frappe/form/templates/form_links.html --
+// `{{ __(doctype) }}`, no per-item override), and the dashboard section
+// they live in can re-render (e.g. on tab switches) after our first pass,
+// so relabelling one item means finding it again whenever it (re)appears
+// rather than a single one-time DOM edit.
+function relabel_connection(frm, doctype, label) {
+	// Not `frm.dashboard.wrapper` -- FormDashboard has no such property.
+	// `transactions_area` is the actual (pre-existing, if not yet attached)
+	// container form_links.html's markup gets appended into.
+	const container = frm.dashboard && frm.dashboard.transactions_area && frm.dashboard.transactions_area[0];
+	if (!container) return;
+
+	const apply = () => {
+		const el = container.querySelector(`.document-link[data-doctype="${doctype}"] .badge-link`);
+		if (el && el.textContent !== label) el.textContent = label;
+	};
+
+	apply();
+	if (frm.__connection_relabel_observer) return;
+	frm.__connection_relabel_observer = new MutationObserver(apply);
+	frm.__connection_relabel_observer.observe(container, { childList: true, subtree: true });
+}
+
 frappe.ui.form.on("Employee", {
 	refresh: function (frm) {
+		// Restrict the Gender dropdown to Male/Female/Other -- a filter here
+		// rather than deleting the other Gender master records, so this only
+		// hides them from selection and stays trivially reversible.
+		frm.set_query("gender", function () {
+			return {
+				filters: {
+					name: ["in", ["Male", "Female", "Other"]],
+				},
+			};
+		});
+		// only_select drops "Create a new Gender" and "Advanced Search" from
+		// the dropdown, but frappe's ControlLink always appends a "Filtered
+		// by: ..." hint line whenever a query filter is active regardless of
+		// only_select (see frappe/public/js/frappe/form/controls/link.js) --
+		// there's no df flag for that, so silence it directly on this one
+		// field's control instance rather than patching frappe core.
+		frm.set_df_property("gender", "only_select", 1);
+		const gender_control = frm.get_field("gender");
+		if (gender_control) gender_control.get_filter_description = async () => null;
+
+		frm.set_df_property("notice_number_of_days", "label", __("Notice Period (days)"));
+		relabel_connection(frm, "Employee Checkin", __("Employee Logs"));
+
 		frm.set_query("payroll_cost_center", function () {
 			return {
 				filters: {

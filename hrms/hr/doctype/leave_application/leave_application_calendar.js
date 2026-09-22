@@ -4,7 +4,7 @@
 const HIDDEN_QUICK_ENTRY_FIELDS = ["status", "posting_date", "naming_series"];
 
 function set_hidden_defaults(quick_entry) {
-	quick_entry.doc.status = quick_entry.doc.status || "Open";
+	quick_entry.doc.status = quick_entry.doc.status || "Pending";
 	quick_entry.doc.posting_date = quick_entry.doc.posting_date || frappe.datetime.get_today();
 
 	const naming_series_field = quick_entry.get_field("naming_series");

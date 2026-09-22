@@ -64,6 +64,7 @@ import { Badge, FormControl, Input } from "frappe-ui"
 import EmployeeAvatar from "@/components/EmployeeAvatar.vue"
 
 const dayjs = inject("$dayjs")
+const __ = inject("$translate")
 
 const props = defineProps({
 	value: [String, Number, Boolean, Array, Object],
@@ -74,7 +75,7 @@ const props = defineProps({
 const colorMap = {
 	Approved: "green",
 	Rejected: "red",
-	Open: "orange",
+	Pending: "orange",
 }
 
 const getCoordinates = (value) => {

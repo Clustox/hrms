@@ -27,7 +27,7 @@ const LEAVE_FIELDS = [
 	"total_leave_days",
 	"status",
 ]
-const STATUS_FILTER_OPTIONS = ["Open", "Approved", "Rejected"] // __("Open"), __("Approved"), __("Rejected")
+const STATUS_FILTER_OPTIONS = ["Pending", "Approved", "Rejected"] // __("Pending"), __("Approved"), __("Rejected")
 const FILTER_CONFIG = [
 	{
 		fieldname: "status",

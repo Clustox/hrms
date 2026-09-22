@@ -9,6 +9,27 @@ source_link = "http://github.com/frappe/hrms"
 app_logo_url = "/assets/hrms/images/frappe-hr-logo.svg"
 app_home = "/desk/hr-setup"
 
+# Clustox customization: Pakistan-specific Employee fields, shipped as fixtures
+# so every deployment (dev/test/prod) has them without running a setup script.
+fixtures = [
+	{
+		"doctype": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Employee-custom_cnic_no",
+					"Employee-custom_cnic_expiry_date",
+					"Employee-custom_father_or_husband_name",
+					"Employee-custom_religion",
+					"Employee-custom_nationality",
+				],
+			]
+		],
+	},
+]
+
 add_to_apps_screen = [
 	{
 		"name": "hrms",
@@ -71,6 +92,13 @@ doctype_js = {
 # role_home_page = {
 # 	"Role": "home_page"
 # }
+
+# Clustox: self-service employees resolve to the /hrms PWA on a bare /login.
+# app_home stays "/desk/hr-setup" so the "Frappe HR" app tile opens the HR admin
+# desk workspace for staff; employees primarily enter via /hrms/login.
+role_home_page = {
+	"Employee Self Service": "hrms",
+}
 
 calendars = ["Leave Application"]
 
@@ -167,6 +195,14 @@ override_doctype_class = {
 # Hook on document methods and events
 
 doc_events = {
+	# Clustox: Leave Policy v1.3 rule enforcement (see hrms/leave_rules.py)
+	"Leave Application": {
+		"validate": "hrms.leave_rules.validate_leave_application",
+		"before_submit": "hrms.leave_rules.validate_leave_application_on_submit",
+	},
+	"Leave Allocation": {
+		"validate": "hrms.leave_rules.cap_compensatory_off_expiry",
+	},
 	"User": {
 		"validate": [
 			"erpnext.setup.doctype.employee.employee.validate_employee_role",
@@ -251,6 +287,7 @@ doc_events = {
 scheduler_events = {
 	"all": [
 		"hrms.hr.doctype.interview.interview.send_interview_reminder",
+		"hrms.helpdesk_router.route_tickets",
 	],
 	"hourly": [
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.trigger_emails",

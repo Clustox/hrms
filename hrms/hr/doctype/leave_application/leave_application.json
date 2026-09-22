@@ -105,14 +105,14 @@
    "fieldname": "from_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "From Date",
+   "label": "Start Date",
    "reqd": 1,
    "search_index": 1
   },
   {
    "fieldname": "to_date",
    "fieldtype": "Date",
-   "label": "To Date",
+   "label": "End Date",
    "reqd": 1,
    "search_index": 1
   },
@@ -146,7 +146,8 @@
   {
    "fieldname": "description",
    "fieldtype": "Small Text",
-   "label": "Reason"
+   "label": "Reason",
+   "reqd": 1
   },
   {
    "fieldname": "section_break_7",
@@ -170,13 +171,13 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "Open",
+   "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Open\nApproved\nRejected\nCancelled",
+   "options": "Pending\nApproved\nRejected\nCancelled",
    "permlevel": 1,
    "reqd": 1
   },
