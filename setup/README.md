@@ -32,6 +32,9 @@ into `apps/hrms/hrms/` and run with `bench --site <site> execute hrms.<module>.r
    (Holiday List + flexible Shift), `add_holidays.py` (public holidays),
    `backfill_august.py` (one-time attendance backfill from a punch export).
 4. **attendance_sync/** — the live device→Frappe sync service. See its README.
+5. **permissions/** — the full RBAC model: roles, DocType rights matrix, field-level
+   confidentiality, employee record scoping, role assignment, and role cleanup.
+   See its README for run order. Safe to run on a site that already has data.
 
 ## Production checklist (before real data)
 
