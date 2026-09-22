@@ -56,11 +56,14 @@ export const leaveBalance = createResource({
 	auto: true,
 	cache: "hrms:leave_balance",
 	transform: (data) => {
-		// Calculate balance percentage for each leave type
+		// Calculate balance/availed percentage for each leave type. Availed
+		// isn't in the API response -- it's just allocated minus remaining,
+		// cheaper to derive here than add another field server-side.
 		return Object.fromEntries(
 			Object.entries(data).map(([leave_type, allocation]) => {
 				allocation.balance_percentage =
 					(allocation.balance_leaves / allocation.allocated_leaves) * 100
+				allocation.availed_leaves = allocation.allocated_leaves - allocation.balance_leaves
 				return [leave_type, allocation]
 			})
 		)
