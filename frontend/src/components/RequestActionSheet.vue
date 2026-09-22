@@ -301,35 +301,82 @@ const getFailureMessage = ({ status = "", docstatus = 0 }) => {
 	}
 }
 
-const updateDocumentStatus = ({ status = "", docstatus = 0 }) => {
-	let updateValues = {}
+// frappe.client.set_value refuses to touch docstatus -- it's one of
+// Frappe's protected "default fields" and gets silently stripped from
+// the payload before saving. Sent alone (a plain Submit/Cancel tap) that
+// leaves nothing to save and the call throws "Cannot edit standard
+// fields"; sent alongside other fields it's just dropped with no error,
+// so the document quietly never actually submits. Either way docstatus
+// needs its own dedicated call.
+const submitDocument = createResource({ url: "frappe.client.submit" })
+const cancelDocument = createResource({ url: "frappe.client.cancel" })
 
-	if (status) updateValues[approvalField.value] = status
-	if (docstatus) updateValues.docstatus = docstatus
+const notifyResult = (success, { status, docstatus }) => {
+	if (success) {
+		modalController.dismiss()
+		toast({
+			title: __("Success"),
+			text: getSuccessMessage({ status, docstatus }),
+			icon: "check-circle",
+			position: "bottom-center",
+			iconClasses: "text-green-500",
+		})
+	} else {
+		toast({
+			title: __("Error"),
+			text: getFailureMessage({ status, docstatus }),
+			icon: "alert-circle",
+			position: "bottom-center",
+			iconClasses: "text-red-500",
+		})
+	}
+}
 
-	document.setValue.submit(
-		{ ...updateValues },
+const submitAfterApproval = (status) => {
+	submitDocument.submit(
+		{ doc: document.doc },
 		{
-			onSuccess() {
-				if (docstatus !== 0) modalController.dismiss()
+			onSuccess: () => notifyResult(true, { status }),
+			onError: () => notifyResult(false, { status }),
+		}
+	)
+}
 
-				toast({
-					title: __("Success"),
-					text: getSuccessMessage({ status, docstatus }),
-					icon: "check-circle",
-					position: "bottom-center",
-					iconClasses: "text-green-500",
-				})
-			},
-			onError() {
-				toast({
-					title: __("Error"),
-					text: getFailureMessage({ status, docstatus }),
-					icon: "alert-circle",
-					position: "bottom-center",
-					iconClasses: "text-red-500",
-				})
-			},
+const updateDocumentStatus = ({ status = "", docstatus = 0 }) => {
+	if (docstatus === 2) {
+		cancelDocument.submit(
+			{ doctype: document.doctype, name: document.name },
+			{
+				onSuccess: () => notifyResult(true, { docstatus }),
+				onError: () => notifyResult(false, { docstatus }),
+			}
+		)
+		return
+	}
+
+	if (docstatus === 1) {
+		// plain Submit tap, no status change alongside it (Attendance
+		// Request, or the fallback button if auto-submit below ever fails)
+		submitDocument.submit(
+			{ doc: document.doc },
+			{
+				onSuccess: () => notifyResult(true, { docstatus }),
+				onError: () => notifyResult(false, { docstatus }),
+			}
+		)
+		return
+	}
+
+	// Approve/Reject: set the status, then submit in the same action --
+	// matches how Desk's own bulk approve/reject does it (see
+	// leave_application.py's bulk_approve_or_reject), and means approving
+	// actually finalizes the document instead of leaving it stuck at
+	// docstatus 0 waiting on a second, separate Submit tap.
+	document.setValue.submit(
+		{ [approvalField.value]: status },
+		{
+			onSuccess: () => submitAfterApproval(status),
+			onError: () => notifyResult(false, { status }),
 		}
 	)
 }
