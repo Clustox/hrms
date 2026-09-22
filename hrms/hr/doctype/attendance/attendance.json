@@ -78,6 +78,7 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "working_hours",
    "fieldname": "working_hours",
    "fieldtype": "Float",
@@ -195,18 +196,16 @@
    "label": "Details"
   },
   {
-   "depends_on": "shift",
+   "allow_on_submit": 1,
    "fieldname": "in_time",
    "fieldtype": "Datetime",
-   "label": "In Time",
-   "read_only": 1
+   "label": "Check-in"
   },
   {
-   "depends_on": "shift",
+   "allow_on_submit": 1,
    "fieldname": "out_time",
    "fieldtype": "Datetime",
-   "label": "Out Time",
-   "read_only": 1
+   "label": "Check-out"
   },
   {
    "fieldname": "column_break_18",

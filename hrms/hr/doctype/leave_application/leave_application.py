@@ -92,6 +92,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		leave_balance: DF.Float
 		leave_type: DF.Link
 		letter_head: DF.Link | None
+		medical_certificate: DF.Attach | None
 		naming_series: DF.Literal["HR-LAP-.YYYY.-"]
 		posting_date: DF.Date
 		salary_slip: DF.Link | None
@@ -111,6 +112,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		set_employee_name(self)
 		self.validate_dates()
 		self.validate_balance_leaves()
+		self.validate_medical_certificate()
 		self.validate_leave_overlap()
 		self.validate_max_days()
 		self.show_block_day_warning()
@@ -475,6 +477,37 @@ class LeaveApplication(Document, PWANotificationsMixin):
 					leave_balance_for_consumption < self.total_leave_days or not leave_balance_for_consumption
 				):
 					self.show_insufficient_balance_message(leave_balance_for_consumption)
+
+	def validate_medical_certificate(self):
+		# mandatory_depends_on (see the JSON) only gets evaluated by the Desk
+		# form's JS -- there's no server-side equivalent in Frappe core, so
+		# without this explicit check any other client (the mobile app, a
+		# direct API call) could insert/submit past it entirely.
+		#
+		# Only enforced at submit (docstatus == 1), not on an ordinary draft
+		# save: the mobile app's file picker uploads to the document's
+		# generic Attachments *after* the document is first created as a
+		# draft (it needs a name to attach to), so blocking at insert-time
+		# would make it impossible to ever attach anything at all. Accepts
+		# any attached file, not just the medical_certificate field, since
+		# that's the only mechanism the mobile app's uploader actually uses.
+		if (
+			self.docstatus == 1
+			and self.leave_type == "Sick Leave"
+			and self.total_leave_days > 2
+			and not self.medical_certificate
+			and not self.has_attachment()
+		):
+			frappe.throw(
+				_("Medical Certificate is required for Sick Leave applications of more than 2 days.")
+			)
+
+	def has_attachment(self) -> bool:
+		if not self.name:
+			return False
+		return bool(
+			frappe.db.exists("File", {"attached_to_doctype": self.doctype, "attached_to_name": self.name})
+		)
 
 	def show_insufficient_balance_message(self, leave_balance_for_consumption: float) -> None:
 		alloc_on_from_date, alloc_on_to_date = self.get_allocation_based_on_application_dates()

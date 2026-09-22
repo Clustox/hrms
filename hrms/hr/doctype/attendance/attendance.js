@@ -57,4 +57,33 @@ frappe.ui.form.on("Attendance", {
 			},
 		});
 	},
+
+	// Check-in/Check-out are a manual HR correction for a missed punch (see
+	// the "Details" section) -- both fields, and Working Hours below, are
+	// allow_on_submit so this also works on an already-submitted
+	// Attendance, not just a draft. Working Hours is derived from both,
+	// not separately typed in, so recompute it whenever either changes.
+	in_time(frm) {
+		frm.trigger("calculate_working_hours");
+	},
+
+	out_time(frm) {
+		frm.trigger("calculate_working_hours");
+	},
+
+	calculate_working_hours(frm) {
+		if (!frm.doc.in_time || !frm.doc.out_time) return;
+
+		const in_time = frappe.datetime.str_to_obj(frm.doc.in_time);
+		const out_time = frappe.datetime.str_to_obj(frm.doc.out_time);
+
+		if (out_time <= in_time) {
+			frappe.msgprint(__("Check-out must be after Check-in."));
+			frm.set_value("out_time", "");
+			return;
+		}
+
+		const hours = (out_time - in_time) / (1000 * 60 * 60);
+		frm.set_value("working_hours", Math.round(hours * 100) / 100);
+	},
 });
