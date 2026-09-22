@@ -85,6 +85,16 @@ class Attendance(Document):
 		self.validate_overlapping_shift_attendance()
 		self.validate_employee_status()
 		self.check_leave_record()
+		self.validate_check_in_out()
+
+	def validate_check_in_out(self):
+		# Client-side (attendance.js) already blocks this and recomputes
+		# working_hours -- this is the server-side backstop for anything that
+		# bypasses the form (API, bulk import), and for edits to an
+		# already-submitted Attendance (in_time/out_time/working_hours are
+		# allow_on_submit, and validate() runs again on that update too).
+		if self.in_time and self.out_time and get_datetime(self.out_time) <= get_datetime(self.in_time):
+			frappe.throw(_("Check-out must be after Check-in."))
 
 	def on_cancel(self):
 		self.unlink_attendance_from_checkins()
