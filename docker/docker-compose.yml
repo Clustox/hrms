@@ -24,19 +24,29 @@ services:
     volumes:
       - .:/workspace
       - frappe-bench:/home/frappe
-      # Bind-mount the actual Clustox/hrms checkout over the bench's
-      # apps/hrms. Without this, `bench get-app hrms` (no URL given, in
-      # init.sh's from-scratch path) resolves the bare app name through
-      # Frappe's app registry to plain upstream https://github.com/frappe/hrms
-      # -- not this repo -- so the site had been running an unrelated
-      # upstream clone with ad-hoc hand-edits layered on top, completely
-      # disconnected from CI/this repo's `develop`. This makes the checkout
-      # itself the running app: `git pull` here + a container restart is a
-      # real deploy, and Jenkins's Sonar/quality-gate scan now covers the
-      # code that's actually live. See docs/runbook.md 2026-09-22 entries.
+      # Mount the actual Clustox/hrms checkout at a SIBLING path -- NOT
+      # directly onto frappe-bench/apps/hrms. init.sh symlinks it into
+      # place instead (see below). Mounting directly onto apps/hrms was
+      # tried first and reverted: Docker pre-creates that nested mount
+      # point before the container's command ever runs, so on a genuinely
+      # fresh `frappe-bench` volume `bench init` finds a non-empty target
+      # and refuses ("Bench instance already exists"), breaking disaster
+      # recovery. Verified in a disposable sandbox on this host. See
+      # docs/runbook.md 2026-09-22 entries for the full story.
+      #
+      # Without this checkout in the picture at all, `bench get-app hrms`
+      # (no URL given, in init.sh's from-scratch path) resolves the bare
+      # app name through Frappe's app registry to plain upstream
+      # https://github.com/frappe/hrms -- not this repo -- so the site had
+      # been running an unrelated upstream clone with ad-hoc hand-edits
+      # layered on top, completely disconnected from CI/this repo's
+      # `develop`. This makes the checkout itself the running app: `git
+      # pull` here + a container restart is a real deploy, and Jenkins's
+      # Sonar/quality-gate scan now covers the code that's actually live.
+      #
       # Hardcoded to this host's path, matching the Jenkinsfile's existing
       # COMPOSE_FILE convention (this whole file is already host-specific).
-      - /opt/app/hrms:/home/frappe/frappe-bench/apps/hrms
+      - /opt/app/hrms:/opt/hrms-src
     # frappe/bench's container user is uid/gid 1000:1000. /opt/app/hrms on
     # the host is root:hrms (gid 1010, see `getent group hrms`), rw for
     # owner+group -- without also being in that group, uid 1000 can read
