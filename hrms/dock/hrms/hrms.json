@@ -1,0 +1,23 @@
+{
+ "app": "hrms",
+ "creation": "2026-08-26 20:00:00",
+ "docstatus": 0,
+ "doctype": "Dock",
+ "idx": 0,
+ "items": [
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "milestone",
+   "link_to": "Shift & Attendance",
+   "link_type": "Sidebar",
+   "title": "Shift & Attendance"
+  }
+ ],
+ "modified": "2026-08-26 20:00:00",
+ "modified_by": "Administrator",
+ "name": "hrms",
+ "owner": "Administrator",
+ "standard": 1,
+ "user": ""
+}
