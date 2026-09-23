@@ -11,11 +11,12 @@ git config --global --add safe.directory /opt/hrms-src
 if [ -d "/home/frappe/frappe-bench/apps/frappe" ]; then
     echo "Bench already exists, skipping init"
     cd frappe-bench
-    # Make apps/hrms point at the mounted Clustox checkout, not whatever
-    # was here before (a stale get-app clone, or nothing yet). Safe to
-    # redo on every start -- it's a symlink swap, not a rebuild.
-    rm -rf apps/hrms
-    ln -sfn /opt/hrms-src apps/hrms
+    # apps/hrms is already a live bind-mount of the Clustox checkout
+    # (see docker-compose.yml's volumes: /opt/app/hrms -> .../apps/hrms
+    # on a real deploy host) -- nothing to swap here. This used to also
+    # rm -rf apps/hrms + symlink it from /opt/hrms-src, which both
+    # duplicated what the bind-mount already does AND pointed at a path
+    # nothing actually provides, destroying apps/hrms on every restart.
     # Bind dev server to all interfaces so Docker's published port is reachable
     sed -i 's|^web:.*bench serve.*|web: bench serve --port 8000 --host 0.0.0.0|' ./Procfile
     exec bench start
