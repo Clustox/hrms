@@ -1,3 +1,10 @@
 HR
 Payroll
 Shift and Attendance
+Leaves
+Performance
+Expenses
+Recruitment
+Tax and Benefits
+Tenure
+HR Setup
