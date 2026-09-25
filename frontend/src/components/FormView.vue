@@ -663,19 +663,36 @@ function validateMandatoryFields() {
 	}
 }
 
+// frappe.client.set_value (what documentResource.setValue calls) refuses
+// to touch docstatus -- it's one of Frappe's protected "default fields"
+// and gets silently stripped from the payload before saving. Riding
+// along with the rest of the form model like below, that's dropped with
+// no error at all: the save looks like it succeeded, but the document
+// never actually submits/cancels. Needs its own dedicated call.
+const submitDocument = createResource({ url: "frappe.client.submit" })
+const cancelDocument = createResource({ url: "frappe.client.cancel" })
+
 async function handleDocUpdate(action) {
 	if (documentResource.doc) {
 		let params = { ...formModel.value }
 
 		if (!validateMandatoryFields()) return
 
-		if (action == "submit") {
-			params.docstatus = 1
-		} else if (action == "cancel") {
-			params.docstatus = 2
+		if (action == "submit" || action == "cancel") {
+			// save any edited fields first, then transition docstatus
+			await documentResource.setValue.submit(params)
+			if (action == "submit") {
+				await submitDocument.submit({ doc: documentResource.doc })
+			} else {
+				await cancelDocument.submit({
+					doctype: props.doctype,
+					name: props.id,
+				})
+			}
+		} else {
+			await documentResource.setValue.submit(params)
 		}
 
-		await documentResource.setValue.submit(params)
 		await documentResource.get.promise
 		resetForm()
 	}
