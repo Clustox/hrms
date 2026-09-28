@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Site is `hrms.localhost`; run code in the container: `sudo docker exec -w /home/frappe/frappe-bench docker-frappe-1 bench --site hrms.localhost <cmd>`. **NEVER `bench console`** (IPython mangles multi-line) — use `bench execute` / `bench run-tests`.
+- Site is `hrms.localhost`; run code in the container: `sudo docker exec -w /home/frappe/frappe-bench docker-frappe-1 bench --site test_onboarding.localhost <cmd>`. **NEVER `bench console`** (IPython mangles multi-line) — use `bench execute` / `bench run-tests`.
 - The running app is `/opt/app/hrms` (bind-mounted); deploy = merge to `develop` → Jenkins redeploy → `bench migrate` (applies fixtures) → `bench build --app hrms`.
 - Custom fields are created idempotently by a setup script **and** registered in `hooks.py` `fixtures` so they persist/reproduce on migrate. Follow the existing pattern in `setup/permissions/*` and the `fixtures` block already in `hooks.py` (CNIC fields from #8).
 - Mandatory-field enforcement is **server-side** (must hold for Desk, mobile app, and direct API) — mirror how `leave_application.py::validate_medical_certificate` (#24) does it.
@@ -95,7 +95,7 @@ class EmployeeOnboardingDocument(Document):
 `setup/onboarding/apply_onboarding_schema.py`:
 ```python
 """Idempotent creation of onboarding custom fields. Run:
-  bench --site hrms.localhost execute setup.onboarding.apply_onboarding_schema.run
+  bench --site test_onboarding.localhost execute setup.onboarding.apply_onboarding_schema.run
 Re-runnable. The Employee Onboarding Document child doctype is shipped as code
 (hrms/hr/doctype/employee_onboarding_document) and installed by migrate.
 """
@@ -197,8 +197,8 @@ class TestOnboardingSchema(FrappeTestCase):
 
 - [ ] **Step 6: Run migrate (installs child doctype) then the test**
 
-Run: `bench --site hrms.localhost migrate`
-Then: `bench --site hrms.localhost run-tests --module hrms.tests.test_onboarding --test test_onboarding_fields_exist`
+Run: `bench --site test_onboarding.localhost migrate`
+Then: `bench --site test_onboarding.localhost run-tests --module hrms.tests.test_onboarding --test test_onboarding_fields_exist`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -252,7 +252,7 @@ class TestValidateSubmission(FrappeTestCase):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `bench --site hrms.localhost run-tests --module hrms.tests.test_onboarding --test test_missing_fields_listed`
+Run: `bench --site test_onboarding.localhost run-tests --module hrms.tests.test_onboarding --test test_missing_fields_listed`
 Expected: FAIL (module `hrms.onboarding` has no `validate_onboarding_submission`).
 
 - [ ] **Step 3: Write minimal implementation**
@@ -282,7 +282,7 @@ def validate_onboarding_submission(employee: str) -> list[str]:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `bench --site hrms.localhost run-tests --module hrms.tests.test_onboarding --test test_missing_fields_listed`
+Run: `bench --site test_onboarding.localhost run-tests --module hrms.tests.test_onboarding --test test_missing_fields_listed`
 Then: `... --test test_complete_returns_empty`
 Expected: PASS.
 
@@ -329,7 +329,7 @@ class TestOnboardEmployee(FrappeTestCase):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `bench --site hrms.localhost run-tests --module hrms.tests.test_onboarding --test test_provisions_login_and_status`
+Run: `bench --site test_onboarding.localhost run-tests --module hrms.tests.test_onboarding --test test_provisions_login_and_status`
 Expected: FAIL (`onboard_employee` not defined).
 
 - [ ] **Step 3: Write minimal implementation**
@@ -396,7 +396,7 @@ def send_onboarding_invite(email: str):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `bench --site hrms.localhost run-tests --module hrms.tests.test_onboarding --test test_provisions_login_and_status`
+Run: `bench --site test_onboarding.localhost run-tests --module hrms.tests.test_onboarding --test test_provisions_login_and_status`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -463,7 +463,7 @@ class TestTransitions(FrappeTestCase):
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `bench --site hrms.localhost run-tests --module hrms.tests.test_onboarding --test test_submit_blocked_when_incomplete`
+Run: `bench --site test_onboarding.localhost run-tests --module hrms.tests.test_onboarding --test test_submit_blocked_when_incomplete`
 Expected: FAIL (functions not defined).
 
 - [ ] **Step 3: Write minimal implementation**
@@ -534,7 +534,7 @@ def _send_employee_notification(emp, message):
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `bench --site hrms.localhost run-tests --module hrms.tests.test_onboarding`
+Run: `bench --site test_onboarding.localhost run-tests --module hrms.tests.test_onboarding`
 Expected: all PASS.
 
 - [ ] **Step 5: Commit**
@@ -558,7 +558,7 @@ git commit -m "feat(onboarding): submit/approve/request-changes transitions + no
 
 - [ ] **Step 1: Audit permlevels (manual)**
 
-Run: `bench --site hrms.localhost execute frappe.client.get_value --kwargs "{'doctype':'DocField','filters':{'parent':'Employee','fieldname':'custom_cnic_no'},'fieldname':'permlevel'}"` (repeat for each mandatory field) — confirm which are permlevel 0 (already writable by owner) vs >0.
+Run: `bench --site test_onboarding.localhost execute frappe.client.get_value --kwargs "{'doctype':'DocField','filters':{'parent':'Employee','fieldname':'custom_cnic_no'},'fieldname':'permlevel'}"` (repeat for each mandatory field) — confirm which are permlevel 0 (already writable by owner) vs >0.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -585,7 +585,7 @@ class TestEssPerms(FrappeTestCase):
 
 - [ ] **Step 3: Run test to verify current state**
 
-Run: `bench --site hrms.localhost run-tests --module hrms.tests.test_onboarding --test test_ess_can_write_own_cnic`
+Run: `bench --site test_onboarding.localhost run-tests --module hrms.tests.test_onboarding --test test_ess_can_write_own_cnic`
 Expected: PASS if ESS already has write on own record (likely — PR #15). If FAIL, proceed to Step 4.
 
 - [ ] **Step 4: Extend the ESS setup (only if Step 3 failed or a mandatory field is permlevel > 0)**
@@ -677,7 +677,7 @@ def execute(filters=None):
 
 - [ ] **Step 3: Build assets + manual verification**
 
-Run: `bench build --app hrms` then `bench --site hrms.localhost clear-cache`.
+Run: `bench build --app hrms` then `bench --site test_onboarding.localhost clear-cache`.
 Manually: open an Employee (blank status) as HR → see "Onboard (create login)" → click → status Invited + login created; open the Pending Onboarding report → the employee appears. Set status to Submitted (via a quick `bench execute`) → Approve/Request-changes buttons appear and work.
 
 - [ ] **Step 4: Commit**
@@ -718,7 +718,7 @@ In `frontend/src/views/Profile.vue`, when `employee.custom_onboarding_status` is
 
 - [ ] **Step 3: Build + manual verification**
 
-Run: `bench build --app hrms` then `bench --site hrms.localhost clear-cache`.
+Run: `bench build --app hrms` then `bench --site test_onboarding.localhost clear-cache`.
 Manually (Browser pane): log in as a test hire (status Invited) at `/hrms/login` → the onboarding steps show → complete fields + upload a certificate → "Submit for review" blocked while a mandatory field is empty (missing list shown), then succeeds → status Submitted. Confirm a colleague's data is not visible.
 
 - [ ] **Step 4: Commit**
@@ -736,16 +736,16 @@ git commit -m "feat(onboarding): /hrms stepped onboarding view + submit"
 
 - [ ] **Step 1: Full run-tests**
 
-Run: `bench --site hrms.localhost run-tests --module hrms.tests.test_onboarding`
+Run: `bench --site test_onboarding.localhost run-tests --module hrms.tests.test_onboarding`
 Expected: all PASS.
 
 - [ ] **Step 2: End-to-end manual flow**
 
-As HR: open a new test Employee → "Onbard (create login)" → confirm invite email (check `bench --site hrms.localhost console`-free: look in the Email Queue via a report or `bench execute frappe.client.get_list --kwargs "{'doctype':'Email Queue','limit_page_length':3}"`). As the hire: complete + submit. As HR: see it in Pending Onboarding → Approve. Confirm status Approved and the banner disappears for the hire.
+As HR: open a new test Employee → "Onbard (create login)" → confirm invite email (check `bench --site test_onboarding.localhost console`-free: look in the Email Queue via a report or `bench execute frappe.client.get_list --kwargs "{'doctype':'Email Queue','limit_page_length':3}"`). As the hire: complete + submit. As HR: see it in Pending Onboarding → Approve. Confirm status Approved and the banner disappears for the hire.
 
 - [ ] **Step 3: Confirm existing employees unaffected**
 
-Run: `bench --site hrms.localhost execute frappe.client.get_list --kwargs "{'doctype':'Employee','filters':{'custom_onboarding_status':['in',['Invited','Submitted','Approved']]},'limit_page_length':0}"` — should list only test/onboarded hires, not the ~130 existing staff.
+Run: `bench --site test_onboarding.localhost execute frappe.client.get_list --kwargs "{'doctype':'Employee','filters':{'custom_onboarding_status':['in',['Invited','Submitted','Approved']]},'limit_page_length':0}"` — should list only test/onboarded hires, not the ~130 existing staff.
 
 - [ ] **Step 4: Open PR to develop**
 
