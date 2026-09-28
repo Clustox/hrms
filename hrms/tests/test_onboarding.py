@@ -40,3 +40,21 @@ class TestValidateSubmission(FrappeTestCase):
 		                 person_to_be_contacted="X", emergency_phone_number="0300",
 		                 relation="Father")
 		self.assertEqual(validate_onboarding_submission(name), [])
+
+
+class TestOnboardEmployee(FrappeTestCase):
+	def test_provisions_login_and_status(self):
+		from hrms.onboarding import onboard_employee
+		email = "test.hire.onb@example.com"
+		frappe.db.delete("User", {"name": email})
+		emp = frappe.get_doc({
+			"doctype": "Employee", "first_name": "Onb", "last_name": "Hire",
+			"company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+			"gender": "Male", "date_of_birth": "1995-01-01", "company_email": email,
+		}).insert(ignore_permissions=True)
+		res = onboard_employee(emp.name, send_invite=0)
+		self.assertEqual(res["status"], "Invited")
+		self.assertTrue(frappe.db.exists("User", email))
+		self.assertEqual(frappe.db.get_value("Employee", emp.name, "custom_onboarding_status"), "Invited")
+		self.assertEqual(frappe.db.get_value("Employee", emp.name, "user_id"), email)
+		self.assertIn("Employee Self Service", frappe.get_roles(email))
