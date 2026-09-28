@@ -43,6 +43,9 @@ class TestValidateSubmission(FrappeTestCase):
 
 
 class TestOnboardEmployee(FrappeTestCase):
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
 	def test_provisions_login_and_status(self):
 		from hrms.onboarding import onboard_employee
 		email = "test.hire.onb@example.com"
@@ -59,8 +62,80 @@ class TestOnboardEmployee(FrappeTestCase):
 		self.assertEqual(frappe.db.get_value("Employee", emp.name, "user_id"), email)
 		self.assertIn("Employee Self Service", frappe.get_roles(email))
 
+	def test_requires_hr_role(self):
+		from hrms.onboarding import onboard_employee
+
+		# The target hire being onboarded (not the caller).
+		target_email = "test.hire.onb.target@example.com"
+		frappe.db.delete("User", {"name": target_email})
+		target = frappe.get_doc({
+			"doctype": "Employee", "first_name": "Target", "last_name": "Hire",
+			"company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+			"gender": "Male", "date_of_birth": "1995-01-01", "company_email": target_email,
+		}).insert(ignore_permissions=True)
+
+		# A non-HR caller: an ESS user linked to their OWN, unrelated Employee record.
+		# NOTE: onboard_employee/submit_onboarding commit the DB transaction on
+		# their success paths, which can flatten earlier tests' rollback within
+		# the same run -- so leftovers from a prior run must be cleared by
+		# identity, not assumed away, exactly like TestSaveOnboardingFields.setUp.
+		caller_email = "test.hire.onb.caller@example.com"
+		frappe.db.delete("Employee", {"user_id": caller_email})
+		frappe.db.delete("User", {"name": caller_email})
+		frappe.db.commit()
+		caller_user = frappe.get_doc({
+			"doctype": "User", "email": caller_email, "first_name": "Caller", "last_name": "Ess",
+			"send_welcome_email": 0, "user_type": "System User",
+		})
+		caller_user.flags.no_welcome_mail = True
+		caller_user.insert(ignore_permissions=True)
+		# Link Employee.user_id BEFORE granting the ESS role: erpnext's
+		# validate_employee_role (User.validate hook) strips Employee/ESS
+		# roles from a user with no matching Employee record yet.
+		frappe.get_doc({
+			"doctype": "Employee", "first_name": "Caller", "last_name": "Ess",
+			"company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+			"gender": "Male", "date_of_birth": "1995-01-01", "user_id": caller_email,
+		}).insert(ignore_permissions=True)
+		caller_user.reload()
+		caller_user.add_roles("Employee Self Service")
+		self.assertIn("Employee Self Service", frappe.get_roles(caller_email))
+
+		frappe.set_user(caller_email)
+		with self.assertRaises(frappe.PermissionError):
+			onboard_employee(target.name, send_invite=0)
+		frappe.set_user("Administrator")
+		self.assertFalse(frappe.db.exists("User", target_email))
+		self.assertIsNone(frappe.db.get_value("Employee", target.name, "user_id") or None)
+
+	def test_rerun_does_not_revert_approved_status(self):
+		from hrms.onboarding import onboard_employee
+		email = "test.hire.onb.approved@example.com"
+		# onboard_employee commits on success (see NOTE in test_requires_hr_role
+		# above), so leftovers from a prior run must be cleared by identity.
+		frappe.db.delete("Employee", {"user_id": email})
+		frappe.db.delete("Employee", {"company_email": email})
+		frappe.db.delete("User", {"name": email})
+		frappe.db.commit()
+		emp = frappe.get_doc({
+			"doctype": "Employee", "first_name": "Already", "last_name": "Approved",
+			"company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+			"gender": "Male", "date_of_birth": "1995-01-01", "company_email": email,
+			"custom_onboarding_status": "Approved",
+		}).insert(ignore_permissions=True)
+
+		# Re-running (e.g. to resend an invite) must not revert Approved -> Invited.
+		res = onboard_employee(emp.name, send_invite=0)
+		self.assertEqual(res["status"], "Approved")
+		self.assertEqual(
+			frappe.db.get_value("Employee", emp.name, "custom_onboarding_status"), "Approved"
+		)
+
 
 class TestTransitions(FrappeTestCase):
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
 	def _hire(self, complete):
 		emp = frappe.get_doc({
 			"doctype": "Employee", "first_name": "Trans", "last_name": "Hire",
@@ -94,6 +169,58 @@ class TestTransitions(FrappeTestCase):
 		request_onboarding_changes(name, "Fix your CNIC scan")
 		self.assertEqual(frappe.db.get_value("Employee", name, "custom_onboarding_status"), "Invited")
 		self.assertEqual(frappe.db.get_value("Employee", name, "custom_onboarding_notes"), "Fix your CNIC scan")
+
+	def test_submit_blocked_for_non_owner_non_hr(self):
+		from hrms.onboarding import submit_onboarding
+		name = self._hire(complete=True)
+
+		# Link the employee's owner (an ESS user) -- not the caller in this test,
+		# just establishes that the hire has a real owner distinct from HR.
+		# NOTE: leftovers from a prior run must be cleared by identity (same
+		# reasoning as TestSaveOnboardingFields.setUp / test_requires_hr_role above).
+		owner_email = "trans.owner@example.com"
+		frappe.db.delete("Employee", {"user_id": owner_email})
+		frappe.db.delete("User", {"name": owner_email})
+		frappe.db.commit()
+		owner_user = frappe.get_doc({
+			"doctype": "User", "email": owner_email, "first_name": "Trans", "last_name": "Owner",
+			"send_welcome_email": 0, "user_type": "System User",
+		})
+		owner_user.flags.no_welcome_mail = True
+		owner_user.insert(ignore_permissions=True)
+		# Link Employee.user_id BEFORE granting the ESS role -- see the ordering
+		# lesson noted on TestEssPerms/TestSaveOnboardingFields above.
+		frappe.db.set_value("Employee", name, "user_id", owner_email)
+		owner_user.reload()
+		owner_user.add_roles("Employee Self Service")
+		self.assertIn("Employee Self Service", frappe.get_roles(owner_email))
+
+		# The stranger: neither the employee's owner nor HR, linked to their own
+		# unrelated Employee record so erpnext doesn't strip their ESS role.
+		stranger_email = "trans.stranger@example.com"
+		frappe.db.delete("Employee", {"user_id": stranger_email})
+		frappe.db.delete("User", {"name": stranger_email})
+		frappe.db.commit()
+		stranger_user = frappe.get_doc({
+			"doctype": "User", "email": stranger_email, "first_name": "Trans", "last_name": "Stranger",
+			"send_welcome_email": 0, "user_type": "System User",
+		})
+		stranger_user.flags.no_welcome_mail = True
+		stranger_user.insert(ignore_permissions=True)
+		frappe.get_doc({
+			"doctype": "Employee", "first_name": "Trans", "last_name": "Stranger",
+			"company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+			"gender": "Male", "date_of_birth": "1995-01-01", "user_id": stranger_email,
+		}).insert(ignore_permissions=True)
+		stranger_user.reload()
+		stranger_user.add_roles("Employee Self Service")
+		self.assertIn("Employee Self Service", frappe.get_roles(stranger_email))
+
+		frappe.set_user(stranger_email)
+		with self.assertRaises(frappe.PermissionError):
+			submit_onboarding(name)
+		frappe.set_user("Administrator")
+		self.assertEqual(frappe.db.get_value("Employee", name, "custom_onboarding_status"), "Invited")
 
 
 class TestEssPerms(FrappeTestCase):

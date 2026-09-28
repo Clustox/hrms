@@ -57,14 +57,16 @@ def _self_scope(email: str, employee: str):
 
 @frappe.whitelist()
 def onboard_employee(employee: str, send_invite: int = 1) -> dict:
+	_require_hr()
 	emp = frappe.get_doc("Employee", employee)
 	email = _ensure_user(emp)
 	_self_scope(email, employee)
-	emp.db_set("custom_onboarding_status", "Invited")
+	if not emp.custom_onboarding_status:
+		emp.db_set("custom_onboarding_status", "Invited")
 	frappe.db.commit()
 	if int(send_invite):
 		send_onboarding_invite(email)
-	return {"user": email, "status": "Invited"}
+	return {"user": email, "status": emp.custom_onboarding_status or "Invited"}
 
 
 def send_onboarding_invite(email: str):
@@ -156,10 +158,15 @@ def save_onboarding_fields(employee: str, values: dict | str) -> dict:
 
 @frappe.whitelist()
 def submit_onboarding(employee: str) -> dict:
+	emp = frappe.get_doc("Employee", employee)
+	is_owner = bool(emp.user_id) and emp.user_id == frappe.session.user
+	is_hr = bool(HR_ROLES & set(frappe.get_roles()))
+	if not (is_owner or is_hr):
+		frappe.throw(_("Not permitted to submit this onboarding."), frappe.PermissionError)
+
 	missing = validate_onboarding_submission(employee)
 	if missing:
 		frappe.throw(_("Please complete these before submitting: {0}").format(", ".join(missing)))
-	emp = frappe.get_doc("Employee", employee)
 	emp.db_set("custom_onboarding_status", "Submitted")
 	emp.db_set("custom_onboarding_submitted_on", now())
 	frappe.db.commit()
