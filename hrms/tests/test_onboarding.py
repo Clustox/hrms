@@ -124,3 +124,156 @@ class TestEssPerms(FrappeTestCase):
 			frappe.get_doc({"doctype": "User Permission", "user": email, "allow": "Employee",
 			                "for_value": emp.name, "apply_to_all_doctypes": 1}).insert(ignore_permissions=True)
 		self.assertTrue(frappe.has_permission("Employee", "write", doc=emp.name, user=email))
+
+
+class TestSaveOnboardingFields(FrappeTestCase):
+	"""Covers hrms.onboarding.save_onboarding_fields: the status-gated,
+	whitelisted bypass for the permlevel-1 fields that block a hire's own
+	ESS writes on the live server (see setup/permissions/apply_field_levels.py
+	+ apply_self_service.py).
+
+	NOTE on the permlevel-1 assertion: frappe.client.set_value() does NOT
+	raise when a field is above the caller's permlevel access -- Frappe's
+	Document.validate_higher_perm_levels()/reset_values_if_no_permlevel_access
+	silently resets disallowed field values instead of throwing (verified
+	against this bench: frappe/model/document.py). So the direct-write case
+	below asserts the write is a silent no-op (value stays unset), which is
+	the actual bug this fix addresses -- not an exception. save_onboarding_fields
+	bypasses that (ignore_permissions=True) and the value persists for real.
+	"""
+
+	FIELD = "current_address"
+
+	def setUp(self):
+		# Targeted, self-contained permlevel setup for one field, instead of
+		# setup.permissions.apply_field_levels.run() -- that helper also grants
+		# permlevel access to "CEO/COO" and other Phase-2/3 roles that
+		# setup.permissions.apply_rights_matrix.run() has not created on this
+		# test site, so it throws LinkValidationError here. This test site's
+		# Employee Self Service role already carries permlevel-1 read=1/write=0
+		# (from a prior apply_self_service.run()), which is exactly the
+		# production condition we need -- only the field's own permlevel is
+		# missing, so we add just that.
+		self._permlevel_ps = frappe.get_all(
+			"Property Setter",
+			filters={"doc_type": "Employee", "field_name": self.FIELD, "property": "permlevel"},
+			pluck="name",
+		)
+		for ps in self._permlevel_ps:
+			frappe.delete_doc("Property Setter", ps, force=True, ignore_permissions=True)
+		frappe.make_property_setter({
+			"doctype": "Employee", "doctype_or_field": "DocField", "fieldname": self.FIELD,
+			"property": "permlevel", "value": 1, "property_type": "Int",
+		})
+		frappe.clear_cache(doctype="Employee")
+
+		self.email = "onb.save.perm@example.com"
+		# save_onboarding_fields (and onboard_employee) commit the DB transaction,
+		# which defeats FrappeTestCase's usual rollback-per-test isolation -- so
+		# any Employee/User left over from a prior run of this test must be
+		# cleared explicitly, not just re-deleted by name.
+		frappe.db.delete("Employee", {"user_id": self.email})
+		frappe.db.delete("User", {"name": self.email})
+		frappe.db.commit()
+		user = frappe.get_doc({
+			"doctype": "User", "email": self.email, "first_name": "Save", "last_name": "Perm",
+			"send_welcome_email": 0, "user_type": "System User",
+		})
+		user.flags.no_welcome_mail = True
+		user.insert(ignore_permissions=True)
+
+		# Link Employee.user_id BEFORE adding the ESS role: erpnext's
+		# validate_employee_role (User.validate hook) strips Employee/ESS
+		# roles from a user with no matching Employee record yet.
+		self.emp = frappe.get_doc({
+			"doctype": "Employee", "first_name": "Save", "last_name": "Perm",
+			"company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+			"gender": "Male", "date_of_birth": "1995-01-01",
+			"custom_onboarding_status": "Invited",
+			"user_id": self.email,
+		}).insert(ignore_permissions=True)
+
+		user.reload()
+		user.add_roles("Employee Self Service")
+		self.assertIn("Employee Self Service", frappe.get_roles(self.email))
+
+		if not frappe.db.exists("User Permission",
+		                        {"user": self.email, "allow": "Employee", "for_value": self.emp.name}):
+			frappe.get_doc({
+				"doctype": "User Permission", "user": self.email, "allow": "Employee",
+				"for_value": self.emp.name, "apply_to_all_doctypes": 1,
+			}).insert(ignore_permissions=True)
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+		for ps in frappe.get_all(
+			"Property Setter",
+			filters={"doc_type": "Employee", "field_name": self.FIELD, "property": "permlevel"},
+			pluck="name",
+		):
+			frappe.delete_doc("Property Setter", ps, force=True, ignore_permissions=True)
+		frappe.clear_cache(doctype="Employee")
+		# save_onboarding_fields/db_set calls commit the transaction, so these
+		# must be deleted explicitly rather than relying on test rollback.
+		frappe.db.delete("User Permission", {"user": self.email})
+		frappe.db.delete("Employee", {"user_id": self.email})
+		frappe.db.delete("User", {"name": self.email})
+		frappe.db.commit()
+
+	def test_bypasses_permlevel_1_where_direct_write_silently_no_ops(self):
+		from hrms.onboarding import save_onboarding_fields
+
+		frappe.set_user(self.email)
+		# Direct write: does not raise, but permlevel-1 write=0 for ESS means
+		# Frappe silently drops the change (validate_higher_perm_levels resets
+		# it) -- the field is left exactly as it was (unset).
+		frappe.client.set_value("Employee", self.emp.name, self.FIELD, "Direct-Write-Blocked")
+		frappe.set_user("Administrator")
+		self.assertFalse(frappe.db.get_value("Employee", self.emp.name, self.FIELD))
+
+		# The whitelisted bypass: same field, same ESS user, and it persists.
+		frappe.set_user(self.email)
+		result = save_onboarding_fields(self.emp.name, {self.FIELD: "Bypassed-Write"})
+		frappe.set_user("Administrator")
+		self.assertEqual(result["status"], "Invited")
+		self.assertEqual(frappe.db.get_value("Employee", self.emp.name, self.FIELD), "Bypassed-Write")
+
+	def test_throws_when_status_approved(self):
+		from hrms.onboarding import save_onboarding_fields
+
+		self.emp.db_set("custom_onboarding_status", "Approved")
+		frappe.set_user(self.email)
+		with self.assertRaises(frappe.ValidationError):
+			save_onboarding_fields(self.emp.name, {self.FIELD: "X"})
+		frappe.set_user("Administrator")
+		self.assertFalse(frappe.db.get_value("Employee", self.emp.name, self.FIELD))
+
+	def test_throws_on_non_whitelisted_field(self):
+		from hrms.onboarding import save_onboarding_fields
+
+		frappe.set_user(self.email)
+		with self.assertRaises(frappe.ValidationError):
+			save_onboarding_fields(self.emp.name, {"custom_onboarding_status": "Approved"})
+		frappe.set_user("Administrator")
+		self.assertEqual(
+			frappe.db.get_value("Employee", self.emp.name, "custom_onboarding_status"), "Invited"
+		)
+
+	def test_throws_for_non_owner_non_hr_caller(self):
+		from hrms.onboarding import save_onboarding_fields
+
+		other_email = "onb.save.other@example.com"
+		frappe.db.delete("User", {"name": other_email})
+		other = frappe.get_doc({
+			"doctype": "User", "email": other_email, "first_name": "Other", "last_name": "Hire",
+			"send_welcome_email": 0, "user_type": "System User",
+		})
+		other.flags.no_welcome_mail = True
+		other.insert(ignore_permissions=True)
+		self.addCleanup(lambda: frappe.delete_doc("User", other_email, force=True, ignore_permissions=True))
+
+		frappe.set_user(other_email)
+		with self.assertRaises(frappe.PermissionError):
+			save_onboarding_fields(self.emp.name, {self.FIELD: "X"})
+		frappe.set_user("Administrator")
+		self.assertFalse(frappe.db.get_value("Employee", self.emp.name, self.FIELD))

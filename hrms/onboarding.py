@@ -1,4 +1,6 @@
 # Copyright (c) 2026, Clustox and contributors
+import json
+
 import frappe
 from frappe import _
 
@@ -87,6 +89,69 @@ HR_ROLES = {"HR Manager", "HR User", "System Manager", "Administrator"}
 def _require_hr():
 	if not (HR_ROLES & set(frappe.get_roles())):
 		frappe.throw(_("Only HR can perform this action."), frappe.PermissionError)
+
+
+# Fields the onboarding wizard is allowed to write, regardless of the
+# Employee doctype's own field-level permlevel (see save_onboarding_fields).
+# Deliberately excludes custom_onboarding_status/custom_onboarding_submitted_on/
+# custom_onboarding_notes -- those are status-machine fields only the backend
+# transitions (onboard_employee/submit_onboarding/approve_onboarding/
+# request_onboarding_changes) may touch.
+ONBOARDING_WRITABLE_FIELDS = {
+	"custom_cnic_no",
+	"custom_cnic_expiry_date",
+	"custom_father_or_husband_name",
+	"custom_religion",
+	"custom_nationality",
+	"blood_group",
+	"date_of_birth",
+	"current_address",
+	"permanent_address",
+	"person_to_be_contacted",
+	"emergency_phone_number",
+	"relation",
+	"education",
+	"external_work_history",
+	"custom_onboarding_documents",
+}
+
+
+@frappe.whitelist()
+def save_onboarding_fields(employee: str, values: dict | str) -> dict:
+	"""Status-gated, whitelisted save for the employee-facing onboarding wizard.
+
+	On the live server several of these fields (current_address, permanent_address,
+	custom_cnic_no, custom_cnic_expiry_date, date_of_birth, ...) sit at Employee
+	permlevel 1, where ESS only has read (see setup/permissions/apply_field_levels.py
+	and apply_self_service.py) -- so a hire can never save their own onboarding data
+	through frappe.client.set_value. This whitelisted method is the controlled bypass:
+	it authorizes the caller (owner or HR), gates on onboarding status, and restricts
+	the writable fields itself, then saves with ignore_permissions=True. It must never
+	be widened into a generic "set any field" endpoint.
+	"""
+	if isinstance(values, str):
+		values = json.loads(values)
+
+	emp = frappe.get_doc("Employee", employee)
+
+	is_owner = bool(emp.user_id) and emp.user_id == frappe.session.user
+	is_hr = bool(HR_ROLES & set(frappe.get_roles()))
+	if not (is_owner or is_hr):
+		frappe.throw(_("Not permitted to edit this employee's onboarding."), frappe.PermissionError)
+
+	if emp.custom_onboarding_status not in ("Invited", "Submitted"):
+		frappe.throw(_("Onboarding is no longer open for editing."))
+
+	invalid = set(values.keys()) - ONBOARDING_WRITABLE_FIELDS
+	if invalid:
+		frappe.throw(_("These fields cannot be set via onboarding: {0}").format(", ".join(sorted(invalid))))
+
+	for fieldname, value in values.items():
+		emp.set(fieldname, value)
+
+	emp.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"status": emp.custom_onboarding_status}
 
 
 @frappe.whitelist()

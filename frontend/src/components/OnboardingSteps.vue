@@ -147,7 +147,7 @@
 				v-if="currentStep.type !== 'review'"
 				variant="solid"
 				class="w-full py-5"
-				:loading="employeeDoc.setValue.loading"
+				:loading="saveFields.loading"
 				@click="saveCurrentStep"
 			>
 				{{ currentStep.type === "fields" ? __("Save & Continue") : __("Continue") }}
@@ -304,6 +304,30 @@ const employeeFields = createResource({
 	auto: true,
 })
 
+// Several onboarding fields (current_address, permanent_address,
+// custom_cnic_no, custom_cnic_expiry_date, date_of_birth, ...) sit at
+// Employee permlevel 1 on the live server, where ESS only has read access
+// (see setup/permissions/apply_field_levels.py + apply_self_service.py) --
+// so a hire can never save them through frappe.client.set_value
+// (employeeDoc.setValue), which enforces field-level permlevel. All writes
+// go through this whitelisted, status-gated backend method instead.
+const saveFields = createResource({
+	url: "hrms.onboarding.save_onboarding_fields",
+})
+
+function saveOnboardingValues(values, { onSuccess, onError } = {}) {
+	saveFields.submit(
+		{ employee: employee.data.name, values },
+		{
+			onSuccess: (data) => {
+				employeeDoc.reload()
+				onSuccess?.(data)
+			},
+			onError,
+		}
+	)
+}
+
 function getField(fieldname) {
 	return employeeFields.data?.find((field) => field.fieldname === fieldname)
 }
@@ -443,13 +467,13 @@ function saveCurrentStep() {
 		return
 	}
 
-	const params = {}
+	const values = {}
 	currentStep.value.fields.forEach((fieldname) => {
-		params[fieldname] = employeeDoc.doc[fieldname]
+		values[fieldname] = employeeDoc.doc[fieldname]
 	})
 
 	stepError.value = ""
-	employeeDoc.setValue.submit(params, {
+	saveOnboardingValues(values, {
 		onSuccess: () => goNext(),
 		onError: (e) => {
 			stepError.value = e.messages?.join(", ") || __("Failed to save. Please try again.")
@@ -544,7 +568,7 @@ function closeRowModal() {
 function persistRows(fieldname, rows) {
 	rowModalError.value = ""
 	childTableSaving.value = true
-	employeeDoc.setValue.submit(
+	saveOnboardingValues(
 		{ [fieldname]: rows },
 		{
 			onSuccess: () => {
