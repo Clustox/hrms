@@ -296,6 +296,33 @@ frappe.ui.form.on("Employee", {
 		});
 
 		frm.trigger("add_assignment_actions");
+
+		const HR = frappe.user.has_role(["HR Manager", "HR User", "System Manager"]);
+		if (HR && !frm.is_new()) {
+			const st = frm.doc.custom_onboarding_status;
+			if (!st) {
+				frm.add_custom_button(__("Onboard (create login)"), () => {
+					frappe.call({ method: "hrms.onboarding.onboard_employee",
+						args: { employee: frm.doc.name }, freeze: true })
+						.then(() => { frappe.show_alert(__("Invited")); frm.reload_doc(); });
+				}, __("Onboarding"));
+			}
+			if (st === "Submitted") {
+				frm.add_custom_button(__("Approve Onboarding"), () => {
+					frappe.call({ method: "hrms.onboarding.approve_onboarding",
+						args: { employee: frm.doc.name }, freeze: true })
+						.then(() => frm.reload_doc());
+				}, __("Onboarding"));
+				frm.add_custom_button(__("Request Changes"), () => {
+					frappe.prompt({ fieldname: "note", fieldtype: "Small Text",
+						label: __("What needs fixing?"), reqd: 1 }, (v) => {
+						frappe.call({ method: "hrms.onboarding.request_onboarding_changes",
+							args: { employee: frm.doc.name, note: v.note }, freeze: true })
+							.then(() => frm.reload_doc());
+					});
+				}, __("Onboarding"));
+			}
+		}
 	},
 
 	add_assignment_actions: async function (frm) {
