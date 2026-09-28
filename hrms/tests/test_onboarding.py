@@ -58,3 +58,39 @@ class TestOnboardEmployee(FrappeTestCase):
 		self.assertEqual(frappe.db.get_value("Employee", emp.name, "custom_onboarding_status"), "Invited")
 		self.assertEqual(frappe.db.get_value("Employee", emp.name, "user_id"), email)
 		self.assertIn("Employee Self Service", frappe.get_roles(email))
+
+
+class TestTransitions(FrappeTestCase):
+	def _hire(self, complete):
+		emp = frappe.get_doc({
+			"doctype": "Employee", "first_name": "Trans", "last_name": "Hire",
+			"company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+			"gender": "Male", "date_of_birth": "1995-01-01", "custom_onboarding_status": "Invited",
+		})
+		if complete:
+			emp.update({"custom_cnic_no": "1", "custom_cnic_expiry_date": "2030-01-01",
+			            "current_address": "A", "permanent_address": "B", "blood_group": "O+",
+			            "person_to_be_contacted": "X", "emergency_phone_number": "0300",
+			            "relation": "Father"})
+		return emp.insert(ignore_permissions=True).name
+
+	def test_submit_blocked_when_incomplete(self):
+		from hrms.onboarding import submit_onboarding
+		name = self._hire(complete=False)
+		with self.assertRaises(frappe.ValidationError):
+			submit_onboarding(name)
+		self.assertEqual(frappe.db.get_value("Employee", name, "custom_onboarding_status"), "Invited")
+
+	def test_submit_then_approve(self):
+		from hrms.onboarding import submit_onboarding, approve_onboarding
+		name = self._hire(complete=True)
+		self.assertEqual(submit_onboarding(name)["status"], "Submitted")
+		self.assertEqual(approve_onboarding(name)["status"], "Approved")
+
+	def test_request_changes_reverts(self):
+		from hrms.onboarding import submit_onboarding, request_onboarding_changes
+		name = self._hire(complete=True)
+		submit_onboarding(name)
+		request_onboarding_changes(name, "Fix your CNIC scan")
+		self.assertEqual(frappe.db.get_value("Employee", name, "custom_onboarding_status"), "Invited")
+		self.assertEqual(frappe.db.get_value("Employee", name, "custom_onboarding_notes"), "Fix your CNIC scan")

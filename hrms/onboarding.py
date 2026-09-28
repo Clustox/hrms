@@ -77,3 +77,75 @@ def send_onboarding_invite(email: str):
 		).format(link, url),
 		now=True,
 	)
+
+
+from frappe.utils import now
+
+HR_ROLES = {"HR Manager", "HR User", "System Manager", "Administrator"}
+
+
+def _require_hr():
+	if not (HR_ROLES & set(frappe.get_roles())):
+		frappe.throw(_("Only HR can perform this action."), frappe.PermissionError)
+
+
+@frappe.whitelist()
+def submit_onboarding(employee: str) -> dict:
+	missing = validate_onboarding_submission(employee)
+	if missing:
+		frappe.throw(_("Please complete these before submitting: {0}").format(", ".join(missing)))
+	emp = frappe.get_doc("Employee", employee)
+	emp.db_set("custom_onboarding_status", "Submitted")
+	emp.db_set("custom_onboarding_submitted_on", now())
+	frappe.db.commit()
+	_send_hr_notification(emp)
+	return {"status": "Submitted"}
+
+
+@frappe.whitelist()
+def approve_onboarding(employee: str) -> dict:
+	_require_hr()
+	emp = frappe.get_doc("Employee", employee)
+	emp.db_set("custom_onboarding_status", "Approved")
+	frappe.db.commit()
+	_send_employee_notification(emp, _("Your onboarding has been approved."))
+	return {"status": "Approved"}
+
+
+@frappe.whitelist()
+def request_onboarding_changes(employee: str, note: str) -> dict:
+	_require_hr()
+	emp = frappe.get_doc("Employee", employee)
+	emp.db_set("custom_onboarding_status", "Invited")
+	emp.db_set("custom_onboarding_notes", note)
+	frappe.db.commit()
+	_send_employee_notification(emp, _("Changes requested on your onboarding: {0}").format(note))
+	return {"status": "Invited"}
+
+
+def _send_hr_notification(emp):
+	recipients = [u.parent for u in frappe.get_all(
+		"Has Role", filters={"role": "HR Manager", "parenttype": "User"},
+		fields=["parent"])]
+	recipients = [r for r in set(recipients) if frappe.db.get_value("User", r, "enabled")]
+	if recipients:
+		try:
+			# Queued (not now=True): a status transition must not block on, or fail
+			# because of, synchronous SMTP delivery. Delivery happens via the
+			# regular email queue flush.
+			frappe.sendmail(recipients=recipients,
+			                subject=_("Onboarding submitted: {0}").format(emp.employee_name),
+			                message=_("{0} submitted their onboarding for review.").format(emp.employee_name))
+		except Exception:
+			# Status transition already committed above; a mail-server issue
+			# (e.g. no Email Account configured) must not surface as an API failure.
+			frappe.log_error(title="Onboarding HR notification failed")
+
+
+def _send_employee_notification(emp, message):
+	if emp.user_id:
+		try:
+			frappe.sendmail(recipients=[emp.user_id], subject=_("Onboarding update"),
+			                message=message)
+		except Exception:
+			frappe.log_error(title="Onboarding employee notification failed")
