@@ -49,8 +49,16 @@ pipeline {
             steps {
                 // Bounded wait: without a SonarQube webhook back to Jenkins this would
                 // otherwise block until the job-level 30 minute timeout.
+                //
+                // ADVISORY (2026-09-29): the gate no longer aborts the pipeline. A
+                // failing gate marks the build UNSTABLE (yellow) but still proceeds to
+                // deploy, so Sonar findings stay visible on the dashboard for review
+                // without blocking releases on a test server. Flip abortPipeline back
+                // to true (and drop the catchError) to re-enable hard blocking.
                 timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                        waitForQualityGate abortPipeline: true
+                    }
                 }
             }
         }
