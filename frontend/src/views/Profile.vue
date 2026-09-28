@@ -1,7 +1,10 @@
 <template>
 	<ion-page>
 		<ion-content class="ion-padding">
-			<div class="flex flex-col h-screen w-screen">
+			<div v-if="showOnboarding" class="flex flex-col h-screen w-screen">
+				<OnboardingSteps />
+			</div>
+			<div v-else class="flex flex-col h-screen w-screen">
 				<div class="w-full sm:w-96">
 					<header
 						class="flex flex-row bg-white shadow-sm py-4 px-3 items-center justify-between border-b sticky top-0 z-10"
@@ -180,6 +183,7 @@ import { formatCurrency } from "@/utils/formatters"
 
 import ProfileInfoModal from "@/components/ProfileInfoModal.vue"
 import ProfileChildTableModal from "@/components/ProfileChildTableModal.vue"
+import OnboardingSteps from "@/components/OnboardingSteps.vue"
 
 import { arePushNotificationsEnabled } from "@/data/notifications"
 
@@ -311,6 +315,14 @@ const employeeDoc = createDocumentResource({
 const reportsToName = createResource({
 	url: "hrms.api.get_reports_to_employee_name",
 })
+
+// Hires still completing onboarding (Invited) or awaiting HR review
+// (Submitted) get the stepped onboarding view instead of the normal
+// profile; Approved (or blank, for pre-existing employees) get the
+// profile unchanged.
+const showOnboarding = computed(() =>
+	["Invited", "Submitted"].includes(employeeDoc.doc?.custom_onboarding_status)
+)
 
 watch(
 	() => employeeDoc.doc?.reports_to,
