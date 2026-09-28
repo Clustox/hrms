@@ -13,3 +13,30 @@ class TestOnboardingSchema(FrappeTestCase):
 		self.assertTrue(frappe.get_meta("Employee Education").get_field("custom_certificate"))
 		self.assertTrue(frappe.get_meta("Employee External Work History").get_field("custom_experience_letter"))
 		self.assertTrue(frappe.db.exists("DocType", "Employee Onboarding Document"))
+
+
+class TestValidateSubmission(FrappeTestCase):
+	def _emp(self, **kw):
+		emp = frappe.get_doc({
+			"doctype": "Employee", "first_name": "Test", "last_name": "Hire",
+			"company": "Clustox", "status": "Active",
+			"date_of_joining": "2026-01-01", "gender": "Male",
+			"date_of_birth": "1995-01-01",
+			**kw,
+		}).insert(ignore_permissions=True)
+		return emp.name
+
+	def test_missing_fields_listed(self):
+		from hrms.onboarding import validate_onboarding_submission
+		name = self._emp()
+		missing = validate_onboarding_submission(name)
+		self.assertIn("CNIC", " ".join(missing))
+		self.assertIn("Blood Group", " ".join(missing))
+
+	def test_complete_returns_empty(self):
+		from hrms.onboarding import validate_onboarding_submission
+		name = self._emp(custom_cnic_no="1234512345671", custom_cnic_expiry_date="2030-01-01",
+		                 current_address="A", permanent_address="B", blood_group="O+",
+		                 person_to_be_contacted="X", emergency_phone_number="0300",
+		                 relation="Father")
+		self.assertEqual(validate_onboarding_submission(name), [])
