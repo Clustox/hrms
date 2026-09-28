@@ -404,3 +404,106 @@ class TestSaveOnboardingFields(FrappeTestCase):
 			save_onboarding_fields(self.emp.name, {self.FIELD: "X"})
 		frappe.set_user("Administrator")
 		self.assertFalse(frappe.db.get_value("Employee", self.emp.name, self.FIELD))
+
+
+class TestSaveOnboardingFieldsAdditionalFields(FrappeTestCase):
+	"""Covers the cell_number/marital_status/bio fields added to
+	ONBOARDING_WRITABLE_FIELDS so the onboarding wizard can collect them,
+	same owner-write pattern as TestSaveOnboardingFields above."""
+
+	def setUp(self):
+		self.email = "onb.save.extra@example.com"
+		# save_onboarding_fields commits the DB transaction, which defeats
+		# FrappeTestCase's usual rollback-per-test isolation -- so any
+		# Employee/User left over from a prior run must be cleared explicitly,
+		# not just re-deleted by name (see TestSaveOnboardingFields.setUp).
+		frappe.db.delete("Employee", {"user_id": self.email})
+		frappe.db.delete("User", {"name": self.email})
+		frappe.db.commit()
+
+		user = frappe.get_doc({
+			"doctype": "User", "email": self.email, "first_name": "Extra", "last_name": "Fields",
+			"send_welcome_email": 0, "user_type": "System User",
+		})
+		user.flags.no_welcome_mail = True
+		user.insert(ignore_permissions=True)
+
+		# Link Employee.user_id BEFORE adding the ESS role: erpnext's
+		# validate_employee_role (User.validate hook) strips Employee/ESS
+		# roles from a user with no matching Employee record yet.
+		self.emp = frappe.get_doc({
+			"doctype": "Employee", "first_name": "Extra", "last_name": "Fields",
+			"company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+			"gender": "Male", "date_of_birth": "1995-01-01",
+			"custom_onboarding_status": "Invited",
+			"user_id": self.email,
+		}).insert(ignore_permissions=True)
+
+		user.reload()
+		user.add_roles("Employee Self Service")
+		self.assertIn("Employee Self Service", frappe.get_roles(self.email))
+
+		if not frappe.db.exists("User Permission",
+		                        {"user": self.email, "allow": "Employee", "for_value": self.emp.name}):
+			frappe.get_doc({
+				"doctype": "User Permission", "user": self.email, "allow": "Employee",
+				"for_value": self.emp.name, "apply_to_all_doctypes": 1,
+			}).insert(ignore_permissions=True)
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+		# save_onboarding_fields commits, so these must be deleted explicitly
+		# rather than relying on test rollback.
+		frappe.db.delete("User Permission", {"user": self.email})
+		frappe.db.delete("Employee", {"user_id": self.email})
+		frappe.db.delete("User", {"name": self.email})
+		frappe.db.commit()
+
+	def test_cell_marital_bio_persist(self):
+		from hrms.onboarding import save_onboarding_fields
+
+		frappe.set_user(self.email)
+		result = save_onboarding_fields(self.emp.name, {
+			"cell_number": "03001234567",
+			"marital_status": "Single",
+			"bio": "hi",
+		})
+		frappe.set_user("Administrator")
+		self.assertEqual(result["status"], "Invited")
+		self.assertEqual(frappe.db.get_value("Employee", self.emp.name, "cell_number"), "03001234567")
+		self.assertEqual(frappe.db.get_value("Employee", self.emp.name, "marital_status"), "Single")
+		self.assertEqual(frappe.db.get_value("Employee", self.emp.name, "bio"), "hi")
+
+
+class TestSetLoginPassword(FrappeTestCase):
+	"""Covers hrms.onboarding._set_login_password: the helper send_onboarding_invite
+	uses to generate a strong random password and set it directly on the User,
+	replacing the old _reset_password set-password-link flow."""
+
+	def setUp(self):
+		self.email = "onb.pwd.helper@example.com"
+		frappe.db.delete("User", {"name": self.email})
+		frappe.db.commit()
+		user = frappe.get_doc({
+			"doctype": "User", "email": self.email, "first_name": "Pwd", "last_name": "Helper",
+			"send_welcome_email": 0, "user_type": "System User",
+		})
+		user.flags.no_welcome_mail = True
+		user.insert(ignore_permissions=True)
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+		frappe.db.delete("User", {"name": self.email})
+		frappe.db.commit()
+
+	def test_generated_password_authenticates(self):
+		from frappe.utils.password import check_password
+
+		from hrms.onboarding import _set_login_password
+
+		pwd = _set_login_password(self.email)
+		self.assertTrue(pwd)
+		self.assertGreaterEqual(len(pwd), 12)
+		# check_password raises frappe.exceptions.AuthenticationError on a
+		# mismatch and returns the username on success.
+		self.assertEqual(check_password(self.email, pwd), self.email)

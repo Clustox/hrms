@@ -69,18 +69,39 @@ def onboard_employee(employee: str, send_invite: int = 1) -> dict:
 	return {"user": email, "status": emp.custom_onboarding_status or "Invited"}
 
 
+def _set_login_password(email: str) -> str:
+	"""Generate a strong random password, set it on the User, and return the
+	plaintext so the caller can email it. Structured as its own helper so it
+	can be exercised directly in tests without going through email delivery."""
+	from frappe.utils.password import update_password
+
+	pwd = frappe.generate_hash(length=12)
+	update_password(email, pwd)
+	return pwd
+
+
 def send_onboarding_invite(email: str):
-	link = frappe.get_doc("User", email)._reset_password(send_email=False)
+	pwd = _set_login_password(email)
 	url = frappe.utils.get_url()  # nginx serves /hrms/login on the same host
-	frappe.sendmail(
-		recipients=[email],
-		subject=_("Welcome to Clustox HR — set up your account"),
-		message=_(
-			"<p>Welcome! Set your password here: <a href='{0}'>Set password</a></p>"
-			"<p>Then sign in at <a href='{1}/hrms/login'>{1}/hrms/login</a> and complete your profile.</p>"
-		).format(link, url),
-		now=True,
-	)
+	login_url = f"{url}/hrms/login"
+	try:
+		# Queued (not now=True): onboarding must not block on, or fail because
+		# of, synchronous SMTP delivery (mirrors _send_hr_notification below).
+		frappe.sendmail(
+			recipients=[email],
+			subject=_("Welcome to Clustox HR — your login details"),
+			message=_(
+				"<p>Welcome! Your Clustox HR account is ready.</p>"
+				"<p>Sign in at <a href='{0}'>{0}</a> with these credentials:</p>"
+				"<p>Username: {1}<br>Password: {2}</p>"
+				"<p>Please sign in and complete your onboarding profile.</p>"
+			).format(login_url, email, pwd),
+			now=False,
+		)
+	except Exception:
+		# The password is already set on the account; a mail-server issue
+		# (e.g. no Email Account configured) must not surface as an API failure.
+		frappe.log_error(title="Onboarding invite email failed")
 
 
 from frappe.utils import now
@@ -115,6 +136,9 @@ ONBOARDING_WRITABLE_FIELDS = {
 	"education",
 	"external_work_history",
 	"custom_onboarding_documents",
+	"cell_number",
+	"marital_status",
+	"bio",
 }
 
 
