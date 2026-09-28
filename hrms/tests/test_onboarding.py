@@ -94,3 +94,33 @@ class TestTransitions(FrappeTestCase):
 		request_onboarding_changes(name, "Fix your CNIC scan")
 		self.assertEqual(frappe.db.get_value("Employee", name, "custom_onboarding_status"), "Invited")
 		self.assertEqual(frappe.db.get_value("Employee", name, "custom_onboarding_notes"), "Fix your CNIC scan")
+
+
+class TestEssPerms(FrappeTestCase):
+	def test_ess_can_write_own_cnic(self):
+		from setup.permissions.apply_self_service import run as apply_ess
+		apply_ess()
+		email = "ess.perm.onb@example.com"
+		frappe.db.delete("User", {"name": email})
+		# NOTE: order matters — erpnext's validate_employee_role (a User.validate
+		# hook) strips the Employee/Employee Self Service role from any user not
+		# yet linked to an Employee. Create the User, then the Employee with
+		# user_id set (linking it), THEN add the role — otherwise it gets stripped.
+		user = frappe.get_doc({"doctype": "User", "email": email, "first_name": "Ess",
+		                       "send_welcome_email": 0, "user_type": "System User"})
+		user.flags.no_welcome_mail = True
+		user.insert(ignore_permissions=True)
+		emp = frappe.get_doc({"doctype": "Employee", "first_name": "Ess", "last_name": "Perm",
+		                      "company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+		                      "gender": "Male", "date_of_birth": "1995-01-01",
+		                      "user_id": email}).insert(ignore_permissions=True)
+		user.reload()  # Employee.insert (user_id link) may have updated the User doc
+		user.add_roles("Employee Self Service")
+		self.assertIn("Employee Self Service", frappe.get_roles(email))
+		# Employee.create_user_permission defaults to 1, so linking user_id on insert
+		# already auto-created the scoping User Permission (Employee.update_user_permissions).
+		# Only add it ourselves if that did not happen.
+		if not frappe.db.exists("User Permission", {"user": email, "allow": "Employee", "for_value": emp.name}):
+			frappe.get_doc({"doctype": "User Permission", "user": email, "allow": "Employee",
+			                "for_value": emp.name, "apply_to_all_doctypes": 1}).insert(ignore_permissions=True)
+		self.assertTrue(frappe.has_permission("Employee", "write", doc=emp.name, user=email))
