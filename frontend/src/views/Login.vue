@@ -31,15 +31,31 @@
 				</div>
 			</div>
 
-			<div v-else class="flex h-screen w-screen flex-col justify-center bg-white">
-				<div class="flex flex-col mx-auto gap-3 items-center">
+			<div
+				v-else
+				class="flex h-screen w-screen flex-col justify-center bg-white lg:h-auto lg:min-h-screen lg:bg-air-bg"
+			>
+				<div class="flex flex-col mx-auto gap-3 items-center lg:hidden">
 					<FrappeHRLogo class="h-8 w-8" />
 					<div class="text-3xl font-semibold text-gray-900 text-center">
 						{{ __("Login to Frappe HR") }}
 					</div>
 				</div>
 
-				<div class="mx-auto mt-10 w-full px-8 sm:w-96">
+				<!-- Desktop ("Air") header; mobile keeps FrappeHRLogo + copy above, untouched. -->
+				<div class="hidden lg:flex lg:flex-col lg:mx-auto lg:items-center lg:text-center">
+					<ClustoxLogo :height="34" class="text-air-ink" />
+					<div class="mt-5 font-display text-[27px] font-semibold tracking-tight text-air-ink">
+						{{ __("Sign in to Clustox People") }}
+					</div>
+					<p class="mt-2 text-[15px] text-air-muted">
+						{{ __("Use your company email to continue.") }}
+					</p>
+				</div>
+
+				<div
+					class="mx-auto mt-10 w-full px-8 sm:w-96 lg:mt-7 lg:max-w-[400px] lg:rounded-air lg:border lg:border-air-line lg:bg-air-surface lg:p-8 lg:shadow-air"
+				>
 					<form v-if="!user_pass_login_disabled.data" class="flex flex-col space-y-4" @submit.prevent="submit">
 						<Input
 							:label="__('Email')"
@@ -47,6 +63,7 @@
 							v-model="email"
 							type="text"
 							autocomplete="username"
+							input-class="lg:rounded-[13px] lg:border-air-line lg:py-3 lg:px-4 lg:focus:border-air-blue lg:focus:ring-4 lg:focus:ring-air-blue-wash"
 						/>
 						<Input
 							:label="__('Password')"
@@ -54,16 +71,36 @@
 							placeholder="••••••"
 							v-model="password"
 							autocomplete="current-password"
+							input-class="lg:rounded-[13px] lg:border-air-line lg:py-3 lg:px-4 lg:focus:border-air-blue lg:focus:ring-4 lg:focus:ring-air-blue-wash"
 						/>
 						<ErrorMessage :message="errorMessage" />
+
+						<!-- Desktop-only "keep signed in" + forgot password row (keepSignedIn is cosmetic; no backend support exists yet). Mobile's centered forgot-password link below is unchanged. -->
+						<div class="hidden lg:flex lg:items-center lg:justify-between lg:text-[13.5px] lg:!mt-3.5">
+							<label class="flex items-center gap-2 text-air-muted">
+								<input
+									type="checkbox"
+									v-model="keepSignedIn"
+									class="h-3.5 w-3.5 rounded accent-air-blue"
+								/>
+								{{ __("Keep me signed in") }}
+							</label>
+							<router-link
+								:to="{ name: 'ForgotPassword', query: email ? { email } : {} }"
+								class="font-medium text-air-blue no-underline hover:text-air-blue-2"
+							>
+								{{ __("Forgot password?") }}
+							</router-link>
+						</div>
+
 						<Button
 							:loading="session.login.loading"
 							variant="solid"
-							class="disabled:bg-gray-700 disabled:text-white !mt-6"
+							class="disabled:bg-gray-700 disabled:text-white !mt-6 lg:w-full lg:h-auto lg:justify-center lg:rounded-full lg:bg-air-blue lg:px-5 lg:py-3.5 lg:text-[15px] lg:font-semibold lg:hover:bg-air-blue-2 lg:disabled:bg-air-blue/40"
 						>
 							{{ __("Login") }}
 						</Button>
-						<div class="text-center mt-4">
+						<div class="text-center mt-4 lg:hidden">
 							<router-link
 								:to="{ name: 'ForgotPassword', query: email ? { email } : {} }"
 								class="text-sm text-gray-600 hover:text-gray-900 underline"
@@ -129,10 +166,15 @@ import { inject, reactive, ref } from "vue"
 import { Input, Button, ErrorMessage, Dialog, createResource } from "frappe-ui"
 
 import FrappeHRLogo from "@/components/icons/FrappeHRLogo.vue"
+import ClustoxLogo from "@/components/icons/ClustoxLogo.vue"
 
 const email = ref(null)
 const password = ref(null)
 const errorMessage = ref("")
+// Desktop-only "keep me signed in" checkbox state (visual, matches the Air
+// login concept); not wired to session/login logic since there is no
+// remember-me support in the backend yet.
+const keepSignedIn = ref(true)
 
 const resetPassword = reactive({
 	showDialog: false,
