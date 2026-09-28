@@ -24,6 +24,12 @@ fixtures = [
 					"Employee-custom_father_or_husband_name",
 					"Employee-custom_religion",
 					"Employee-custom_nationality",
+					"Employee-custom_onboarding_status",
+					"Employee-custom_onboarding_submitted_on",
+					"Employee-custom_onboarding_notes",
+					"Employee-custom_onboarding_documents",
+					"Employee Education-custom_certificate",
+					"Employee External Work History-custom_experience_letter",
 				],
 			]
 		],

@@ -1,0 +1,21 @@
+{
+ "actions": [],
+ "creation": "2026-09-28 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["document_type", "attachment"],
+ "fields": [
+  {"fieldname": "document_type", "fieldtype": "Data", "in_list_view": 1, "label": "Document Type", "reqd": 1, "columns": 4},
+  {"fieldname": "attachment", "fieldtype": "Attach", "in_list_view": 1, "label": "Attachment", "reqd": 1, "columns": 6}
+ ],
+ "istable": 1,
+ "editable_grid": 1,
+ "links": [],
+ "modified": "2026-09-28 00:00:00",
+ "module": "HR",
+ "name": "Employee Onboarding Document",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
