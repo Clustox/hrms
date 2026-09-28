@@ -70,43 +70,94 @@
 				v-else-if="currentStep.type === 'childTable'"
 				class="flex flex-col gap-3 p-4"
 			>
-				<div class="flex flex-row justify-between items-center">
-					<h2 class="text-base font-semibold text-gray-800">
-						{{ currentStep.section.title }}
-					</h2>
+				<div class="flex flex-row justify-between items-center gap-2">
+					<div class="flex flex-col">
+						<h2 class="text-base font-semibold text-gray-800">
+							{{ currentStep.section.title }}
+						</h2>
+						<span class="text-xs text-gray-500">
+							{{ __("Add each {0} as a separate entry", [currentStep.section.addLabel.toLowerCase()]) }}
+						</span>
+					</div>
 					<Button
 						v-if="!isReadOnly"
-						icon="plus"
 						variant="subtle"
-						class="text-sm"
+						class="text-sm shrink-0"
 						@click="openRowModal(currentStep.section)"
-					/>
+					>
+						<template #prefix>
+							<FeatherIcon name="plus" class="h-4 w-4" />
+						</template>
+						{{ __("Add {0}", [currentStep.section.addLabel]) }}
+					</Button>
 				</div>
 
 				<div
 					v-if="(employeeDoc.doc[currentStep.section.fieldname] || []).length"
-					class="flex flex-col bg-white rounded border overflow-auto"
+					class="flex flex-col bg-white rounded border divide-y overflow-auto"
 				>
 					<div
 						v-for="(row, idx) in employeeDoc.doc[currentStep.section.fieldname]"
 						:key="idx"
-						class="flex flex-row p-3.5 items-center justify-between border-b cursor-pointer gap-2"
+						class="flex flex-row p-3.5 items-start justify-between gap-2 cursor-pointer"
 						@click="openRowModal(currentStep.section, row, idx)"
 					>
-						<span class="text-sm text-gray-800 truncate">
-							{{ rowSummary(row, childFields[currentStep.section.childDoctype] || []) }}
-						</span>
-						<div class="flex flex-row items-center gap-2 shrink-0">
-							<FeatherIcon
+						<div class="flex flex-col gap-1 min-w-0 grow">
+							<span class="text-sm font-medium text-gray-900 truncate">
+								{{ rowTitle(row, childFields[currentStep.section.childDoctype] || []) }}
+							</span>
+							<div
+								v-if="rowDetails(row, childFields[currentStep.section.childDoctype] || []).length"
+								class="flex flex-row flex-wrap gap-x-3 gap-y-0.5"
+							>
+								<span
+									v-for="detail in rowDetails(row, childFields[currentStep.section.childDoctype] || [])"
+									:key="detail.label"
+									class="text-xs text-gray-500"
+								>
+									<span class="text-gray-400">{{ detail.label }}:</span>
+									{{ detail.value }}
+								</span>
+							</div>
+							<span
 								v-if="rowHasAttachment(row, currentStep.section.childDoctype)"
-								name="paperclip"
-								class="h-4 w-4 text-gray-500"
-							/>
-							<FeatherIcon name="chevron-right" class="h-5 w-5 text-gray-500" />
+								class="inline-flex flex-row items-center gap-1 text-xs text-green-700 w-fit"
+							>
+								<FeatherIcon name="paperclip" class="h-3 w-3" />
+								{{ __("{0} attached", [attachFieldLabel(currentStep.section.childDoctype)]) }}
+							</span>
 						</div>
+						<div v-if="!isReadOnly" class="flex flex-row items-center gap-1 shrink-0">
+							<Button
+								icon="edit-2"
+								variant="ghost"
+								:label="__('Edit')"
+								class="text-gray-500"
+								@click.stop="openRowModal(currentStep.section, row, idx)"
+							/>
+							<Button
+								icon="trash-2"
+								variant="ghost"
+								:label="__('Remove')"
+								class="text-red-600"
+								:loading="quickDeletingKey === `${currentStep.section.fieldname}:${idx}`"
+								@click.stop="quickDeleteRow(currentStep.section, idx)"
+							/>
+						</div>
+						<FeatherIcon
+							v-else
+							name="chevron-right"
+							class="h-5 w-5 text-gray-500 shrink-0 mt-1"
+						/>
 					</div>
 				</div>
-				<EmptyState v-else :message="__('No records added yet')" :isTableField="true" />
+				<EmptyState
+					v-else
+					:message="__('No {0} added yet', [currentStep.section.title.toLowerCase()])"
+					:isTableField="true"
+				/>
+
+				<ErrorMessage :message="stepError" />
 			</div>
 
 			<!-- Review & submit -->
@@ -267,6 +318,7 @@
 
 <script setup>
 import { computed, inject, onMounted, reactive, ref, watch } from "vue"
+import { useRouter } from "vue-router"
 import {
 	Button,
 	ErrorMessage,
@@ -287,6 +339,7 @@ const DOCTYPE = "Employee"
 
 const employee = inject("$employee")
 const __ = inject("$translate")
+const router = useRouter()
 
 // Same cache key (doctype + name) as Profile.vue's own employeeDoc, so this
 // is literally the same resource instance -- edits here are immediately
@@ -351,24 +404,31 @@ const MANDATORY_FIELDNAMES = [
 	"relation",
 ]
 
+// `addLabel` is the singular noun used on the "Add ..." button and error/empty
+// copy (e.g. "Add Education", "No work experience added yet") -- kept
+// separate from `title` (the step/section heading, which for Documents reads
+// better in the plural).
 const CHILD_SECTIONS = {
 	education: {
 		key: "education",
 		fieldname: "education",
 		childDoctype: "Employee Education",
 		title: __("Education"),
+		addLabel: __("Education"),
 	},
 	work_history: {
 		key: "work_history",
 		fieldname: "external_work_history",
 		childDoctype: "Employee External Work History",
 		title: __("Work Experience"),
+		addLabel: __("Work Experience"),
 	},
 	documents: {
 		key: "documents",
 		fieldname: "custom_onboarding_documents",
 		childDoctype: "Employee Onboarding Document",
 		title: __("Documents"),
+		addLabel: __("Document"),
 	},
 }
 
@@ -399,6 +459,9 @@ const steps = [
 			"custom_nationality",
 			"blood_group",
 			"date_of_birth",
+			"cell_number",
+			"marital_status",
+			"bio",
 		],
 	},
 	{
@@ -429,18 +492,24 @@ const steps = [
 	{ key: "review", type: "review", title: __("Review & Submit") },
 ]
 
+const LAST_STEP_INDEX = steps.length - 1
+
 const stepIndex = ref(0)
 const currentStep = computed(() => steps[stepIndex.value])
 const stepError = ref("")
 
+// Always derived from the CURRENT stepIndex.value and clamped to
+// [0, LAST_STEP_INDEX] -- never an absolute jump -- so Next/Back can only
+// ever move the wizard by exactly one step in either direction, regardless
+// of which step type (fields / childTable / review) is active.
 function goNext() {
 	stepError.value = ""
-	if (stepIndex.value < steps.length - 1) stepIndex.value++
+	stepIndex.value = Math.min(stepIndex.value + 1, LAST_STEP_INDEX)
 }
 
 function goBack() {
 	stepError.value = ""
-	if (stepIndex.value > 0) stepIndex.value--
+	stepIndex.value = Math.max(stepIndex.value - 1, 0)
 }
 
 const isReadOnly = computed(() => employeeDoc.doc?.custom_onboarding_status === "Submitted")
@@ -499,12 +568,37 @@ function loadChildFields(doctype) {
 
 const SKIP_FIELDTYPES = new Set(["Section Break", "Column Break", "HTML"])
 
-function rowSummary(row, fields) {
-	const parts = fields
-		.filter((f) => !SKIP_FIELDTYPES.has(f.fieldtype) && row[f.fieldname])
-		.slice(0, 2)
-		.map((f) => row[f.fieldname])
-	return parts.length ? parts.join(" · ") : __("Untitled")
+// Populated, displayable (non-layout, non-attach) fields for a row, in the
+// child doctype's own field order -- this drives both rowTitle and
+// rowDetails below so the row list always reflects the doctype's actual
+// fields (school/qualification/year for Education, company/designation/
+// experience for Work History, document type for Documents, ...).
+function displayableRowFields(row, fields) {
+	return fields.filter(
+		(f) => !SKIP_FIELDTYPES.has(f.fieldtype) && f.fieldtype !== "Attach" && row[f.fieldname]
+	)
+}
+
+// First populated field is used as the row's bolded title (e.g. the school/
+// university name, or the company name for work history).
+function rowTitle(row, fields) {
+	const [first] = displayableRowFields(row, fields)
+	return first ? row[first.fieldname] : __("Untitled")
+}
+
+// Remaining populated fields (up to 3) are shown underneath as labeled
+// "Field: value" chips, so it's clear which field each value came from
+// (e.g. "Qualification: Bachelor's · Year of Passing: 2020").
+function rowDetails(row, fields) {
+	// No doctype context passed to __() here, matching how the Add/Edit
+	// modal itself translates these same child-doctype field labels.
+	return displayableRowFields(row, fields)
+		.slice(1, 4)
+		.map((f) => ({ label: __(f.label), value: row[f.fieldname] }))
+}
+
+function attachFieldLabel(doctype) {
+	return __(ATTACH_FIELD_BY_DOCTYPE[doctype]?.label || "Attachment")
 }
 
 function rowHasAttachment(row, doctype) {
@@ -601,6 +695,33 @@ function deleteActiveRow() {
 	persistRows(section.fieldname, rows)
 }
 
+// Inline "trash" affordance on the row list, so removing an entry doesn't
+// require opening the edit modal first. `quickDeletingKey` scopes the
+// loading spinner to the one row being removed instead of the modal's
+// shared `childTableSaving` flag.
+const quickDeletingKey = ref(null)
+
+function quickDeleteRow(section, idx) {
+	if (isReadOnly.value) return
+	const rows = [...(employeeDoc.doc[section.fieldname] || [])]
+	rows.splice(idx, 1)
+
+	stepError.value = ""
+	quickDeletingKey.value = `${section.fieldname}:${idx}`
+	saveOnboardingValues(
+		{ [section.fieldname]: rows },
+		{
+			onSuccess: () => {
+				quickDeletingKey.value = null
+			},
+			onError: (e) => {
+				quickDeletingKey.value = null
+				stepError.value = e.messages?.join(", ") || __("Failed to remove. Please try again.")
+			},
+		}
+	)
+}
+
 async function handleRowFileSelect(e, fieldname) {
 	const file = e.target.files[0]
 	e.target.value = ""
@@ -636,6 +757,10 @@ const submitOnboarding = createResource({
 			iconClasses: "text-green-500",
 		})
 		employeeDoc.reload()
+		// Onboarding is done -- leave the Profile onboarding view and land the
+		// employee on the app's home/dashboard instead of the (now read-only,
+		// "awaiting HR review") wizard.
+		router.push({ name: "Home" })
 	},
 	onError: (e) => {
 		submitError.value =
