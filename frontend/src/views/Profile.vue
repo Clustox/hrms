@@ -1,10 +1,18 @@
 <template>
 	<ion-page>
-		<ion-content class="ion-padding">
-			<div v-if="showOnboarding" class="flex flex-col h-screen w-screen">
+		<DesktopShell />
+		<ion-content
+			class="ion-padding lg:![--padding-start:0px] lg:![--padding-end:0px] lg:![--padding-top:0px] lg:![--padding-bottom:0px] lg:[--background:var(--air-bg)]"
+		>
+			<!-- Onboarding wizard: unchanged on mobile; on desktop it is offset clear of the
+				shell and centered (the wizard component itself is untouched). -->
+			<div
+				v-if="showOnboarding"
+				class="flex flex-col h-screen w-screen lg:items-center lg:bg-air-bg lg:pl-[250px] lg:pt-[68px] lg:[&>div]:w-[720px] lg:[&>div]:max-w-full"
+			>
 				<OnboardingSteps />
 			</div>
-			<div v-else class="flex flex-col h-screen w-screen">
+			<div v-else class="flex flex-col h-screen w-screen lg:hidden">
 				<div class="w-full sm:w-96">
 					<header
 						class="flex flex-row bg-white shadow-sm py-4 px-3 items-center justify-between border-b sticky top-0 z-10"
@@ -138,6 +146,142 @@
 				</div>
 			</div>
 
+			<!-- Air desktop profile (lg+ only; profile mode) -->
+			<div
+				v-if="!showOnboarding"
+				class="hidden min-h-screen lg:block lg:bg-air-bg lg:pl-[250px] lg:pt-[68px]"
+			>
+				<div class="max-w-[900px] px-10 pb-[70px] pt-[34px]">
+					<h1
+						class="air-rise font-display text-[34px] font-bold tracking-[-0.03em] text-air-ink"
+					>
+						{{ __("Profile") }}
+					</h1>
+
+					<div
+						class="air-rise mt-8 flex items-center gap-6 rounded-air border border-air-line bg-air-surface p-[22px] shadow-air transition-all duration-300 ease-air hover:-translate-y-[3px] hover:shadow-air-2"
+						:style="{ '--air-delay': '70ms' }"
+					>
+						<img
+							v-if="user.data.user_image"
+							class="h-20 w-20 shrink-0 rounded-full object-cover"
+							:src="user.data.user_image"
+							:alt="user.data.first_name"
+						/>
+						<div
+							v-else
+							class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-air-surface-2 font-display text-2xl font-semibold uppercase text-air-muted"
+						>
+							{{ user.data.first_name[0] }}
+						</div>
+						<div class="min-w-0">
+							<div
+								v-if="employee"
+								class="truncate font-display text-2xl font-semibold tracking-[-0.02em] text-air-ink"
+							>
+								{{ employee?.data?.employee_name }}
+							</div>
+							<div v-if="employee" class="mt-1 text-[15px] text-air-muted">
+								{{ employee?.data?.designation }}
+							</div>
+						</div>
+					</div>
+
+					<div class="mt-5 grid grid-cols-2 items-start gap-5">
+						<div
+							class="air-rise rounded-air border border-air-line bg-air-surface p-[22px] shadow-air transition-all duration-300 ease-air hover:-translate-y-[3px] hover:shadow-air-2"
+							:style="{ '--air-delay': '140ms' }"
+						>
+							<div class="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
+								{{ __("Details") }}
+							</div>
+									<div
+										v-for="item in profileLinks"
+										:key="item.title"
+										class="-mx-2 flex cursor-pointer items-center justify-between gap-3 rounded-air-sm px-2 py-2.5 transition-colors duration-200 ease-air hover:bg-air-surface-2"
+										@click="openInfoModal(item)"
+									>
+										<div class="flex grow items-center gap-3">
+											<span
+												class="flex h-9 w-9 items-center justify-center rounded-full bg-air-surface-2 text-air-ink-2"
+											>
+												<FeatherIcon :name="item.icon" class="h-[17px] w-[17px]" />
+											</span>
+											<div class="text-[15px] font-medium text-air-ink">
+												{{ item.title }}
+											</div>
+										</div>
+										<FeatherIcon name="chevron-right" class="h-4 w-4 text-air-muted" />
+									</div>
+						</div>
+
+						<div class="flex flex-col gap-5">
+							<div
+								class="air-rise rounded-air border border-air-line bg-air-surface p-[22px] shadow-air transition-all duration-300 ease-air hover:-translate-y-[3px] hover:shadow-air-2"
+								:style="{ '--air-delay': '210ms' }"
+							>
+								<div class="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
+									{{ __("Background") }}
+								</div>
+									<div
+										v-for="item in childSections"
+										:key="item.title"
+										class="-mx-2 flex cursor-pointer items-center justify-between gap-3 rounded-air-sm px-2 py-2.5 transition-colors duration-200 ease-air hover:bg-air-surface-2"
+										@click="openInfoModal(item)"
+									>
+										<div class="flex grow items-center gap-3">
+											<span
+												class="flex h-9 w-9 items-center justify-center rounded-full bg-air-surface-2 text-air-ink-2"
+											>
+												<FeatherIcon :name="item.icon" class="h-[17px] w-[17px]" />
+											</span>
+											<div class="text-[15px] font-medium text-air-ink">
+												{{ item.title }}
+											</div>
+										</div>
+										<FeatherIcon name="chevron-right" class="h-4 w-4 text-air-muted" />
+									</div>
+							</div>
+
+							<div
+								class="air-rise rounded-air border border-air-line bg-air-surface p-[22px] shadow-air transition-all duration-300 ease-air hover:-translate-y-[3px] hover:shadow-air-2"
+								:style="{ '--air-delay': '280ms' }"
+							>
+								<div class="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
+									{{ __("Preferences") }}
+								</div>
+								<router-link
+									:to="{ name: 'Settings' }"
+									class="-mx-2 flex items-center justify-between gap-3 rounded-air-sm px-2 py-2.5 transition-colors duration-200 ease-air hover:bg-air-surface-2"
+								>
+									<div class="flex grow items-center gap-3">
+										<span
+											class="flex h-9 w-9 items-center justify-center rounded-full bg-air-surface-2 text-air-ink-2"
+										>
+											<FeatherIcon name="settings" class="h-[17px] w-[17px]" />
+										</span>
+										<div class="text-[15px] font-medium text-air-ink">
+											{{ __("Settings") }}
+										</div>
+									</div>
+									<FeatherIcon name="chevron-right" class="h-4 w-4 text-air-muted" />
+								</router-link>
+							</div>
+						</div>
+					</div>
+
+					<button
+						type="button"
+						class="air-rise mt-6 flex items-center gap-2 rounded-full border border-air-line bg-air-surface px-5 py-2.5 text-[14px] font-semibold text-air-crit transition ease-air hover:border-air-crit hover:bg-air-crit-w"
+						:style="{ '--air-delay': '350ms' }"
+						@click="logout"
+					>
+						<FeatherIcon name="log-out" class="h-4 w-4" />
+						{{ __("Log Out") }}
+					</button>
+				</div>
+			</div>
+
 			<ion-modal
 				ref="modal"
 				:is-open="isInfoModalOpen"
@@ -184,6 +328,7 @@ import { formatCurrency } from "@/utils/formatters"
 import ProfileInfoModal from "@/components/ProfileInfoModal.vue"
 import ProfileChildTableModal from "@/components/ProfileChildTableModal.vue"
 import OnboardingSteps from "@/components/OnboardingSteps.vue"
+import DesktopShell from "@/components/DesktopShell.vue"
 
 import { arePushNotificationsEnabled } from "@/data/notifications"
 
