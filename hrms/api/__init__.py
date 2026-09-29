@@ -236,34 +236,45 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 		order_by="time asc",
 	)
 
-	days = {}
-	for log in logs:
-		day = days.setdefault(
-			getdate(log.time).isoformat(), {"in_time": None, "out_time": None, "shift_start": None}
-		)
-		if log.log_type == "IN" and not day["in_time"]:
-			day["in_time"] = log.time  # first IN of the day
-			# Scheduled shift start recorded on the checkin -- used to flag the
-			# day as early / on time / late against the shift.
-			day["shift_start"] = log.shift_start
-		elif log.log_type == "OUT":
-			day["out_time"] = log.time  # last OUT of the day (logs are time-ascending)
-
-	rows = []
-	for date_str, times in days.items():
-		working_hours = None
-		if times["in_time"] and times["out_time"]:
-			working_hours = round((times["out_time"] - times["in_time"]).total_seconds() / 3600, 2)
-		rows.append(
+	def _row(date_str):
+		return days.setdefault(
+			date_str,
 			{
 				"attendance_date": date_str,
-				"in_time": times["in_time"],
-				"out_time": times["out_time"],
-				"working_hours": working_hours,
-				"shift_start": times["shift_start"],
-			}
+				"in_time": None,
+				"out_time": None,
+				"working_hours": None,
+				"shift_start": None,
+			},
 		)
 
+	# Pair each IN with the NEXT OUT chronologically (across days) rather than a
+	# day's first-IN with its own last-OUT. An overnight shift (e.g. 6pm -> 3am
+	# next day) then reads as one positive span attributed to the day it
+	# started -- never the negative you'd get from pairing a day's 6pm IN with an
+	# earlier 3am OUT that actually closes the previous night's shift.
+	days = {}
+	pending_in = None  # an open IN awaiting its OUT
+	for log in logs:
+		if log.log_type == "IN":
+			if pending_in is None:
+				pending_in = log
+				row = _row(getdate(log.time).isoformat())
+				if row["in_time"] is None:
+					row["in_time"] = log.time
+					row["shift_start"] = log.shift_start
+		elif log.log_type == "OUT":
+			if pending_in is not None:
+				row = _row(getdate(pending_in.time).isoformat())
+				row["out_time"] = log.time
+				hours = (log.time - pending_in.time).total_seconds() / 3600
+				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
+				pending_in = None
+			else:
+				# stray OUT with no open IN (e.g. a missed check-in that day)
+				_row(getdate(log.time).isoformat())["out_time"] = log.time
+
+	rows = list(days.values())
 	rows.sort(key=lambda r: r["attendance_date"], reverse=True)
 	return rows
 
