@@ -15,7 +15,7 @@
 					</div>
 
 					<template v-if="settings.data?.allow_employee_checkin_from_mobile_app">
-						<div v-if="lastLog" class="mt-2 text-[15px] text-air-ink-2">
+						<div v-if="lastLog?.time" class="mt-2 text-[15px] text-air-ink-2">
 							<span>{{
 								__("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)])
 							}}</span>
@@ -58,7 +58,7 @@
 			:options="{ title: nextAction.label, size: 'md' }"
 		>
 			<template #body-content>
-				<div class="flex flex-col items-center gap-5">
+				<div class="flex flex-col items-center gap-5 rounded-air-sm bg-air-surface p-5">
 					<div class="flex flex-col items-center gap-1.5">
 						<div
 							class="font-display text-[38px] font-semibold leading-none tracking-[-0.04em] text-air-ink tabular-nums"

@@ -30,7 +30,6 @@ const longitude = ref(0)
 const locationStatus = ref("")
 
 let initialized = false
-let socketSubscribed = false
 let checkins = null
 let lastLog = null
 let lastLogType = null
@@ -42,14 +41,29 @@ let __ = null
 // to create them (component-scoped effects are stopped on unmount).
 const scope = effectScope(true)
 
+// Named so it can be re-attached idempotently: other views (e.g. Profile) call
+// a blanket `socket.off("list_update")` on unmount, which would otherwise drop
+// our handler for good.
+function onListUpdate(data) {
+	if (data.doctype === DOCTYPE) checkins.reload()
+}
+
+function attachSocket(socket) {
+	if (!socket) return
+	socket.off("list_update", onListUpdate)
+	socket.on("list_update", onListUpdate)
+	socket.emit("doctype_subscribe", DOCTYPE)
+}
+
 function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 	if (initialized) {
 		// A consumer (re)mounted, e.g. navigating back to Home: refresh like the
-		// original panel did on mount, but never start a duplicate request.
+		// original panel did on mount, but never start a duplicate request, and
+		// re-attach the socket handler in case something removed it.
+		attachSocket(socket)
 		if (!checkins.list.loading) checkins.reload()
 		return
 	}
-	initialized = true
 	employee = emp
 	dayjs = dj
 	__ = translate
@@ -80,17 +94,11 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 		})
 	})
 
+	// Only mark initialized once setup succeeded (a throw above, e.g. null
+	// employee.data, leaves later consumers free to retry).
+	initialized = true
 	checkins.reload()
-
-	if (!socketSubscribed && socket) {
-		socketSubscribed = true
-		socket.emit("doctype_subscribe", DOCTYPE)
-		socket.on("list_update", (data) => {
-			if (data.doctype == DOCTYPE) {
-				checkins.reload()
-			}
-		})
-	}
+	attachSocket(socket)
 }
 
 function handleLocationSuccess(position) {
