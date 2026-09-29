@@ -1,7 +1,8 @@
 <template>
 	<BaseLayout :pageTitle="__('Expense Claims')">
 		<template #body>
-			<div class="flex flex-col mt-7 mb-7 p-4 gap-7">
+			<!-- Mobile Expenses (unchanged): hidden once the desktop dashboard takes over at lg -->
+			<div class="flex flex-col mt-7 mb-7 p-4 gap-7 lg:hidden">
 				<ExpenseClaimSummary />
 
 				<div class="w-full">
@@ -45,19 +46,30 @@
 					<EmployeeAdvanceBalance :items="advanceBalance.data" />
 				</div>
 			</div>
+
+			<!-- Air desktop dashboard (lg+ only; mounted only on wide viewports) -->
+			<DesktopExpenseDashboard v-if="isDesktop" />
 		</template>
 	</BaseLayout>
 </template>
 
 <script setup>
-import { markRaw } from "vue"
+import { markRaw, ref, onMounted, onBeforeUnmount } from "vue"
 
 import BaseLayout from "@/components/BaseLayout.vue"
 import ExpenseClaimSummary from "@/components/ExpenseClaimSummary.vue"
 import RequestList from "@/components/RequestList.vue"
 import ExpenseClaimItem from "@/components/ExpenseClaimItem.vue"
 import EmployeeAdvanceBalance from "@/components/EmployeeAdvanceBalance.vue"
+import DesktopExpenseDashboard from "@/components/DesktopExpenseDashboard.vue"
 
 import { myClaims } from "@/data/claims"
 import { advanceBalance } from "@/data/advances"
+
+// Mirror Tailwind's `lg` breakpoint so the desktop dashboard is only mounted on wide viewports.
+const desktopQuery = window.matchMedia("(min-width: 1024px)")
+const isDesktop = ref(desktopQuery.matches)
+const onQueryChange = (e) => (isDesktop.value = e.matches)
+onMounted(() => desktopQuery.addEventListener("change", onQueryChange))
+onBeforeUnmount(() => desktopQuery.removeEventListener("change", onQueryChange))
 </script>
