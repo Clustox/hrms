@@ -82,11 +82,11 @@ http://ionicframework.com/docs/theming/ */
 	--ion-color-light-tint: #f5f6f9;
 
 	/**
-	 * "Air" desktop design tokens (Phase 1 of the PWA desktop redesign).
+	 * "Air" desktop design tokens (PWA desktop redesign).
 	 * Used only by the `lg:` desktop shell + components; mobile styling is
 	 * untouched and continues to use the Ionic vars above / Tailwind defaults.
-	 * Values mirror the locked Air concept artifact (light palette for now;
-	 * a `[data-theme="dark"]` block is added in a later phase).
+	 * Light palette here; the dark palette lives in the
+	 * `:root[data-air-theme="dark"]` block below (Phase 6).
 	 */
 	--air-bg: #fbfbfd;
 	--air-surface: #ffffff;
@@ -109,9 +109,60 @@ http://ionicframework.com/docs/theming/ */
 	--air-crit: #d9302b;
 	--air-crit-w: #fbe9e8;
 
+	/* Primary-button fill, decoupled from --air-ink so it can invert in dark
+	   mode (in dark, --air-ink is near-white, so a raw `bg-air-ink text-white`
+	   button would be white-on-white). */
+	--air-btn: #1d1d1f;
+	--air-btn-ink: #ffffff;
+
 	--air-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 24px -18px rgba(0, 0, 0, 0.22);
 	--air-shadow-2: 0 2px 6px rgba(0, 0, 0, 0.05), 0 20px 40px -22px rgba(0, 0, 0, 0.28);
 	--air-r: 20px;
 	--air-r-sm: 14px;
 	--air-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+ * Air DESKTOP dark theme (Phase 6). Apple-dark inspired.
+ *
+ * Driven by a DEDICATED `data-air-theme="dark"` attribute on <html> (set by
+ * useTheme.js), NOT frappe-ui's `[data-theme="dark"]`. This is intentional:
+ * frappe-ui's preset defines a full `[data-theme="dark"]` variable block plus a
+ * global `img { filter: brightness(.8) }` rule that would darken every
+ * frappe-ui component and image APP-WIDE — including the mobile chrome. Scoping
+ * the switch to our own attribute re-themes only the `--air-*` tokens, so the
+ * desktop Air surfaces go dark while the mobile phone UI (which uses Ionic vars
+ * + plain white/gray Tailwind classes, never `--air-*`) stays byte-for-byte
+ * light, even when the OS prefers dark.
+ *
+ * Only colors/shadows change here; --air-r, --air-r-sm and --air-ease are
+ * inherited unchanged from :root above.
+ */
+:root[data-air-theme="dark"] {
+	--air-bg: #000000;
+	--air-surface: #1c1c1e;
+	--air-surface-2: #2c2c2e;
+	--air-ink: #f5f5f7;
+	--air-ink-2: #d1d1d6;
+	--air-muted: #98989d;
+	--air-line: #38383a;
+	--air-line-2: #2c2c2e;
+
+	--air-blue: #0a84ff;
+	--air-blue-2: #409cff;
+	--air-blue-wash: #0a2540;
+	--air-green: #30d158;
+
+	--air-good: #30d158;
+	--air-good-w: #0e2e1e;
+	--air-warn: #ffd60a;
+	--air-warn-w: #33280a;
+	--air-crit: #ff453a;
+	--air-crit-w: #3a1512;
+
+	--air-btn: #f5f5f7;
+	--air-btn-ink: #000000;
+
+	--air-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 24px -18px rgba(0, 0, 0, 0.8);
+	--air-shadow-2: 0 2px 6px rgba(0, 0, 0, 0.55), 0 20px 40px -22px rgba(0, 0, 0, 0.9);
 }

@@ -75,6 +75,16 @@
 			/>
 		</div>
 
+		<button
+			type="button"
+			class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-air-line bg-air-surface text-air-ink-2 transition-all duration-200 ease-air hover:-translate-y-px hover:text-air-blue hover:shadow-air"
+			:aria-label="isDark ? __('Switch to light mode') : __('Switch to dark mode')"
+			:title="isDark ? __('Switch to light mode') : __('Switch to dark mode')"
+			@click="toggleTheme"
+		>
+			<FeatherIcon :name="isDark ? 'sun' : 'moon'" class="h-[17px] w-[17px]" />
+		</button>
+
 		<router-link
 			:to="{ name: 'Notifications' }"
 			class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-air-line bg-air-surface text-air-ink-2 transition-all duration-200 ease-air hover:-translate-y-px hover:text-air-blue hover:shadow-air relative"
@@ -101,6 +111,9 @@ import { Avatar, FeatherIcon } from "frappe-ui"
 import ClustoxLogo from "@/components/icons/ClustoxLogo.vue"
 import { getNavItems } from "@/config/navItems"
 import { unreadNotificationsCount } from "@/data/notifications"
+import { useTheme } from "@/composables/useTheme"
+
+const { isDark, toggleTheme } = useTheme()
 
 const __ = inject("$translate")
 const user = inject("$user")

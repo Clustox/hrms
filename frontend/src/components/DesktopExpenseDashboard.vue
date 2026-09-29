@@ -15,7 +15,7 @@
 			</div>
 			<router-link
 				:to="{ name: 'ExpenseClaimFormView' }"
-				class="shrink-0 rounded-full bg-air-ink px-5 py-2.5 text-[14px] font-semibold text-white transition ease-air hover:bg-air-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue focus-visible:ring-offset-2"
+				class="shrink-0 rounded-full bg-air-btn px-5 py-2.5 text-[14px] font-semibold text-air-btn-ink transition ease-air hover:bg-air-blue hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue focus-visible:ring-offset-2"
 			>
 				{{ __("Claim an expense") }}
 			</router-link>

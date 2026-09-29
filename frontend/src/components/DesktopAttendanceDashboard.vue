@@ -75,7 +75,7 @@
 		<div class="air-rise mb-7 flex flex-wrap items-center gap-3" style="--air-delay: 280ms">
 			<router-link
 				:to="{ name: 'AttendanceRequestFormView' }"
-				class="rounded-full bg-air-ink px-5 py-2.5 text-[14px] font-semibold text-white transition ease-air hover:bg-air-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue focus-visible:ring-offset-2"
+				class="rounded-full bg-air-btn px-5 py-2.5 text-[14px] font-semibold text-air-btn-ink transition ease-air hover:bg-air-blue hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue focus-visible:ring-offset-2"
 			>
 				{{ __("Request attendance") }}
 			</router-link>

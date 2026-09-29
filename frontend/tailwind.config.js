@@ -34,6 +34,8 @@ export default {
 					"blue-2": "var(--air-blue-2)",
 					"blue-wash": "var(--air-blue-wash)",
 					green: "var(--air-green)",
+					btn: "var(--air-btn)",
+					"btn-ink": "var(--air-btn-ink)",
 					good: "var(--air-good)",
 					"good-w": "var(--air-good-w)",
 					warn: "var(--air-warn)",

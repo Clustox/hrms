@@ -22,6 +22,7 @@ import { employeeResource } from "@/data/employee"
 
 import dayjs from "@/utils/dayjs"
 import getIonicConfig from "@/utils/ionicConfig"
+import { initTheme } from "@/composables/useTheme"
 
 import FrappePushNotification from "../public/frappe-push-notification"
 
@@ -32,6 +33,10 @@ import "@ionic/vue/css/core.css"
 import "./theme/variables.css"
 
 import "./main.css"
+
+// Apply the persisted Air desktop theme (light/dark/system) before the app
+// mounts so the dark attribute is on <html> ahead of first paint (no flash).
+initTheme()
 
 const app = createApp(App)
 const socket = initSocket()
