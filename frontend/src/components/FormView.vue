@@ -2,7 +2,7 @@
 	<!-- Air desktop: persistent shell (sidebar+topbar) for continuity; hidden on mobile. -->
 	<DesktopShell />
 	<div
-		class="flex flex-col h-full w-full lg:min-h-screen lg:bg-air-bg lg:pl-[250px] lg:pt-[68px] lg:pb-12"
+		class="flex flex-col h-full w-full lg:h-auto lg:min-h-screen lg:bg-air-bg lg:pl-[250px] lg:pt-[68px] lg:pb-12"
 		v-if="isFormReady"
 	>
 		<!-- Mobile-width column (unchanged); at lg: becomes a centered Air card. -->
@@ -207,25 +207,6 @@
 				v-else-if="isFormDirty || (!workflow?.hasWorkflow && formButton)"
 				class="px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg lg:static lg:w-full lg:rounded-none lg:border-air-line-2 lg:bg-transparent lg:drop-shadow-none lg:px-7 lg:py-5"
 			>
-				<!-- Desktop: one clear Air validation alert with the real message -->
-				<div
-					v-if="formErrorMessage || docList?.insert?.error || documentResource?.setValue?.error"
-					class="hidden lg:flex mb-3 items-start gap-2.5 rounded-air-sm border border-red-200 bg-red-50 px-4 py-3"
-				>
-					<FeatherIcon name="alert-circle" class="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-					<p class="whitespace-pre-line text-[13.5px] leading-5 text-red-700">
-						{{ formErrorMessage || extractErrorMessage(docList?.insert?.error || documentResource?.setValue?.error) }}
-					</p>
-				</div>
-				<!-- Mobile inline error -->
-				<ErrorMessage
-					class="mb-2 lg:hidden"
-					:message="
-						formErrorMessage ||
-						docList?.insert?.error ||
-						documentResource?.setValue?.error
-					"
-				/>
 
 				<Button
 					class="w-full rounded py-5 text-base disabled:bg-gray-700 disabled:text-white lg:rounded-air-sm lg:py-3.5 lg:font-semibold"
@@ -336,13 +317,36 @@
 			</div>
 		</template>
 	</Dialog>
+
+	<!-- Validation / save error — a single alert popup with the real message -->
+	<Dialog v-model="showErrorDialog">
+		<template #body-title>
+			<div class="flex items-center gap-2.5">
+				<span
+					class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50"
+				>
+					<FeatherIcon name="alert-triangle" class="h-4 w-4 text-red-500" />
+				</span>
+				<h2 class="text-xl font-bold text-gray-900">{{ __("Couldn't save") }}</h2>
+			</div>
+		</template>
+		<template #body-content>
+			<p class="whitespace-pre-line text-[15px] leading-6 text-gray-700">
+				{{ errorDialogMessage }}
+			</p>
+		</template>
+		<template #actions>
+			<Button variant="solid" class="w-full py-5" @click="showErrorDialog = false">
+				{{ __("OK") }}
+			</Button>
+		</template>
+	</Dialog>
 </template>
 
 <script setup>
 import { computed, inject, nextTick, onMounted, ref, watch } from "vue"
 import { useRouter } from "vue-router"
 import {
-	ErrorMessage,
 	Badge,
 	FeatherIcon,
 	createListResource,
@@ -421,6 +425,8 @@ let activeTab = ref(props.tabs?.[0].name)
 let fileAttachments = ref([])
 let statusColor = ref("")
 let formErrorMessage = ref("")
+let showErrorDialog = ref(false)
+let errorDialogMessage = ref("")
 let isFormDirty = ref(false)
 let isFormUpdated = ref(false)
 let showDeleteDialog = ref(false)
@@ -564,11 +570,9 @@ const docList = createListResource({
 			})
 		},
 		onError(error) {
-			// Surface the REAL server validation message once (via the inline
-			// alert banner), instead of stacking generic "Error creating X"
-			// toasts on every click. `docList.insert.error` also drives the
-			// inline ErrorMessage as a fallback.
-			formErrorMessage.value = extractErrorMessage(error)
+			// Show the REAL server validation message once in a single alert
+			// popup, instead of stacking generic "Error creating X" toasts.
+			showError(extractErrorMessage(error))
 			console.log(`Error creating ${props.doctype}`)
 		},
 	},
@@ -588,7 +592,7 @@ const documentResource = createDocumentResource({
 			})
 		},
 		onError(error) {
-			formErrorMessage.value = extractErrorMessage(error)
+			showError(extractErrorMessage(error))
 			console.log(`Error updating ${props.doctype}`)
 		},
 	},
@@ -670,14 +674,24 @@ function validateMandatoryFields() {
 		.map((field) => field.label)
 
 	if (errorFields.length) {
-		formErrorMessage.value = `${errorFields.join(", ")} ${
-			errorFields.length > 1 ? "fields are mandatory" : "field is mandatory"
+		const msg = `${errorFields.join(", ")} ${
+			errorFields.length > 1 ? __("fields are mandatory") : __("field is mandatory")
 		}`
+		showError(msg)
 		return false
 	} else {
 		formErrorMessage.value = ""
 		return true
 	}
+}
+
+// Surface a single, prominent alert popup with the real reason. One dialog
+// (v-model boolean) can never stack, so repeated failed saves just refresh the
+// message instead of piling up toasts, and it stays visible regardless of
+// where the long form is scrolled.
+function showError(message) {
+	errorDialogMessage.value = message
+	showErrorDialog.value = true
 }
 
 // Pull the human-readable validation message(s) out of a frappe-ui error so
