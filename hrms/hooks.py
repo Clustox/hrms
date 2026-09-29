@@ -194,6 +194,9 @@ override_doctype_class = {
 	"Timesheet": "hrms.overrides.employee_timesheet.EmployeeTimesheet",
 	"Payment Entry": "hrms.overrides.employee_payment_entry.EmployeePaymentEntry",
 	"Project": "hrms.overrides.employee_project.EmployeeProject",
+	# Clustox: Attendance Request doubles as an employee punch (missed
+	# check-in/out) request; approval creates the Employee Checkin.
+	"Attendance Request": "hrms.overrides.attendance_request.PunchAttendanceRequest",
 }
 
 # Document Events
