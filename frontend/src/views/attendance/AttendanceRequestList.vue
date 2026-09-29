@@ -2,7 +2,8 @@
 	<ion-page>
 		<ListView
 			doctype="Attendance Request"
-			:pageTitle="__('Attendance Request History')"
+			:pageTitle="__('Attendance Requests')"
+			:tabButtons="TAB_BUTTONS"
 			:fields="ATTENDANCE_REQUEST_FIELDS"
 			:filterConfig="FILTER_CONFIG"
 		/>
@@ -16,6 +17,9 @@ import { inject } from "vue"
 
 const __ = inject("$translate")
 
+// "Team Requests" lets a manager (anyone who can approve, i.e. submit) see and
+// approve their team's punch requests, mirroring Leaves / Expenses.
+const TAB_BUTTONS = ["My Requests", "Team Requests"] // __("My Requests"), __("Team Requests")
 const ATTENDANCE_REQUEST_FIELDS = ["name", "reason", "from_date", "to_date", "docstatus"]
 const FILTER_CONFIG = [
 	{
