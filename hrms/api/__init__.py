@@ -200,10 +200,18 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 	}
 
 	rows = dict(attendance_by_date)
-	for checkin_day in _group_checkins_by_day(employee, from_date, to_date):
+	checkin_days = _group_checkins_by_day(employee, from_date, to_date)
+	# Scheduled shift start per day, taken from the day's first check-in. Used to
+	# flag each day as early / on time / late against the shift (the frontend
+	# applies the buffer). Attendance rows don't carry it, so merge it in here.
+	shift_start_by_date = {d["attendance_date"]: d.get("shift_start") for d in checkin_days}
+	for checkin_day in checkin_days:
 		date_str = checkin_day["attendance_date"]
 		if date_str not in rows:
 			rows[date_str] = {**checkin_day, "status": None}
+
+	for date_str, row in rows.items():
+		row.setdefault("shift_start", shift_start_by_date.get(date_str))
 
 	return sorted(rows.values(), key=lambda r: str(r["attendance_date"]), reverse=True)
 
@@ -224,15 +232,20 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 	logs = frappe.get_all(
 		"Employee Checkin",
 		filters={"employee": employee, "time": ["between", [from_date, f"{to_date} 23:59:59"]]},
-		fields=["log_type", "time"],
+		fields=["log_type", "time", "shift_start"],
 		order_by="time asc",
 	)
 
 	days = {}
 	for log in logs:
-		day = days.setdefault(getdate(log.time).isoformat(), {"in_time": None, "out_time": None})
+		day = days.setdefault(
+			getdate(log.time).isoformat(), {"in_time": None, "out_time": None, "shift_start": None}
+		)
 		if log.log_type == "IN" and not day["in_time"]:
 			day["in_time"] = log.time  # first IN of the day
+			# Scheduled shift start recorded on the checkin -- used to flag the
+			# day as early / on time / late against the shift.
+			day["shift_start"] = log.shift_start
 		elif log.log_type == "OUT":
 			day["out_time"] = log.time  # last OUT of the day (logs are time-ascending)
 
@@ -247,6 +260,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 				"in_time": times["in_time"],
 				"out_time": times["out_time"],
 				"working_hours": working_hours,
+				"shift_start": times["shift_start"],
 			}
 		)
 

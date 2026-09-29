@@ -122,6 +122,7 @@
 									<th class="px-5 py-3 font-semibold">{{ __("Date") }}</th>
 									<th class="px-5 py-3 font-semibold">{{ __("Check-in") }}</th>
 									<th class="px-5 py-3 font-semibold">{{ __("Check-out") }}</th>
+									<th class="px-5 py-3 font-semibold">{{ __("Status") }}</th>
 									<th class="px-5 py-3 text-right font-semibold">{{ __("Hours logged") }}</th>
 								</tr>
 							</thead>
@@ -139,6 +140,16 @@
 									</td>
 									<td class="px-5 py-3.5 text-[14px] tabular-nums text-gray-700">
 										{{ fmtTime(day.out_time) }}
+									</td>
+									<td class="px-5 py-3.5">
+										<span
+											v-if="shiftStatus(day)"
+											class="inline-flex rounded-full px-2.5 py-0.5 text-[12px] font-medium"
+											:class="shiftStatus(day).cls"
+										>
+											{{ shiftStatus(day).label }}
+										</span>
+										<span v-else class="text-[13px] text-gray-400">—</span>
 									</td>
 									<td class="px-5 py-3.5 text-right text-[14px] font-semibold tabular-nums text-gray-900">
 										{{ fmtHours(day.working_hours) }}
@@ -202,6 +213,20 @@ watch(
 // Desktop table helpers (mobile keeps DayAttendanceCard).
 const fmtTime = (t) => (t && dayjs(t).isValid() ? dayjs(t).format("h:mm A") : "—")
 const fmtHours = (h) => (Number(h) ? Number(h).toFixed(2) : "—")
+
+// Early / On time / Late vs the day's scheduled shift start, with a 10-minute
+// buffer either side. shift_start comes from the day's first check-in
+// (hrms.api.get_attendance_timesheet). No shift or no check-in -> no badge.
+const SHIFT_BUFFER_MINUTES = 10
+function shiftStatus(day) {
+	if (!day.in_time || !day.shift_start) return null
+	const diff = dayjs(day.in_time).diff(dayjs(day.shift_start), "minute")
+	if (diff > SHIFT_BUFFER_MINUTES)
+		return { label: __("Late"), cls: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20" }
+	if (diff < -SHIFT_BUFFER_MINUTES)
+		return { label: __("Early"), cls: "bg-sky-50 text-sky-700 ring-1 ring-sky-600/20" }
+	return { label: __("On time"), cls: "bg-green-50 text-green-700 ring-1 ring-green-600/20" }
+}
 
 const totalHours = computed(() =>
 	(timesheet.data || []).reduce((sum, d) => sum + (Number(d.working_hours) || 0), 0)
