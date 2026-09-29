@@ -139,6 +139,10 @@ http://ionicframework.com/docs/theming/ */
  * inherited unchanged from :root above.
  */
 :root[data-air-theme="dark"] {
+	/* Let native UA controls (scrollbars, checkbox, Switch track, inputs) render
+	   dark to match the Air surfaces. Scoped to the dark attribute only, so the
+	   mobile light UI is unaffected. */
+	color-scheme: dark;
 	--air-bg: #000000;
 	--air-surface: #1c1c1e;
 	--air-surface-2: #2c2c2e;

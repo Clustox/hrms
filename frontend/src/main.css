@@ -42,7 +42,11 @@ body {
 }
 
 .air-rise {
-	animation: air-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+	/* `backwards` (not `both`): apply the from-state before the delay for the
+	   entrance, but do NOT hold the to-state's `transform: none` afterward —
+	   forwards-fill would win the cascade over `hover:-translate-y` and kill the
+	   card hover lift. The resting state already equals the to-state. */
+	animation: air-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 	animation-delay: var(--air-delay, 0ms);
 }
 
