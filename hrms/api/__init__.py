@@ -186,8 +186,17 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 	silently vanishing from the timesheet.
 	"""
 	employee = get_current_employee()
-	attendance_by_date = {
-		d["attendance_date"].isoformat(): d
+
+	# In / out / worked-hours (and shift_start for the early/late flag) come from
+	# the day's check-ins, paired and capped in _group_checkins_by_day -- NOT from
+	# Attendance's own working_hours, which can carry bad values (e.g. multi-day
+	# spans) from the machine sync. Attendance supplies only the day's status.
+	checkin_by_date = {
+		d["attendance_date"]: d for d in _group_checkins_by_day(employee, from_date, to_date)
+	}
+
+	status_by_date = {
+		d["attendance_date"].isoformat(): d["status"]
 		for d in frappe.get_all(
 			"Attendance",
 			filters={
@@ -195,25 +204,25 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 				"attendance_date": ["between", [from_date, to_date]],
 				"docstatus": 1,
 			},
-			fields=["attendance_date", "status", "in_time", "out_time", "working_hours"],
+			fields=["attendance_date", "status"],
 		)
 	}
 
-	rows = dict(attendance_by_date)
-	checkin_days = _group_checkins_by_day(employee, from_date, to_date)
-	# Scheduled shift start per day, taken from the day's first check-in. Used to
-	# flag each day as early / on time / late against the shift (the frontend
-	# applies the buffer). Attendance rows don't carry it, so merge it in here.
-	shift_start_by_date = {d["attendance_date"]: d.get("shift_start") for d in checkin_days}
-	for checkin_day in checkin_days:
-		date_str = checkin_day["attendance_date"]
-		if date_str not in rows:
-			rows[date_str] = {**checkin_day, "status": None}
+	rows = []
+	for date_str in set(checkin_by_date) | set(status_by_date):
+		day = checkin_by_date.get(date_str, {})
+		rows.append(
+			{
+				"attendance_date": date_str,
+				"in_time": day.get("in_time"),
+				"out_time": day.get("out_time"),
+				"working_hours": day.get("working_hours"),
+				"shift_start": day.get("shift_start"),
+				"status": status_by_date.get(date_str),
+			}
+		)
 
-	for date_str, row in rows.items():
-		row.setdefault("shift_start", shift_start_by_date.get(date_str))
-
-	return sorted(rows.values(), key=lambda r: str(r["attendance_date"]), reverse=True)
+	return sorted(rows, key=lambda r: str(r["attendance_date"]), reverse=True)
 
 
 @frappe.whitelist()
@@ -249,30 +258,42 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 		)
 
 	# Pair each IN with the NEXT OUT chronologically (across days) rather than a
-	# day's first-IN with its own last-OUT. An overnight shift (e.g. 6pm -> 3am
-	# next day) then reads as one positive span attributed to the day it
-	# started -- never the negative you'd get from pairing a day's 6pm IN with an
-	# earlier 3am OUT that actually closes the previous night's shift.
+	# day's first-IN with its own last-OUT: an overnight shift (6pm -> 3am next
+	# day) then reads as one positive span on the day it started, instead of the
+	# negative you'd get from pairing a day's 6pm IN with an earlier 3am OUT that
+	# actually closes the previous night's shift.
+	#
+	# But real data is full of missed punches, so guard against a stray IN
+	# matching an OUT days/weeks later: any span longer than a plausible shift is
+	# a missed check-out, not hours -- the IN is left as check-in-only and the OUT
+	# is recorded on its own day. A new IN also supersedes an earlier unclosed one.
+	MAX_SHIFT_HOURS = 16
+
+	def _record_in(log):
+		row = _row(getdate(log.time).isoformat())
+		if row["in_time"] is None:
+			row["in_time"] = log.time
+			row["shift_start"] = log.shift_start
+
 	days = {}
 	pending_in = None  # an open IN awaiting its OUT
 	for log in logs:
 		if log.log_type == "IN":
-			if pending_in is None:
-				pending_in = log
-				row = _row(getdate(log.time).isoformat())
-				if row["in_time"] is None:
-					row["in_time"] = log.time
-					row["shift_start"] = log.shift_start
+			pending_in = log  # supersedes any earlier unclosed IN
+			_record_in(log)
 		elif log.log_type == "OUT":
+			hours = None
 			if pending_in is not None:
+				hours = (log.time - pending_in.time).total_seconds() / 3600
+			if hours is not None and 0 <= hours <= MAX_SHIFT_HOURS:
 				row = _row(getdate(pending_in.time).isoformat())
 				row["out_time"] = log.time
-				hours = (log.time - pending_in.time).total_seconds() / 3600
 				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
-				pending_in = None
 			else:
-				# stray OUT with no open IN (e.g. a missed check-in that day)
+				# no open IN, or the span is implausibly long (missed punch):
+				# record the OUT on its own day, unpaired.
 				_row(getdate(log.time).isoformat())["out_time"] = log.time
+			pending_in = None
 
 	rows = list(days.values())
 	rows.sort(key=lambda r: r["attendance_date"], reverse=True)
