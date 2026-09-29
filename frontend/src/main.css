@@ -28,3 +28,32 @@ body {
 	-ms-overflow-style: none; /* IE and Edge */
 	scrollbar-width: none; /* Firefox */
 }
+
+/* Air desktop dashboard: gentle fade-rise entrance (used at `lg:` only). */
+@keyframes air-rise {
+	from {
+		opacity: 0;
+		transform: translateY(14px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.air-rise {
+	animation: air-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+	animation-delay: var(--air-delay, 0ms);
+}
+
+@keyframes air-draw {
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.air-rise {
+		animation: none;
+	}
+}

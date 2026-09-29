@@ -106,3 +106,17 @@ export const teamAttendanceRequests = createResource({
 		return transformAttendanceRequests(data)
 	},
 })
+
+// Attendance records for the current calendar month (same endpoint the
+// Timesheet view uses). Not auto-fetched: only the desktop dashboard needs it,
+// and it triggers a fetch on mount at `lg:` widths so phones don't pay for it.
+export const monthAttendance = createResource({
+	url: "hrms.api.get_attendance_timesheet",
+	auto: false,
+	makeParams() {
+		return {
+			from_date: dayjs().startOf("month").format("YYYY-MM-DD"),
+			to_date: dayjs().endOf("month").format("YYYY-MM-DD"),
+		}
+	},
+})
