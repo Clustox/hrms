@@ -78,131 +78,34 @@
 </template>
 
 <script setup>
-import { createListResource, toast, FeatherIcon } from "frappe-ui"
-import { computed, inject, ref, onMounted, onBeforeUnmount } from "vue"
+import { FeatherIcon } from "frappe-ui"
+import { inject } from "vue"
 import { IonModal, modalController } from "@ionic/vue"
 
 import { formatTimestamp } from "@/utils/formatters"
 import { settings } from "@/data/settings"
+import { useCheckin } from "@/composables/useCheckin"
 
-const DOCTYPE = "Employee Checkin"
-
-const socket = inject("$socket")
 const employee = inject("$employee")
 const dayjs = inject("$dayjs")
 const __ = inject("$translate")
-const checkinTimestamp = ref(null)
-const latitude = ref(0)
-const longitude = ref(0)
-const locationStatus = ref("")
 
-const checkins = createListResource({
-	doctype: DOCTYPE,
-	fields: ["name", "employee", "employee_name", "log_type", "time", "device_id"],
-	filters: {
-		employee: employee.data.name,
-	},
-	orderBy: "time desc",
-})
-checkins.reload()
+// Shared singleton (one resource + one socket subscription app-wide, also used
+// by the desktop DesktopCheckin card).
+const {
+	checkins,
+	lastLog,
+	lastLogType,
+	nextAction,
+	checkinTimestamp,
+	latitude,
+	longitude,
+	locationStatus,
+	handleEmployeeCheckin,
+	submitLog: submitCheckinLog,
+} = useCheckin()
 
-const lastLog = computed(() => {
-	if (checkins.list.loading || !checkins.data) return {}
-	return checkins.data[0]
-})
-
-const lastLogType = computed(() => {
-	return lastLog?.value?.log_type === "IN" ? "check-in" : "check-out"
-})
-
-const nextAction = computed(() => {
-	return lastLog?.value?.log_type === "IN"
-		? { action: "OUT", label: __("Check Out") }
-		: { action: "IN", label: __("Check In") }
-})
-
-function handleLocationSuccess(position) {
-	latitude.value = position.coords.latitude
-	longitude.value = position.coords.longitude
-
-	locationStatus.value = [
-		__("Latitude: {0}°", [Number(latitude.value).toFixed(5)]),
-		__("Longitude: {0}°", [Number(longitude.value).toFixed(5)]),
-	].join(", ")
-}
-
-function handleLocationError(error) {
-	locationStatus.value = "Unable to retrieve your location"
-	if (error) locationStatus.value += `: ERROR(${error.code}): ${error.message}`
-}
-
-const fetchLocation = () => {
-	if (!navigator.geolocation) {
-		locationStatus.value = __("Geolocation is not supported by your current browser")
-	} else {
-		locationStatus.value = __("Locating...")
-		navigator.geolocation.getCurrentPosition(handleLocationSuccess, handleLocationError)
-	}
-}
-
-const handleEmployeeCheckin = () => {
-	checkinTimestamp.value = dayjs().format("YYYY-MM-DD HH:mm:ss")
-
-	if (settings.data?.allow_geolocation_tracking) {
-		fetchLocation()
-	}
-}
-
-const submitLog = (logType) => {
-	const actionLabel = logType === "IN" ? __("Check-in") : __("Check-out")
-
-	checkins.insert.submit(
-		{
-			employee: employee.data.name,
-			log_type: logType,
-			time: checkinTimestamp.value,
-			latitude: latitude.value,
-			longitude: longitude.value,
-		},
-		{
-			onSuccess() {
-				modalController.dismiss()
-				toast({
-					title: __("Success"),
-					text: __("{0} successful!", [actionLabel]),
-					icon: "check-circle",
-					position: "bottom-center",
-					iconClasses: "text-green-500",
-				})
-			},
-			onError(error) {
-				let messages = error.messages || []
-
-				for (const message of messages) {
-					toast({
-						title: __("Error"),
-						text: message || __("{0} failed!", [actionLabel]),
-						icon: "alert-circle",
-						position: "bottom-center",
-						iconClasses: "text-red-500",
-					})
-				}
-			},
-		}
-	)
-}
-
-onMounted(() => {
-	socket.emit("doctype_subscribe", DOCTYPE)
-	socket.on("list_update", (data) => {
-		if (data.doctype == DOCTYPE) {
-			checkins.reload()
-		}
-	})
-})
-
-onBeforeUnmount(() => {
-	socket.emit("doctype_unsubscribe", DOCTYPE)
-	socket.off("list_update")
-})
+// Mobile: close the bottom-sheet modal on success.
+const submitLog = (logType) =>
+	submitCheckinLog(logType, { onSuccess: () => modalController.dismiss() })
 </script>
