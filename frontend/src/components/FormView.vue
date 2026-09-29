@@ -1,8 +1,18 @@
 <template>
-	<div class="flex flex-col h-full w-full" v-if="isFormReady">
-		<div class="w-full h-full bg-white sm:w-96 flex flex-col">
+	<!-- Air desktop: persistent shell (sidebar+topbar) for continuity; hidden on mobile. -->
+	<DesktopShell />
+	<div
+		class="flex flex-col h-full w-full lg:min-h-screen lg:bg-air-bg lg:pl-[250px] lg:pt-[68px] lg:pb-12"
+		v-if="isFormReady"
+	>
+		<!-- Mobile-width column (unchanged); at lg: becomes a centered Air card. -->
+		<!-- Form card stays a light panel in both themes (its fields are frappe-ui
+		     components that don't follow Air dark), sitting on the dark Air canvas. -->
+		<div
+			class="w-full h-full bg-white sm:w-96 flex flex-col lg:h-auto lg:w-full lg:max-w-[660px] lg:mx-auto lg:mt-8 lg:rounded-air lg:border lg:border-air-line lg:shadow-air lg:overflow-hidden"
+		>
 			<header
-				class="flex flex-row bg-white shadow-sm py-4 px-3 items-center sticky top-0 z-[1000]"
+				class="flex flex-row bg-white shadow-sm py-4 px-3 items-center sticky top-0 z-[1000] lg:static lg:bg-transparent lg:shadow-none lg:border-b lg:border-air-line-2 lg:px-7 lg:py-5"
 			>
 				<Button
 					variant="ghost"
@@ -16,7 +26,7 @@
 					class="flex flex-row items-center gap-2 overflow-hidden grow"
 				>
 					<h2
-						class="text-xl font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
+						class="text-xl font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis lg:font-display lg:tracking-tight"
 					>
 						{{ __(props.doctype) }}
 					</h2>
@@ -54,17 +64,20 @@
 						}"
 					/>
 				</div>
-				<h2 v-else class="text-2xl font-semibold text-gray-900">
+				<h2
+					v-else
+					class="text-2xl font-semibold text-gray-900 lg:font-display lg:tracking-tight"
+				>
 					{{ __('New {0}', [__(doctype)], props.doctype) }}
 				</h2>
 			</header>
 
 			<!-- Form -->
-			<div class="bg-white grow overflow-y-auto">
+			<div class="bg-white grow overflow-y-auto lg:bg-transparent lg:overflow-visible">
 				<!-- Tabs -->
 				<template v-if="tabbedView">
 					<div
-						class="px-4 sticky top-0 z-[100] bg-white text-sm font-medium text-center text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-700"
+						class="px-4 sticky top-0 z-[100] bg-white text-sm font-medium text-center text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-700 lg:static lg:border-air-line-2 lg:px-7"
 					>
 						<ul class="flex -mb-px overflow-auto hide-scrollbar">
 							<li class="mr-2 whitespace-nowrap" v-for="tab in tabs">
@@ -73,7 +86,7 @@
 									class="inline-block py-4 px-2 border-b-2 border-transparent rounded-t-lg"
 									:class="[
 										activeTab === tab.name
-											? '!text-gray-800 !border-gray-800'
+											? '!text-gray-800 !border-gray-800 lg:!text-air-blue lg:!border-air-blue'
 											: 'hover:text-gray-600 hover:border-gray-300',
 									]"
 								>
@@ -86,7 +99,7 @@
 					<template v-for="(fieldList, tabName, index) in tabFields">
 						<div
 							v-show="tabName === activeTab"
-							class="flex flex-col space-y-4 p-4"
+							class="flex flex-col space-y-4 p-4 lg:space-y-5 lg:px-7 lg:py-6"
 						>
 							<template v-for="field in fieldList" :key="field.fieldname">
 								<slot
@@ -134,7 +147,7 @@
 					</template>
 				</template>
 
-				<div class="flex flex-col space-y-4 p-4" v-else>
+				<div class="flex flex-col space-y-4 p-4 lg:space-y-5 lg:px-7 lg:py-6" v-else>
 					<FormField
 						v-for="field in props.fields"
 						:key="field.name"
@@ -176,7 +189,7 @@
 			<!-- custom form button eg: Download button in salary slips -->
 			<div
 				v-if="!showFormButton"
-				class="px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg"
+				class="px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg lg:static lg:w-full lg:rounded-none lg:border-air-line-2 lg:bg-transparent lg:drop-shadow-none lg:px-7 lg:py-5"
 			>
 				<slot name="formButton"></slot>
 			</div>
@@ -192,10 +205,21 @@
 			<!-- save/submit/cancel -->
 			<div
 				v-else-if="isFormDirty || (!workflow?.hasWorkflow && formButton)"
-				class="px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg"
+				class="px-4 pt-4 pb-4 standalone:pb-safe-bottom sm:w-96 bg-white sticky bottom-0 w-full drop-shadow-xl z-40 border-t rounded-t-lg lg:static lg:w-full lg:rounded-none lg:border-air-line-2 lg:bg-transparent lg:drop-shadow-none lg:px-7 lg:py-5"
 			>
+				<!-- Desktop: one clear Air validation alert with the real message -->
+				<div
+					v-if="formErrorMessage || docList?.insert?.error || documentResource?.setValue?.error"
+					class="hidden lg:flex mb-3 items-start gap-2.5 rounded-air-sm border border-red-200 bg-red-50 px-4 py-3"
+				>
+					<FeatherIcon name="alert-circle" class="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+					<p class="whitespace-pre-line text-[13.5px] leading-5 text-red-700">
+						{{ formErrorMessage || extractErrorMessage(docList?.insert?.error || documentResource?.setValue?.error) }}
+					</p>
+				</div>
+				<!-- Mobile inline error -->
 				<ErrorMessage
-					class="mb-2"
+					class="mb-2 lg:hidden"
 					:message="
 						formErrorMessage ||
 						docList?.insert?.error ||
@@ -204,7 +228,7 @@
 				/>
 
 				<Button
-					class="w-full rounded py-5 text-base disabled:bg-gray-700 disabled:text-white"
+					class="w-full rounded py-5 text-base disabled:bg-gray-700 disabled:text-white lg:rounded-air-sm lg:py-3.5 lg:font-semibold"
 					:class="formButton === 'Cancel' ? 'shadow' : ''"
 					@click="formButton === 'Save' ? saveForm() : submitOrCancelForm()"
 					:variant="formButton === 'Cancel' ? 'subtle' : 'solid'"
@@ -332,6 +356,7 @@ import {
 import FormField from "@/components/FormField.vue"
 import FileUploaderView from "@/components/FileUploaderView.vue"
 import WorkflowActionSheet from "@/components/WorkflowActionSheet.vue"
+import DesktopShell from "@/components/DesktopShell.vue"
 
 import { FileAttachment, guessStatusColor } from "@/composables"
 import useWorkflow from "@/composables/workflow"
@@ -538,14 +563,12 @@ const docList = createListResource({
 				params: { id: data.name },
 			})
 		},
-		onError() {
-			toast({
-				title: __("Error"),
-				text: __("Error creating {0}", [__(props.doctype)]),
-				icon: "alert-circle",
-				position: "bottom-center",
-				iconClasses: "text-red-500",
-			})
+		onError(error) {
+			// Surface the REAL server validation message once (via the inline
+			// alert banner), instead of stacking generic "Error creating X"
+			// toasts on every click. `docList.insert.error` also drives the
+			// inline ErrorMessage as a fallback.
+			formErrorMessage.value = extractErrorMessage(error)
 			console.log(`Error creating ${props.doctype}`)
 		},
 	},
@@ -564,14 +587,8 @@ const documentResource = createDocumentResource({
 				iconClasses: "text-green-500",
 			})
 		},
-		onError() {
-			toast({
-				title: __("Error"),
-				text: __("Error updating {0}", [__(props.doctype)]),
-				icon: "alert-circle",
-				position: "bottom-center",
-				iconClasses: "text-red-500",
-			})
+		onError(error) {
+			formErrorMessage.value = extractErrorMessage(error)
 			console.log(`Error updating ${props.doctype}`)
 		},
 	},
@@ -661,6 +678,22 @@ function validateMandatoryFields() {
 		formErrorMessage.value = ""
 		return true
 	}
+}
+
+// Pull the human-readable validation message(s) out of a frappe-ui error so
+// the form can show ONE clear alert (the real reason) instead of a generic,
+// stackable "Error creating X" toast. frappe-ui parses Frappe's server
+// messages into `error.messages`; strip any HTML wrapping and de-duplicate.
+function extractErrorMessage(error) {
+	if (!error) return __("Something went wrong. Please try again.")
+	let msgs = error.messages
+	if (typeof msgs === "string") msgs = [msgs]
+	const strip = (m) => String(m).replace(/<[^>]*>/g, "").trim()
+	if (Array.isArray(msgs) && msgs.length) {
+		const clean = msgs.map(strip).filter(Boolean)
+		if (clean.length) return [...new Set(clean)].join("\n")
+	}
+	return strip(error.message || error) || __("Something went wrong. Please try again.")
 }
 
 // frappe.client.set_value (what documentResource.setValue calls) refuses
