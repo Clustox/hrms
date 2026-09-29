@@ -1,5 +1,8 @@
 <template>
-	<ion-header class="ion-no-border">
+	<!-- Air desktop shell (sidebar + topbar); hidden on mobile. -->
+	<DesktopShell />
+
+	<ion-header class="ion-no-border lg:hidden">
 		<div class="w-full sm:w-96">
 			<div
 				class="flex flex-row bg-white shadow-sm py-4 px-3 items-center justify-between border-b"
@@ -45,11 +48,40 @@
 		</ion-refresher>
 
 		<div
-			class="flex flex-col items-center mb-7 p-4 h-full w-full sm:w-96 overflow-y-auto"
+			class="flex flex-col items-center mb-7 p-4 h-full w-full sm:w-96 overflow-y-auto lg:w-full lg:pl-[250px] lg:pt-[68px] lg:pb-16 lg:bg-air-bg"
 			ref="scrollContainer"
 			@scroll="() => handleScroll()"
 		>
-			<div class="w-full">
+			<div class="w-full lg:max-w-[920px] lg:px-6">
+				<!-- Desktop toolbar: title + filter + New (mobile header is hidden at lg) -->
+				<div class="hidden lg:flex lg:items-end lg:justify-between lg:pt-[26px] lg:pb-1">
+					<h1 class="font-display text-[28px] font-bold tracking-[-0.02em] text-air-ink">
+						{{ pageTitle }}
+					</h1>
+					<div class="flex items-center gap-2.5">
+						<button
+							@click="showFilterModal = true"
+							class="flex items-center gap-2 rounded-full border px-4 py-2 text-[13.5px] font-medium transition ease-air"
+							:class="
+								areFiltersApplied
+									? 'border-air-ink bg-air-surface text-air-ink'
+									: 'border-air-line bg-air-surface text-air-ink-2 hover:border-air-ink'
+							"
+						>
+							<FeatherIcon name="filter" class="h-4 w-4" />
+							{{ __("Filter") }}
+						</button>
+						<router-link
+							v-if="createPermission?.data?.has_permission && props.doctype != 'Employee Checkin'"
+							:to="{ name: formViewRoute }"
+							class="flex items-center gap-1.5 rounded-full bg-air-btn px-4 py-2 text-[13.5px] font-semibold text-air-btn-ink transition ease-air hover:bg-air-blue hover:text-white"
+						>
+							<FeatherIcon name="plus" class="h-4 w-4" />
+							{{ __("New", null, props.doctype) }}
+						</router-link>
+					</div>
+				</div>
+
 				<TabButtons
 					v-if="props.tabButtons"
 					class="mt-5"
@@ -58,7 +90,7 @@
 				/>
 
 				<div
-					class="flex flex-col bg-white rounded mt-5"
+					class="flex flex-col bg-white rounded mt-5 lg:rounded-air lg:border lg:border-air-line lg:shadow-air lg:overflow-hidden"
 					v-if="!documents.loading && documents.data?.length"
 				>
 					<div
@@ -101,7 +133,11 @@
 			</div>
 		</div>
 
-		<CustomIonModal trigger="show-filter-modal">
+		<CustomIonModal
+			trigger="show-filter-modal"
+			:isOpen="showFilterModal"
+			@did-dismiss="showFilterModal = false"
+		>
 			<!-- Filter Action Sheet -->
 			<template #actionSheet>
 				<ListFiltersActionSheet
@@ -154,6 +190,7 @@ import EmployeeAdvanceItem from "@/components/EmployeeAdvanceItem.vue"
 import ListFiltersActionSheet from "@/components/ListFiltersActionSheet.vue"
 import CustomIonModal from "@/components/CustomIonModal.vue"
 import RequestActionSheet from "@/components/RequestActionSheet.vue"
+import DesktopShell from "@/components/DesktopShell.vue"
 import { EMPLOYEE_CHECKIN_FIELDS } from "@/data/config/requestSummaryFields"
 
 import useWorkflow from "@/composables/workflow"
@@ -206,6 +243,7 @@ const employee = inject("$employee")
 const filterMap = reactive({})
 const activeTab = ref(props.tabButtons ? getButtonKey(props.tabButtons[0]) : undefined)
 const areFiltersApplied = ref(false)
+const showFilterModal = ref(false)
 const appliedFilters = ref([])
 const workflowStateField = ref(null)
 const isRequestModalOpen = ref(false)

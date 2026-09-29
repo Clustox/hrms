@@ -30,6 +30,20 @@
 						<div v-else class="mt-2 text-[15px] text-air-muted">
 							{{ dayjs().format("ddd, D MMMM, YYYY") }}
 						</div>
+
+						<!-- Live "logged in for" indicator when currently checked in -->
+						<div v-if="isCheckedIn && elapsedLabel" class="mt-2.5 flex items-center gap-2">
+							<span class="relative flex h-2 w-2">
+								<span
+									class="absolute inline-flex h-full w-full animate-ping rounded-full bg-air-good opacity-60 motion-reduce:hidden"
+								></span>
+								<span class="relative inline-flex h-2 w-2 rounded-full bg-air-good"></span>
+							</span>
+							<span class="font-display text-[15px] font-semibold text-air-good tabular-nums">
+								{{ elapsedLabel }}
+							</span>
+							<span class="text-[13.5px] text-air-muted">{{ __("since check-in") }}</span>
+						</div>
 					</template>
 					<div v-else class="mt-2 text-[15px] text-air-muted">
 						{{ dayjs().format("ddd, D MMMM, YYYY") }}
@@ -108,7 +122,7 @@
 
 <script setup>
 import { Dialog, FeatherIcon } from "frappe-ui"
-import { inject, ref } from "vue"
+import { inject, ref, computed, onMounted, onBeforeUnmount } from "vue"
 
 import { formatTimestamp } from "@/utils/formatters"
 import { settings } from "@/data/settings"
@@ -131,6 +145,29 @@ const {
 } = useCheckin()
 
 const showDialog = ref(false)
+
+// Live "time since check-in": if the last log is an IN, the employee is
+// currently checked in, so show how long they've been logged in, updated once
+// a minute. A ticking `now` drives the elapsed computed reactively.
+const now = ref(dayjs())
+let ticker = null
+onMounted(() => {
+	ticker = setInterval(() => (now.value = dayjs()), 30000)
+})
+onBeforeUnmount(() => ticker && clearInterval(ticker))
+
+const isCheckedIn = computed(() => lastLog?.value?.log_type === "IN")
+const elapsedLabel = computed(() => {
+	if (!isCheckedIn.value || !lastLog?.value?.time) return ""
+	const mins = now.value.diff(dayjs(lastLog.value.time), "minute")
+	// Only show a live counter for the current session (< 24h). A check-in older
+	// than that is a forgotten check-out, not "hours worked so far" — showing a
+	// multi-day counter would be misleading, so leave it to the Check Out button.
+	if (mins < 0 || mins >= 1440) return ""
+	const h = Math.floor(mins / 60)
+	const m = mins % 60
+	return h ? `${h}h ${m}m` : `${m}m`
+})
 
 // Same flow as mobile: stamp the time (and fetch location) first, then confirm.
 const openConfirm = () => {
