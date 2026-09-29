@@ -10,7 +10,11 @@ export const unreadNotificationsCount = createResource({
 
 export const notifications = createListResource({
 	doctype: "PWA Notification",
-	filters: { to_user: userResource.data.name },
+	// userResource may not be hydrated yet when this module is first evaluated
+	// (the desktop shell imports it at app-shell level, before the user loads),
+	// so read the name defensively here. The real filter is set at fetch time
+	// in Notifications.vue once the user is guaranteed to be available.
+	filters: { to_user: userResource.data?.name },
 	fields: [
 		"name",
 		"from_user",
