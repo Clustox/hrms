@@ -110,6 +110,7 @@ import {
 	notifications,
 	arePushNotificationsEnabled,
 } from "@/data/notifications"
+import { userResource } from "@/data/user"
 
 const dayjs = inject("$dayjs")
 const router = useRouter()
@@ -150,6 +151,10 @@ function getItemRoute(item) {
 }
 
 onMounted(() => {
+	// Set the real to_user filter now that the user is hydrated (this is an
+	// authenticated route). notifications.js seeds it defensively to avoid a
+	// null read at module-load time.
+	notifications.filters = { to_user: userResource.data?.name }
 	notifications.start = 0,
 	notifications.pageLength = 10,
 	notifications.fetch()
