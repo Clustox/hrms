@@ -9,6 +9,10 @@
 				:fields="formFields.data"
 				:id="props.id"
 				:showAttachmentView="true"
+				:attachmentRequired="medicalDocRequired"
+				:attachmentRequiredHint="
+					__('Sick Leave for more than 2 days requires a medical document. Please attach it before submitting.')
+				"
 				@validateForm="validateForm"
 			/>
 		</ion-content>
@@ -18,7 +22,7 @@
 <script setup>
 import { IonPage, IonContent } from "@ionic/vue"
 import { createResource } from "frappe-ui"
-import { ref, watch, inject, nextTick } from "vue"
+import { ref, watch, inject, nextTick, computed } from "vue"
 
 import FormView from "@/components/FormView.vue"
 
@@ -38,6 +42,15 @@ const currEmployee = ref(sessionEmployee.data.name)
 
 // reactive object to store form data
 const leaveApplication = ref({})
+
+// Policy: Sick Leave over 2 days needs a medical document attached. The backend
+// (hrms.leave_rules) enforces this on submit; surfacing it here lets the form
+// mark the attachment as required and block early with a clear message.
+const medicalDocRequired = computed(
+	() =>
+		leaveApplication.value.leave_type === "Sick Leave" &&
+		(Number(leaveApplication.value.total_leave_days) || 0) > 2
+)
 
 // For existing docs, watchers fire during initial data population from the DB.
 // This flag prevents setLeaveBalance() from overwriting the stored

@@ -176,12 +176,22 @@
 						<span class="text-gray-900 text-sm">{{ __("Uploading...") }} </span>
 					</div>
 
-					<FileUploaderView
-						v-else-if="showAttachmentView"
-						v-model="fileAttachments"
-						@handleFileSelect="handleFileSelect"
-						@handleFileDelete="handleFileDelete"
-					/>
+					<template v-else-if="showAttachmentView">
+						<div
+							v-if="attachmentRequired && !fileAttachments.length"
+							class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 lg:rounded-air-sm"
+						>
+							<FeatherIcon name="paperclip" class="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+							<span class="text-[13px] leading-5 text-amber-800">
+								{{ attachmentRequiredHint || __("An attachment is required for this request.") }}
+							</span>
+						</div>
+						<FileUploaderView
+							v-model="fileAttachments"
+							@handleFileSelect="handleFileSelect"
+							@handleFileDelete="handleFileDelete"
+						/>
+					</template>
 				</div>
 			</div>
 
@@ -413,6 +423,19 @@ const props = defineProps({
 		type: Boolean,
 		required: false,
 		default: false,
+	},
+	// When true, at least one attachment must be present before the form can be
+	// saved/submitted (e.g. medical proof for Sick Leave > 2 days). The hint is
+	// shown on the attachment section and in the blocking alert.
+	attachmentRequired: {
+		type: Boolean,
+		required: false,
+		default: false,
+	},
+	attachmentRequiredHint: {
+		type: String,
+		required: false,
+		default: "",
 	},
 })
 const emit = defineEmits(["validateForm", "update:modelValue", "formReloaded"])
@@ -660,8 +683,17 @@ function isFieldReadOnly(field) {
 	)
 }
 
+function validateRequiredAttachment() {
+	if (props.attachmentRequired && !fileAttachments.value.length) {
+		showError(props.attachmentRequiredHint || __("An attachment is required for this request."))
+		return false
+	}
+	return true
+}
+
 function handleDocInsert() {
 	if (!validateMandatoryFields()) return
+	if (!validateRequiredAttachment()) return
 	docList.insert.submit(formModel.value)
 }
 
@@ -724,6 +756,7 @@ async function handleDocUpdate(action) {
 		let params = { ...formModel.value }
 
 		if (!validateMandatoryFields()) return
+		if (!validateRequiredAttachment()) return
 
 		if (action == "submit" || action == "cancel") {
 			// save any edited fields first, then transition docstatus
