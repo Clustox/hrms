@@ -133,16 +133,15 @@
 			:max="props.maxDate"
 		/>
 
-		<!-- Time -->
-		<Input
+		<!-- Time (frappe-ui Input doesn't support type=time, so use a native one) -->
+		<input
 			v-else-if="props.fieldtype === 'Time'"
 			type="time"
+			class="form-input block w-full"
 			:value="modelValue"
-			:placeholder="__('Select {0}', [props.label])"
-			@input="(v) => emit('update:modelValue', v)"
-			@change="(v) => emit('change', v)"
-			v-bind="$attrs"
 			:disabled="isReadOnly"
+			@input="(e) => emit('update:modelValue', e.target.value)"
+			@change="(e) => emit('change', e.target.value)"
 		/>
 
 		<!-- Datetime -->
