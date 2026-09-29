@@ -134,6 +134,17 @@
 		/>
 
 		<!-- Time -->
+		<Input
+			v-else-if="props.fieldtype === 'Time'"
+			type="time"
+			:value="modelValue"
+			:placeholder="__('Select {0}', [props.label])"
+			@input="(v) => emit('update:modelValue', v)"
+			@change="(v) => emit('change', v)"
+			v-bind="$attrs"
+			:disabled="isReadOnly"
+		/>
+
 		<!-- Datetime -->
 		<DateTimePicker
 			v-else-if="props.fieldtype === 'Datetime'"
