@@ -1,7 +1,8 @@
 <template>
 	<BaseLayout :pageTitle="__('Salary Slips')">
 		<template #body>
-			<div class="flex flex-col items-center my-7 p-4">
+			<!-- Mobile Salary Slips (unchanged): hidden once the desktop dashboard takes over at lg -->
+			<div class="flex flex-col items-center my-7 p-4 lg:hidden">
 				<div class="flex flex-col w-full bg-white rounded py-5 px-3.5 gap-5">
 					<div v-if="lastSalarySlip && lastSalarySlip.year_to_date" class="flex flex-col w-full gap-1.5">
 						<span class="text-gray-600 text-sm font-medium leading-5">
@@ -50,6 +51,18 @@
 					<EmptyState :message="__('No salary slips found')" v-else />
 				</div>
 			</div>
+
+			<!-- Air desktop dashboard (lg+ only; mounted only on wide viewports).
+				Presentational: all resources, the period watch and the socket
+				subscription stay in this view so they are registered once. -->
+			<DesktopSalaryDashboard
+				v-if="isDesktop"
+				v-model="selectedPeriod"
+				:periods="payrollPeriods.data || []"
+				:documents="documents.data || []"
+				:lastSalarySlip="lastSalarySlip"
+				:loading="documents.loading"
+			/>
 		</template>
 	</BaseLayout>
 </template>
@@ -61,8 +74,14 @@ import { Autocomplete, createListResource } from "frappe-ui"
 import BaseLayout from "@/components/BaseLayout.vue"
 import EmptyState from "@/components/EmptyState.vue"
 import SalarySlipItem from "@/components/SalarySlipItem.vue"
+import DesktopSalaryDashboard from "@/components/DesktopSalaryDashboard.vue"
 
 import { formatCurrency } from "@/utils/formatters"
+
+// Mirror Tailwind's `lg` breakpoint so the desktop dashboard is only mounted on wide viewports.
+const desktopQuery = window.matchMedia("(min-width: 1024px)")
+const isDesktop = ref(desktopQuery.matches)
+const onQueryChange = (e) => (isDesktop.value = e.matches)
 
 let selectedPeriod = ref({})
 let periodsByName = ref({})
@@ -133,6 +152,7 @@ watch(
 )
 
 onMounted(() => {
+	desktopQuery.addEventListener("change", onQueryChange)
 	socket.on("hrms:update_salary_slips", (data) => {
 		if (data.employee === employee.data.name) {
 			documents.reload()
@@ -141,6 +161,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+	desktopQuery.removeEventListener("change", onQueryChange)
 	socket.off("hrms:update_salary_slips")
 })
 </script>

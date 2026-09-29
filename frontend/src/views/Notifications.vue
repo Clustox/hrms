@@ -1,7 +1,10 @@
 <template>
 	<ion-page>
-		<ion-content class="ion-padding">
-			<div class="flex flex-col h-screen w-screen">
+		<DesktopShell />
+		<ion-content
+			class="ion-padding lg:![--padding-start:0px] lg:![--padding-end:0px] lg:![--padding-top:0px] lg:![--padding-bottom:0px] lg:[--background:var(--air-bg)]"
+		>
+			<div class="flex flex-col h-screen w-screen lg:hidden">
 				<div class="w-full sm:w-96">
 					<header
 						class="flex flex-row bg-white shadow-sm py-4 px-3 items-center justify-between border-b sticky top-0 z-10"
@@ -92,6 +95,109 @@
 					</div>
 				</div>
 			</div>
+
+			<!-- Air desktop (lg+ only): shell offset + Air notification list -->
+			<div class="hidden min-h-screen lg:block lg:bg-air-bg lg:pl-[250px] lg:pt-[68px]">
+				<div class="max-w-[900px] px-10 pb-[70px] pt-[34px]">
+					<div class="air-rise flex flex-wrap items-end justify-between gap-4">
+						<div>
+							<h1
+								class="font-display text-[34px] font-bold tracking-[-0.03em] text-air-ink"
+							>
+								{{ __("Notifications") }}
+							</h1>
+							<p class="mt-2.5 text-base text-air-muted">
+								{{
+									unreadNotificationsCount.data
+										? __("{0} Unread", [unreadNotificationsCount.data])
+										: __("You're all caught up")
+								}}
+							</p>
+						</div>
+						<div class="flex items-center gap-2">
+							<button
+								v-if="allowPushNotifications"
+								type="button"
+								class="flex items-center gap-2 rounded-full border border-air-line bg-air-surface px-4 py-2 text-[14px] font-semibold text-air-ink transition ease-air hover:border-air-blue hover:text-air-blue"
+								@click="router.push({ name: 'Settings' })"
+							>
+								<FeatherIcon name="settings" class="h-4 w-4" />
+								{{ __("Settings") }}
+							</button>
+							<button
+								v-if="unreadNotificationsCount.data"
+								type="button"
+								class="flex items-center gap-2 rounded-full border border-air-line bg-air-surface px-4 py-2 text-[14px] font-semibold text-air-ink transition ease-air hover:border-air-blue hover:text-air-blue disabled:opacity-60"
+								:disabled="markAllAsRead.loading"
+								@click="markAllAsRead.submit()"
+							>
+								<FeatherIcon name="check-circle" class="h-4 w-4" />
+								{{ __("Mark all as read") }}
+							</button>
+						</div>
+					</div>
+
+					<div
+						v-if="notifications.data?.length"
+						class="air-rise mt-8 overflow-hidden rounded-air border border-air-line bg-air-surface shadow-air"
+						:style="{ '--air-delay': '70ms' }"
+					>
+						<router-link
+							v-for="item in notifications.data"
+							:key="item.name"
+							:to="getItemRoute(item)"
+							class="flex items-start gap-4 border-b border-air-line-2 px-[22px] py-4 transition-colors duration-200 ease-air last:border-b-0 hover:bg-air-surface-2"
+							:class="item.read ? '' : 'bg-air-blue-wash'"
+							@click="markAsRead(item.name)"
+						>
+							<span
+								class="mt-4 h-2 w-2 shrink-0 rounded-full"
+								:class="item.read ? 'bg-transparent' : 'bg-air-blue'"
+							></span>
+							<EmployeeAvatar :userID="item.from_user" size="lg" />
+							<div class="flex min-w-0 grow flex-col gap-1">
+								<div
+									class="text-[14.5px] leading-5 text-air-ink"
+									v-html="item.message"
+								></div>
+								<div class="text-xs text-air-muted">
+									{{ dayjs(item.creation).fromNow() }}
+								</div>
+							</div>
+							<FeatherIcon
+								name="chevron-right"
+								class="mt-2 h-4 w-4 shrink-0 text-air-muted"
+							/>
+						</router-link>
+					</div>
+
+					<div
+						v-if="notifications.data?.length && notifications.hasNextPage"
+						class="mt-5 flex justify-center"
+					>
+						<button
+							type="button"
+							class="rounded-full border border-air-line bg-air-surface px-5 py-2.5 text-[14px] font-semibold text-air-ink transition ease-air hover:border-air-blue hover:text-air-blue"
+							@click="loadMore"
+						>
+							{{ __("Load more") }}
+						</button>
+					</div>
+					<div
+						v-else-if="!notifications.data?.length && !notifications.list?.loading"
+						class="air-rise mt-8 flex flex-col items-center gap-3 rounded-air border border-air-line bg-air-surface px-6 py-16 text-center shadow-air"
+					>
+						<span
+							class="flex h-12 w-12 items-center justify-center rounded-full bg-air-surface-2 text-air-muted"
+						>
+							<FeatherIcon name="bell" class="h-5 w-5" />
+						</span>
+						<p class="text-[15px] text-air-muted">
+							{{ __("You have no notifications") }}
+						</p>
+					</div>
+				</div>
+			</div>
 		</ion-content>
 	</ion-page>
 </template>
@@ -104,6 +210,7 @@ import { createResource, FeatherIcon } from "frappe-ui"
 import { computed, inject, onMounted, ref } from "vue"
 import EmployeeAvatar from "@/components/EmployeeAvatar.vue"
 import EmptyState from "@/components/EmptyState.vue"
+import DesktopShell from "@/components/DesktopShell.vue"
 
 import {
 	unreadNotificationsCount,

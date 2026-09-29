@@ -1,7 +1,8 @@
 <template>
 	<BaseLayout pageTitle="Attendance">
 		<template #body>
-			<div class="flex flex-col mt-7 mb-7 p-4 gap-7">
+			<!-- Mobile Attendance (unchanged): hidden once the desktop dashboard takes over at lg -->
+			<div class="flex flex-col mt-7 mb-7 p-4 gap-7 lg:hidden">
 				<AttendanceCalendar />
 				<div class="w-full">
 					<router-link :to="{ name: 'TimesheetView' }" v-slot="{ navigate }">
@@ -53,12 +54,19 @@
 					/>
 				</div>
 			</div>
+
+			<!-- Air desktop dashboard (lg+ only; mounted only on wide viewports) -->
+			<DesktopAttendanceDashboard
+				v-if="isDesktop"
+				:upcomingShifts="upcomingShifts"
+				:shiftsLoading="shifts.loading"
+			/>
 		</template>
 	</BaseLayout>
 </template>
 
 <script setup>
-import { computed, inject, markRaw } from "vue"
+import { computed, inject, markRaw, ref, onMounted, onBeforeUnmount } from "vue"
 import { createResource } from "frappe-ui"
 
 import BaseLayout from "@/components/BaseLayout.vue"
@@ -67,6 +75,7 @@ import ShiftRequestItem from "@/components/ShiftRequestItem.vue"
 import ShiftAssignmentItem from "@/components/ShiftAssignmentItem.vue"
 import RequestList from "@/components/RequestList.vue"
 import AttendanceCalendar from "@/components/AttendanceCalendar.vue"
+import DesktopAttendanceDashboard from "@/components/DesktopAttendanceDashboard.vue"
 
 import {
 	getShiftDates,
@@ -77,6 +86,13 @@ import {
 } from "@/data/attendance"
 
 const dayjs = inject("$dayjs")
+
+// Mirror Tailwind's `lg` breakpoint so the desktop dashboard is only mounted on wide viewports.
+const desktopQuery = window.matchMedia("(min-width: 1024px)")
+const isDesktop = ref(desktopQuery.matches)
+const onQueryChange = (e) => (isDesktop.value = e.matches)
+onMounted(() => desktopQuery.addEventListener("change", onQueryChange))
+onBeforeUnmount(() => desktopQuery.removeEventListener("change", onQueryChange))
 
 const shifts = createResource({
 	url: "hrms.api.get_shifts",

@@ -12,6 +12,8 @@
 			<p class="mt-2.5 text-base text-air-muted">{{ subline }}</p>
 		</div>
 
+		<DesktopCheckin class="air-rise mb-5" :style="{ '--air-delay': '70ms' }" />
+
 		<DashboardStats :pendingCount="pendingCount" class="mb-5" />
 
 		<QuickActions :items="actions" :title="__('Quick actions')" class="mb-7" />
@@ -26,6 +28,7 @@
 <script setup>
 import { computed, inject, onMounted } from "vue"
 
+import DesktopCheckin from "@/components/DesktopCheckin.vue"
 import DashboardStats from "@/components/DashboardStats.vue"
 import QuickActions from "@/components/QuickActions.vue"
 import RecentRequests from "@/components/RecentRequests.vue"
