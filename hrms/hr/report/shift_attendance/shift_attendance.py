@@ -1,17 +1,25 @@
 # Copyright (c) 2023, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
-
-from datetime import timedelta
+#
+# Clustox: this report is repurposed as a per-employee daily timesheet driven by
+# Employee Checkins (the same source the /hrms PWA timesheet uses), because this
+# instance does not run auto-attendance, so Attendance records barely exist and
+# the stock Attendance-based version showed "Nothing to show". Each row is one
+# employee-day derived from the day's check-in/out, with the punctuality Status
+# (Early / On Time / Late) against the shift start, a 10-minute buffer either way.
 
 import frappe
 from frappe import _
-from frappe.query_builder import Criterion
-from frappe.utils import cint, flt, format_datetime, format_duration
+from frappe.utils import cint, flt, format_datetime, format_duration, getdate
 
-from erpnext.accounts.utils import build_qb_match_conditions
+# A single in->out span longer than this is a missed punch, not real hours.
+MAX_SHIFT_HOURS = 16
+# Early / On Time / Late buffer (minutes) around the scheduled shift start.
+PUNCTUALITY_BUFFER_MIN = 10
 
 
 def execute(filters=None):
+	filters = frappe._dict(filters or {})
 	columns = get_columns()
 	data = get_data(filters)
 	chart = get_chart_data(data)
@@ -26,14 +34,19 @@ def get_columns():
 			"fieldname": "employee",
 			"fieldtype": "Link",
 			"options": "Employee",
-			"width": 220,
+			"width": 200,
 		},
 		{
 			"fieldname": "employee_name",
 			"fieldtype": "Data",
 			"label": _("Employee Name"),
-			"width": 0,
-			"hidden": 1,
+			"width": 150,
+		},
+		{
+			"label": _("Attendance Date"),
+			"fieldname": "attendance_date",
+			"fieldtype": "Date",
+			"width": 130,
 		},
 		{
 			"label": _("Shift"),
@@ -43,46 +56,40 @@ def get_columns():
 			"width": 120,
 		},
 		{
-			"label": _("Attendance Date"),
-			"fieldname": "attendance_date",
-			"fieldtype": "Date",
-			"width": 130,
+			"label": _("Check-in"),
+			"fieldname": "in_time",
+			"fieldtype": "Data",
+			"width": 160,
+		},
+		{
+			"label": _("Check-out"),
+			"fieldname": "out_time",
+			"fieldtype": "Data",
+			"width": 160,
 		},
 		{
 			"label": _("Status"),
 			"fieldname": "status",
 			"fieldtype": "Data",
-			"width": 80,
+			"width": 90,
 		},
 		{
-			"label": _("Shift Start Time"),
-			"fieldname": "shift_start",
-			"fieldtype": "Data",
-			"width": 125,
-		},
-		{
-			"label": _("Shift End Time"),
-			"fieldname": "shift_end",
-			"fieldtype": "Data",
-			"width": 125,
-		},
-		{
-			"label": _("In Time"),
-			"fieldname": "in_time",
-			"fieldtype": "Data",
-			"width": 120,
-		},
-		{
-			"label": _("Out Time"),
-			"fieldname": "out_time",
-			"fieldtype": "Data",
-			"width": 120,
-		},
-		{
-			"label": _("Total Working Hours"),
+			"label": _("Working Hours"),
 			"fieldname": "working_hours",
 			"fieldtype": "Data",
-			"width": 100,
+			"width": 110,
+		},
+		{
+			"label": _("Shift Start"),
+			"fieldname": "shift_start",
+			"fieldtype": "Data",
+			"width": 150,
+		},
+		{
+			"label": _("Shift End"),
+			"fieldname": "shift_end",
+			"fieldtype": "Data",
+			"width": 150,
 		},
 		{
 			"label": _("Late Entry By"),
@@ -108,87 +115,171 @@ def get_columns():
 			"fieldname": "company",
 			"fieldtype": "Link",
 			"options": "Company",
-			"width": 150,
-		},
-		{
-			"label": _("Shift Actual Start Time"),
-			"fieldname": "shift_actual_start",
-			"fieldtype": "Data",
-			"width": 165,
-		},
-		{
-			"label": _("Shift Actual End Time"),
-			"fieldname": "shift_actual_end",
-			"fieldtype": "Data",
-			"width": 165,
-		},
-		{
-			"label": _("Attendance ID"),
-			"fieldname": "name",
-			"fieldtype": "Link",
-			"options": "Attendance",
-			"width": 150,
+			"width": 130,
 		},
 	]
 
 
 def get_data(filters):
-	data = get_attendance_with_checkins(filters)
-	data = update_data(data, filters)
-	if filters.include_attendance_without_checkins:
-		data.extend(get_attendance_without_checkins(filters))
-	return data
+	if not (filters.get("from_date") and filters.get("to_date")):
+		frappe.throw(_("Please select a From Date and To Date."))
+
+	employees = _employees_in_scope(filters)
+	if not employees:
+		return []
+
+	checkin_filters = {
+		"employee": ["in", list(employees)],
+		"time": ["between", [filters.from_date, f"{filters.to_date} 23:59:59"]],
+	}
+	if filters.get("shift"):
+		checkin_filters["shift"] = filters.shift
+
+	checkins = frappe.get_all(
+		"Employee Checkin",
+		filters=checkin_filters,
+		fields=["employee", "log_type", "time", "shift", "shift_start", "shift_end"],
+		order_by="employee asc, time asc",
+	)
+
+	rows = _group_by_employee_day(checkins)
+
+	result = []
+	for row in rows:
+		emp = employees[row["employee"]]
+		row["employee_name"] = emp.get("employee_name")
+		row["department"] = emp.get("department")
+		row["company"] = emp.get("company")
+		_finalize_row(row)
+
+		# Optional late-entry / early-exit filters.
+		if filters.get("late_entry") and row.get("status") != "Late":
+			continue
+		if filters.get("early_exit") and not row.get("early_exit_hrs"):
+			continue
+
+		result.append(row)
+
+	result.sort(key=lambda r: (r["employee_name"] or "", str(r["attendance_date"])))
+	return result
+
+
+def _employees_in_scope(filters):
+	emp_filters = {}
+	for field in ("employee", "department", "company"):
+		if filters.get(field):
+			emp_filters["name" if field == "employee" else field] = filters[field]
+
+	employees = frappe.get_all(
+		"Employee",
+		filters=emp_filters,
+		fields=["name", "employee_name", "department", "company"],
+	)
+	return {e["name"]: e for e in employees}
+
+
+def _group_by_employee_day(checkins):
+	"""One row per (employee, day): pair each check-IN with the next check-OUT
+	(across midnight), capping a single span at MAX_SHIFT_HOURS so a missed punch
+	doesn't glue an IN to an OUT days later. A new IN supersedes an unclosed one.
+	"""
+	rows = {}
+	pending = {}  # employee -> open IN log
+
+	def row_for(emp, when):
+		key = (emp, getdate(when).isoformat())
+		return rows.setdefault(
+			key,
+			{
+				"employee": emp,
+				"attendance_date": getdate(when).isoformat(),
+				"shift": None,
+				"shift_start": None,
+				"shift_end": None,
+				"in_time": None,
+				"out_time": None,
+				"working_hours": None,
+			},
+		)
+
+	for log in checkins:
+		emp = log.employee
+		if log.log_type == "IN":
+			pending[emp] = log
+			row = row_for(emp, log.time)
+			if row["in_time"] is None:
+				row["in_time"] = log.time
+				row["shift"] = log.shift
+				row["shift_start"] = log.shift_start
+				row["shift_end"] = log.shift_end
+		elif log.log_type == "OUT":
+			open_in = pending.pop(emp, None)
+			hours = (log.time - open_in.time).total_seconds() / 3600 if open_in else None
+			if hours is not None and 0 <= hours <= MAX_SHIFT_HOURS:
+				row = row_for(emp, open_in.time)
+				row["out_time"] = log.time
+				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
+			else:
+				# no open IN, or an implausibly long span (missed punch)
+				row_for(emp, log.time)["out_time"] = log.time
+
+	return list(rows.values())
+
+
+def _finalize_row(row):
+	in_t = row["in_time"]
+	out_t = row["out_time"]
+	ss = row["shift_start"]
+	se = row["shift_end"]
+
+	# Punctuality vs the scheduled shift start, with a buffer either side.
+	if in_t and ss:
+		diff_min = (in_t - ss).total_seconds() / 60
+		if diff_min > PUNCTUALITY_BUFFER_MIN:
+			row["status"] = "Late"
+		elif diff_min < -PUNCTUALITY_BUFFER_MIN:
+			row["status"] = "Early"
+		else:
+			row["status"] = "On Time"
+	else:
+		row["status"] = None
+
+	row["late_entry_hrs"] = (
+		format_duration((in_t - ss).total_seconds()) if (in_t and ss and in_t > ss) else None
+	)
+	row["early_exit_hrs"] = (
+		format_duration((se - out_t).total_seconds()) if (out_t and se and out_t < se) else None
+	)
+
+	precision = cint(frappe.db.get_default("float_precision")) or 2
+	row["working_hours"] = (
+		flt(row["working_hours"], precision) if row["working_hours"] is not None else None
+	)
+	row["in_time"] = format_datetime(in_t) if in_t else None
+	row["out_time"] = format_datetime(out_t) if out_t else None
+	row["shift_start"] = format_datetime(ss) if ss else None
+	row["shift_end"] = format_datetime(se) if se else None
 
 
 def get_report_summary(data):
 	if not data:
 		return None
 
-	present_records = half_day_records = absent_records = late_entries = early_exits = 0
-
-	for entry in data:
-		if entry.status == "Present":
-			present_records += 1
-		elif entry.status == "Half Day":
-			half_day_records += 1
-		else:
-			absent_records += 1
-
-		if entry.late_entry:
-			late_entries += 1
-		if entry.early_exit:
-			early_exits += 1
+	on_time = sum(1 for d in data if d.get("status") == "On Time")
+	late = sum(1 for d in data if d.get("status") == "Late")
+	early = sum(1 for d in data if d.get("status") == "Early")
+	total_hours = sum((d.get("working_hours") or 0) for d in data)
 
 	return [
+		{"value": len(data), "indicator": "Blue", "label": _("Days"), "datatype": "Int"},
+		{"value": on_time, "indicator": "Green", "label": _("On Time"), "datatype": "Int"},
+		{"value": late, "indicator": "Red", "label": _("Late"), "datatype": "Int"},
+		{"value": early, "indicator": "Orange", "label": _("Early"), "datatype": "Int"},
 		{
-			"value": present_records,
-			"indicator": "Green",
-			"label": _("Present Records"),
-			"datatype": "Int",
-		},
-		{
-			"value": half_day_records,
+			"value": flt(total_hours, 1),
 			"indicator": "Blue",
-			"label": _("Half Day Records"),
-			"datatype": "Int",
-		},
-		{
-			"value": absent_records,
-			"indicator": "Red",
-			"label": _("Absent Records"),
-			"datatype": "Int",
-		},
-		{
-			"value": late_entries,
-			"indicator": "Red",
-			"label": _("Late Entries"),
-			"datatype": "Int",
-		},
-		{
-			"value": early_exits,
-			"indicator": "Red",
-			"label": _("Early Exits"),
-			"datatype": "Int",
+			"label": _("Total Hours"),
+			"datatype": "Float",
 		},
 	]
 
@@ -197,166 +288,15 @@ def get_chart_data(data):
 	if not data:
 		return None
 
-	total_shift_records = {}
-	for entry in data:
-		total_shift_records.setdefault(entry.shift, 0)
-		total_shift_records[entry.shift] += 1
+	buckets = {"On Time": 0, "Late": 0, "Early": 0}
+	for d in data:
+		if d.get("status") in buckets:
+			buckets[d["status"]] += 1
 
-	labels = [_(d) for d in list(total_shift_records)]
-	chart = {
+	return {
 		"data": {
-			"labels": labels,
-			"datasets": [{"name": _("Shift"), "values": list(total_shift_records.values())}],
+			"labels": [_(k) for k in buckets],
+			"datasets": [{"name": _("Status"), "values": list(buckets.values())}],
 		},
 		"type": "percentage",
 	}
-	return chart
-
-
-def get_attendance_with_checkins(filters):
-	attendance = frappe.qb.DocType("Attendance")
-	checkin = frappe.qb.DocType("Employee Checkin")
-	shift_type = frappe.qb.DocType("Shift Type")
-
-	query = (
-		get_base_attendance_query(filters)
-		.inner_join(checkin)
-		.on(checkin.attendance == attendance.name)
-		.select(
-			checkin.shift_start,
-			checkin.shift_end,
-			checkin.shift_actual_start,
-			checkin.shift_actual_end,
-			shift_type.enable_late_entry_marking,
-			shift_type.late_entry_grace_period,
-			shift_type.enable_early_exit_marking,
-			shift_type.early_exit_grace_period,
-		)
-	)
-	for field in filters:
-		if field == "late_entry" and not filters.consider_grace_period:
-			query = query.where(attendance.in_time > checkin.shift_start)
-		elif field == "early_exit" and not filters.consider_grace_period:
-			query = query.where(attendance.out_time < checkin.shift_end)
-	result = query.run(as_dict=True)
-	return result
-
-
-def get_base_attendance_query(filters):
-	attendance = frappe.qb.DocType("Attendance")
-	shift_type = frappe.qb.DocType("Shift Type")
-
-	query = (
-		frappe.qb.from_(attendance)
-		.inner_join(shift_type)
-		.on(attendance.shift == shift_type.name)
-		.select(
-			attendance.name,
-			attendance.employee,
-			attendance.employee_name,
-			attendance.shift,
-			attendance.attendance_date,
-			attendance.status,
-			attendance.in_time,
-			attendance.out_time,
-			attendance.working_hours,
-			attendance.late_entry,
-			attendance.early_exit,
-			attendance.department,
-			attendance.company,
-		)
-		.where(attendance.docstatus == 1)
-		.groupby(attendance.name)
-	)
-
-	for field in filters:
-		if field == "from_date":
-			query = query.where(attendance.attendance_date >= filters.from_date)
-		elif field == "to_date":
-			query = query.where(attendance.attendance_date <= filters.to_date)
-		elif field in ["consider_grace_period", "include_attendance_without_checkins"]:
-			continue
-		else:
-			query = query.where(attendance[field] == filters[field])
-
-	query = query.where(Criterion.all(build_qb_match_conditions("Attendance")))
-	return query
-
-
-def get_attendance_without_checkins(filters):
-	attendance = frappe.qb.DocType("Attendance")
-	checkin = frappe.qb.DocType("Employee Checkin")
-
-	query = (
-		get_base_attendance_query(filters)
-		.left_join(checkin)
-		.on(checkin.attendance == attendance.name)
-		.where(checkin.attendance.isnull())
-	)
-	result = query.run(as_dict=True)
-	return result
-
-
-def update_data(data, filters):
-	for d in data:
-		update_late_entry(d, filters.consider_grace_period)
-		update_early_exit(d, filters.consider_grace_period)
-
-		d.working_hours = format_float_precision(d.working_hours)
-		d.in_time, d.out_time = format_in_out_time(d.in_time, d.out_time, d.attendance_date)
-		d.shift_start, d.shift_end = convert_datetime_to_time_for_same_date(d.shift_start, d.shift_end)
-		d.shift_actual_start, d.shift_actual_end = convert_datetime_to_time_for_same_date(
-			d.shift_actual_start, d.shift_actual_end
-		)
-	return data
-
-
-def format_float_precision(value):
-	precision = cint(frappe.db.get_default("float_precision")) or 2
-	return flt(value, precision)
-
-
-def format_in_out_time(in_time, out_time, attendance_date):
-	if in_time and not out_time and in_time.date() == attendance_date:
-		in_time = in_time.time()
-	elif out_time and not in_time and out_time.date() == attendance_date:
-		out_time = out_time.time()
-	else:
-		in_time, out_time = convert_datetime_to_time_for_same_date(in_time, out_time)
-	return in_time, out_time
-
-
-def convert_datetime_to_time_for_same_date(start, end):
-	if start and end and start.date() == end.date():
-		start = start.time()
-		end = end.time()
-	else:
-		start = format_datetime(start)
-		end = format_datetime(end)
-	return start, end
-
-
-def update_late_entry(entry, consider_grace_period):
-	if consider_grace_period:
-		if entry.late_entry:
-			entry_grace_period = entry.late_entry_grace_period if entry.enable_late_entry_marking else 0
-			start_time = entry.shift_start + timedelta(minutes=entry_grace_period)
-			entry.late_entry_hrs = entry.in_time - start_time
-	elif entry.in_time and entry.in_time > entry.shift_start:
-		entry.late_entry = 1
-		entry.late_entry_hrs = entry.in_time - entry.shift_start
-	if entry.late_entry_hrs:
-		entry.late_entry_hrs = format_duration(entry.late_entry_hrs.total_seconds())
-
-
-def update_early_exit(entry, consider_grace_period):
-	if consider_grace_period:
-		if entry.early_exit:
-			exit_grace_period = entry.early_exit_grace_period if entry.enable_early_exit_marking else 0
-			end_time = entry.shift_end - timedelta(minutes=exit_grace_period)
-			entry.early_exit_hrs = end_time - entry.out_time
-	elif entry.out_time and entry.out_time < entry.shift_end:
-		entry.early_exit = 1
-		entry.early_exit_hrs = entry.shift_end - entry.out_time
-	if entry.early_exit_hrs:
-		entry.early_exit_hrs = format_duration(entry.early_exit_hrs.total_seconds())

@@ -1,5 +1,9 @@
 // Copyright (c) 2023, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
+//
+// Clustox: repurposed as a check-in-driven daily timesheet (see the report's
+// .py). Filters are the ones that apply to that: date range, employee, shift,
+// department, company, and the late/early toggles.
 
 frappe.query_reports["Shift Attendance"] = {
 	filters: [
@@ -40,38 +44,30 @@ frappe.query_reports["Shift Attendance"] = {
 			label: __("Company"),
 			fieldtype: "Link",
 			options: "Company",
-			reqd: 1,
 			default: frappe.defaults.get_user_default("Company"),
 		},
 		{
 			fieldname: "late_entry",
-			label: __("Late Entry"),
+			label: __("Late only"),
 			fieldtype: "Check",
 		},
 		{
 			fieldname: "early_exit",
-			label: __("Early Exit"),
+			label: __("Early exit only"),
 			fieldtype: "Check",
-		},
-		{
-			fieldname: "consider_grace_period",
-			label: __("Consider Grace Period"),
-			fieldtype: "Check",
-			default: 1,
-		},
-		{
-			fieldname: "include_attendance_without_checkins",
-			label: __("Include Shift Attendance Without Checkins"),
-			fieldtype: "Check",
-			default: 0,
 		},
 	],
 	formatter: (value, row, column, data, default_formatter) => {
 		value = default_formatter(value, row, column, data);
-		if (
-			(column.fieldname === "in_time" && data.late_entry) ||
-			(column.fieldname === "out_time" && data.early_exit)
-		) {
+		if (column.fieldname === "status" && data.status) {
+			const color =
+				data.status === "Late" ? "red" : data.status === "Early" ? "#b5790a" : "green";
+			value = `<span style='color:${color}!important'>${data.status}</span>`;
+		}
+		if (column.fieldname === "in_time" && data.late_entry_hrs) {
+			value = `<span style='color:red!important'>${value}</span>`;
+		}
+		if (column.fieldname === "out_time" && data.early_exit_hrs) {
 			value = `<span style='color:red!important'>${value}</span>`;
 		}
 		return value;
