@@ -3,7 +3,7 @@ from frappe import _
 from frappe.model import get_permitted_fields
 from frappe.model.workflow import get_workflow_name
 from frappe.query_builder import Order
-from frappe.utils import add_days, date_diff, getdate, strip_html
+from frappe.utils import add_days, cint, date_diff, getdate, strip_html
 
 from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
 
@@ -223,6 +223,201 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 		)
 
 	return sorted(rows, key=lambda r: str(r["attendance_date"]), reverse=True)
+
+
+TIMESHEET_SHIFT_BUFFER_MIN = 10
+TIMESHEET_MAX_SHIFT_HOURS = 16
+
+
+def _shift_length_hours(start_time, end_time) -> float:
+	"""Hours between a Shift Type's start and end (overnight aware)."""
+	if not (start_time and end_time):
+		return 0.0
+	# Time fields come back as timedelta.
+	start = start_time.total_seconds() if hasattr(start_time, "total_seconds") else 0
+	end = end_time.total_seconds() if hasattr(end_time, "total_seconds") else 0
+	diff = (end - start) / 3600
+	if diff <= 0:
+		diff += 24  # overnight shift
+	return round(diff, 2)
+
+
+def _working_days(employee: str, from_date, to_date) -> int:
+	"""Working days in the range = calendar days minus the employee's holidays.
+	Falls back to Mon-Fri when no holiday list is configured."""
+	total = (to_date - from_date).days + 1
+	hl = get_holiday_list_for_employee(employee, raise_exception=False)
+	if hl:
+		holidays = frappe.db.count(
+			"Holiday", {"parent": hl, "holiday_date": ["between", [from_date, to_date]]}
+		)
+		return max(0, total - holidays)
+	weekdays, d = 0, from_date
+	while d <= to_date:
+		if d.weekday() < 5:
+			weekdays += 1
+		d = add_days(d, 1)
+	return weekdays
+
+
+def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
+	"""Group check-ins (sorted by employee, then time) into per-employee, per-day
+	rows: pair each IN with the next OUT (overnight aware), capping a single span
+	at TIMESHEET_MAX_SHIFT_HOURS so a missed punch doesn't glue an IN to a far OUT.
+	Returns {employee: [ {attendance_date, in_time, out_time, working_hours,
+	shift_start, shift_end}, ... ]}."""
+	by_key = {}
+	pending = {}  # employee -> open IN log
+
+	def row_for(emp, when):
+		key = (emp, getdate(when).isoformat())
+		return by_key.setdefault(
+			key,
+			{
+				"attendance_date": getdate(when).isoformat(),
+				"in_time": None,
+				"out_time": None,
+				"working_hours": None,
+				"shift_start": None,
+				"shift_end": None,
+			},
+		)
+
+	for log in checkins:
+		emp = log["employee"]
+		if log["log_type"] == "IN":
+			pending[emp] = log
+			row = row_for(emp, log["time"])
+			if row["in_time"] is None:
+				row["in_time"] = log["time"]
+				row["shift_start"] = log.get("shift_start")
+				row["shift_end"] = log.get("shift_end")
+		elif log["log_type"] == "OUT":
+			open_in = pending.pop(emp, None)
+			hours = (log["time"] - open_in["time"]).total_seconds() / 3600 if open_in else None
+			if hours is not None and 0 <= hours <= TIMESHEET_MAX_SHIFT_HOURS:
+				row = row_for(open_in["employee"], open_in["time"])
+				row["out_time"] = log["time"]
+				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
+			else:
+				row_for(emp, log["time"])["out_time"] = log["time"]
+
+	out = {}
+	for (emp, _date), row in by_key.items():
+		out.setdefault(emp, []).append(row)
+	return out
+
+
+@frappe.whitelist()
+def get_timesheet_overview(
+	from_date: str,
+	to_date: str,
+	scope: str = "all",
+	start: int = 0,
+	page_length: int = 10,
+	department: str | None = None,
+	search: str | None = None,
+) -> dict:
+	"""Per-employee attendance summary for the HR Timesheet dashboard: expected /
+	worked / short / over hours and present / absent / leave / early-left /
+	late-arrival counts, derived from check-ins (like the PWA timesheet)."""
+	from_date, to_date = getdate(from_date), getdate(to_date)
+	start, page_length = cint(start), cint(page_length) or 10
+
+	emp_filters = {"status": "Active"}
+	if department:
+		emp_filters["department"] = department
+	if search:
+		emp_filters["employee_name"] = ["like", f"%{search}%"]
+	if scope in ("my", "subordinates"):
+		current = get_current_employee()
+		if not current:
+			return {"total": 0, "start": start, "page_length": page_length, "rows": []}
+		emp_filters["reports_to" if scope == "subordinates" else "name"] = current
+
+	total = frappe.db.count("Employee", emp_filters)
+	employees = frappe.get_all(
+		"Employee",
+		filters=emp_filters,
+		fields=["name", "employee_name", "designation", "image", "default_shift"],
+		order_by="employee_name asc",
+		start=start,
+		page_length=page_length,
+	)
+	if not employees:
+		return {"total": total, "start": start, "page_length": page_length, "rows": []}
+
+	emp_ids = [e.name for e in employees]
+
+	checkins = frappe.get_all(
+		"Employee Checkin",
+		filters={"employee": ["in", emp_ids], "time": ["between", [from_date, f"{to_date} 23:59:59"]]},
+		fields=["employee", "log_type", "time", "shift_start", "shift_end"],
+		order_by="employee asc, time asc",
+	)
+	days_by_emp = _pair_checkins_by_employee_day(checkins)
+
+	# Approved leave days overlapping the range, per employee.
+	leave_days = {}
+	for la in frappe.get_all(
+		"Leave Application",
+		filters={
+			"employee": ["in", emp_ids],
+			"status": "Approved",
+			"docstatus": 1,
+			"from_date": ["<=", to_date],
+			"to_date": [">=", from_date],
+		},
+		fields=["employee", "from_date", "to_date", "total_leave_days"],
+	):
+		lo, hi = max(getdate(la.from_date), from_date), min(getdate(la.to_date), to_date)
+		leave_days[la.employee] = leave_days.get(la.employee, 0) + ((hi - lo).days + 1)
+
+	shift_hours = {
+		st.name: _shift_length_hours(st.start_time, st.end_time)
+		for st in frappe.get_all("Shift Type", fields=["name", "start_time", "end_time"])
+	}
+	buf = TIMESHEET_SHIFT_BUFFER_MIN
+
+	rows = []
+	for e in employees:
+		day_rows = days_by_emp.get(e.name, [])
+		worked = round(sum((r["working_hours"] or 0) for r in day_rows), 2)
+		present = sum(1 for r in day_rows if r["in_time"])
+		late = sum(
+			1
+			for r in day_rows
+			if r["in_time"] and r["shift_start"] and (r["in_time"] - r["shift_start"]).total_seconds() / 60 > buf
+		)
+		early = sum(
+			1 for r in day_rows if r["out_time"] and r["shift_end"] and r["out_time"] < r["shift_end"]
+		)
+		shift_h = shift_hours.get(e.default_shift) or 0
+		working_days = _working_days(e.name, from_date, to_date)
+		expected = round(shift_h * working_days, 2)
+		leave_d = leave_days.get(e.name, 0)
+		absent = max(0, working_days - present - leave_d)
+
+		rows.append(
+			{
+				"employee": e.name,
+				"employee_name": e.employee_name,
+				"designation": e.designation,
+				"image": e.image,
+				"expected_hours": expected,
+				"worked_hours": worked,
+				"short_hours": round(max(0.0, expected - worked), 2),
+				"over_hours": round(max(0.0, worked - expected), 2),
+				"percent": round(min(100, worked / expected * 100)) if expected else 0,
+				"present": present,
+				"absent": absent,
+				"leave": leave_d,
+				"early_left": early,
+				"late_arrival": late,
+			}
+		)
+
+	return {"total": total, "start": start, "page_length": page_length, "rows": rows}
 
 
 @frappe.whitelist()
