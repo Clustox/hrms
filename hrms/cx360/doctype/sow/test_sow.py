@@ -34,3 +34,14 @@ class TestSOW(FrappeTestCase):
         }).insert()
         self.assertEqual(sow.sow_type, "Internal")
         self.assertEqual(sow.team[0].role, "Delivery Lead")
+
+    def test_project_links_to_sow(self):
+        sow = frappe.get_doc({
+            "doctype": "SOW", "title": "Link SOW", "customer": _customer(),
+            "sow_type": "Sale", "billing_model": "Time & Material", "status": "Active",
+        }).insert()
+        proj = frappe.get_doc({
+            "doctype": "Project", "project_name": "CX360 Link Project",
+            "custom_sow": sow.name,
+        }).insert()
+        self.assertEqual(frappe.db.get_value("Project", proj.name, "custom_sow"), sow.name)

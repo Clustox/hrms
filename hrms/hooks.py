@@ -30,6 +30,7 @@ fixtures = [
 					"Employee-custom_onboarding_documents",
 					"Employee Education-custom_certificate",
 					"Employee External Work History-custom_experience_letter",
+					"Project-custom_sow",
 				],
 			]
 		],
