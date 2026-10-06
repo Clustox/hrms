@@ -13,7 +13,19 @@
 - **Target app & module:** everything lives in the **hrms** app under a new module **`CX360`** (folder `hrms/cx360/`). This matches the existing custom modules (`hrms/leave_rules.py`, `hrms/employee_events.py`) and keeps the code bind-mounted and in git. Do **not** create a separate Frappe app.
 - **Repo:** `/Users/mrmacbook/projects/hrms` (bind-mounted to container `/home/frappe/frappe-bench/apps/hrms`). The Python package root is `hrms/` inside the repo, so repo-relative paths look like `hrms/cx360/...`.
 - **Run any bench command via:** `docker exec docker-frappe-1 bash -lc 'cd /home/frappe/frappe-bench && <cmd>'`. No sudo locally.
-- **Run tests with:** `bench --site hrms.localhost run-tests --module <dotted.module.path>`. If it refuses with a test-mode error, first run `bench --site hrms.localhost set-config allow_tests true` once.
+- **Run tests:** `bench run-tests` does NOT work on this populated bench — its `before_tests` / `erpnext.tests.utils` bootstrap inserts standard master data (fiscal years, price lists) that collides with the existing data. Instead run each `FrappeTestCase` through a console harness that skips that bootstrap:
+  ```
+  docker exec -i docker-frappe-1 bash -lc 'cd /home/frappe/frappe-bench && bench --site hrms.localhost console' <<'PY'
+  import frappe, unittest
+  frappe.flags.in_test = True
+  from <dotted.module.path> import <TestCase>
+  result = unittest.TextTestRunner(verbosity=2).run(
+      unittest.TestLoader().loadTestsFromTestCase(<TestCase>))
+  print("RESULT", "OK" if result.wasSuccessful() else "FAIL")
+  frappe.db.rollback()
+  PY
+  ```
+  One-time bench prerequisite (also a fix for `bench run-tests`): the bench's July–June fiscal years (`2021-22` … `2026-27`) must be scoped to the `Clustox` company (append a `Fiscal Year Company` row), or the test-fiscal-year bootstrap throws an overlap error.
 - **Register doctype/JSON or module changes with:** `bench --site hrms.localhost migrate`. For a single already-registered doctype you edited, `bench --site hrms.localhost reload-doctype "<Doctype Name>"` is faster.
 - **After ANY `hooks.py` change:** `bench --site hrms.localhost clear-cache` — a restart does NOT clear Frappe's Redis hooks cache (known gotcha on this bench).
 - **`STANDARD_MONTHLY_HOURS = 160`** — full-time monthly hours; capacity = allocation% × 160.
