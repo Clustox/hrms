@@ -1,0 +1,43 @@
+{
+ "actions": [],
+ "autoname": "SOW-.#####",
+ "creation": "2026-10-07 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "title_field": "title",
+ "field_order": ["title", "customer", "sow_type", "billing_model", "status", "cb1", "start_date", "end_date", "sec_comm", "monthly_hours_commitment", "default_billing_rate", "monthly_value", "total_value", "sec_deliverables", "deliverables", "sec_team", "team"],
+ "fields": [
+  {"fieldname": "title", "fieldtype": "Data", "label": "Title", "reqd": 1},
+  {"fieldname": "customer", "fieldtype": "Link", "label": "Customer", "options": "Customer", "reqd": 1},
+  {"fieldname": "sow_type", "fieldtype": "Select", "label": "SOW Type", "options": "Sale\nInternal", "default": "Sale", "reqd": 1},
+  {"fieldname": "billing_model", "fieldtype": "Select", "label": "Billing Model", "options": "Time & Material\nDeliverable\nFixed Monthly", "reqd": 1},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Draft\nActive\nClosed\nCancelled", "default": "Draft"},
+  {"fieldname": "cb1", "fieldtype": "Column Break"},
+  {"fieldname": "start_date", "fieldtype": "Date", "label": "Start Date"},
+  {"fieldname": "end_date", "fieldtype": "Date", "label": "End Date"},
+  {"fieldname": "sec_comm", "fieldtype": "Section Break", "label": "Commercials"},
+  {"fieldname": "monthly_hours_commitment", "fieldtype": "Int", "label": "Monthly Hours Commitment", "depends_on": "eval:doc.billing_model=='Time & Material'"},
+  {"fieldname": "default_billing_rate", "fieldtype": "Currency", "label": "Default Billing Rate (per hr)", "depends_on": "eval:doc.billing_model=='Time & Material'"},
+  {"fieldname": "monthly_value", "fieldtype": "Currency", "label": "Monthly Value", "depends_on": "eval:doc.billing_model=='Fixed Monthly'"},
+  {"fieldname": "total_value", "fieldtype": "Currency", "label": "Total Value"},
+  {"fieldname": "sec_deliverables", "fieldtype": "Section Break", "label": "Deliverables", "depends_on": "eval:doc.billing_model=='Deliverable'"},
+  {"fieldname": "deliverables", "fieldtype": "Table", "label": "Deliverables", "options": "SOW Deliverable"},
+  {"fieldname": "sec_team", "fieldtype": "Section Break", "label": "Team"},
+  {"fieldname": "team", "fieldtype": "Table", "label": "Team", "options": "SOW Team Member"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-07 00:00:00",
+ "modified_by": "Administrator",
+ "module": "CX360",
+ "name": "SOW",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "HR Manager", "share": 1, "write": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
