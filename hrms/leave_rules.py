@@ -14,10 +14,12 @@ does not enforce natively are implemented here:
   * medical proof (attachment) required for Sick Leave over 2 days
   * Compensatory Off expires 1 month after it is earned
 
-Enforcement = HARD BLOCK, but users holding an HR/override role bypass it
-(for approved exceptions / emergencies). Emergencies applied on/for the same
-day or a past date are exempt from the advance-notice rule — except Annual
-Leave, which must always be planned and always requires the 3/30-day notice.
+Enforcement = HARD BLOCK. Users holding an HR/override role bypass the rules
+only when applying on ANOTHER employee's behalf (approved exceptions /
+emergencies); their OWN leave always follows the policy. Emergencies applied
+on/for the same day or a past date are exempt from the advance-notice rule —
+except Annual Leave, which must always be planned and always requires the
+3/30-day notice.
 """
 
 import frappe
@@ -37,8 +39,14 @@ FIXED_NOTICE_DAYS = {"Religious Leave": 15, "Marriage Leave": 45, "Hajj Umrah Le
 ONCE_TYPES = {"Hajj Umrah Leave"}
 
 
-def _has_override() -> bool:
-    return bool(set(frappe.get_roles()) & OVERRIDE_ROLES)
+def _bypass(doc) -> bool:
+    """Override roles bypass the rules only when acting on ANOTHER employee's
+    behalf (e.g. HR recording an approved exception). A user's own leave always
+    follows the policy, even for HR / Admin."""
+    if not (set(frappe.get_roles()) & OVERRIDE_ROLES):
+        return False
+    owner_user = frappe.db.get_value("Employee", doc.employee, "user_id")
+    return owner_user != frappe.session.user
 
 
 def _holiday_list(employee: str):
@@ -94,7 +102,7 @@ def _sandwiched_on(doc, hl, boundary_day) -> bool:
 
 
 def validate_leave_application(doc, method=None):
-    if _has_override():
+    if _bypass(doc):
         return
 
     lt = doc.leave_type
@@ -160,7 +168,7 @@ def validate_leave_application(doc, method=None):
 def validate_leave_application_on_submit(doc, method=None):
     """Medical proof required for Sick Leave over 2 days (checked at submit,
     once attachments can exist)."""
-    if _has_override():
+    if _bypass(doc):
         return
     days = doc.total_leave_days or 0
     if doc.leave_type == SICK and days > 2:
