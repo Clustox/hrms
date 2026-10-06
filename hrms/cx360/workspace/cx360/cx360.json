@@ -1,0 +1,111 @@
+{
+ "app": "hrms",
+ "charts": [],
+ "content": "[{\"id\":\"cx360Hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>CX360 PSA</b></span>\",\"col\":12}},{\"id\":\"cx360Delivery\",\"type\":\"card\",\"data\":{\"card_name\":\"Delivery\",\"col\":4}},{\"id\":\"cx360Commissions\",\"type\":\"card\",\"data\":{\"card_name\":\"Commissions\",\"col\":4}}]",
+ "creation": "2026-10-07 00:00:00",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "briefcase",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "CX360",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Delivery",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "SOW",
+   "link_count": 0,
+   "link_to": "SOW",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Resource Allocation",
+   "link_count": 0,
+   "link_to": "Resource Allocation",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Commissions",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Commission Rule",
+   "link_count": 0,
+   "link_to": "Commission Rule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Commission Run",
+   "link_count": 0,
+   "link_to": "Commission Run",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-10-07 00:00:00",
+ "modified_by": "Administrator",
+ "module": "CX360",
+ "name": "CX360",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 20.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "SOW",
+   "link_to": "SOW",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Resource Allocation",
+   "link_to": "Resource Allocation",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Commission Run",
+   "link_to": "Commission Run",
+   "type": "DocType"
+  }
+ ],
+ "sidebar_items": [],
+ "standard": 1,
+ "title": "CX360",
+ "type": "Workspace"
+}
