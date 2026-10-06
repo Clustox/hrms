@@ -309,6 +309,11 @@ scheduler_events = {
 	"daily": [
 		"hrms.controllers.employee_reminders.send_birthday_reminders",
 		"hrms.controllers.employee_reminders.send_work_anniversary_reminders",
+		# Clustox: personal birthday/anniversary greetings + probation reminders
+		# (stock whole-company reminders above are disabled in HR Settings).
+		"hrms.employee_events.send_birthday_greetings",
+		"hrms.employee_events.send_work_anniversary_greetings",
+		"hrms.employee_events.send_probation_reminders",
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.send_summary",
 		"hrms.hr.doctype.interview.interview.send_daily_feedback_reminder",
 		"hrms.hr.doctype.shift_assignment.shift_assignment.mark_expired_shift_assignments_as_inactive",
