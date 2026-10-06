@@ -16,7 +16,8 @@ does not enforce natively are implemented here:
 
 Enforcement = HARD BLOCK, but users holding an HR/override role bypass it
 (for approved exceptions / emergencies). Emergencies applied on/for the same
-day or a past date are exempt from the advance-notice rule.
+day or a past date are exempt from the advance-notice rule — except Annual
+Leave, which must always be planned and always requires the 3/30-day notice.
 """
 
 import frappe
@@ -114,14 +115,15 @@ def validate_leave_application(doc, method=None):
     }):
         frappe.throw(_("{0} can be availed only once during employment.").format(lt))
 
-    # 3) advance notice — only for planned (future) leaves; same-day/backdated = emergency
-    if frm > getdate(today()):
-        needed = (3 if days <= 2 else 30) if lt == ANNUAL else FIXED_NOTICE_DAYS.get(lt)
-        if needed:
-            earliest = add_days(getdate(today()), needed)
-            if frm < earliest:
-                frappe.throw(_("{0} requires at least {1} days notice. "
-                               "Earliest start date is {2}.").format(lt, needed, earliest))
+    # 3) advance notice. Annual Leave must always be planned — no same-day/backdated
+    #    exemption (applying for today, a past date, or inside the notice window is
+    #    blocked). Other notice-based types stay exempt for same-day/backdated (emergency).
+    needed = (3 if days <= 2 else 30) if lt == ANNUAL else FIXED_NOTICE_DAYS.get(lt)
+    if needed and (lt == ANNUAL or frm > getdate(today())):
+        earliest = add_days(getdate(today()), needed)
+        if frm < earliest:
+            frappe.throw(_("{0} requires at least {1} days notice. "
+                           "Earliest start date is {2}.").format(lt, needed, earliest))
 
     # 4) probation (first 90 days from joining, unless confirmed earlier)
     doj = getdate(emp.date_of_joining) if emp.get("date_of_joining") else None
