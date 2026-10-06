@@ -1,0 +1,33 @@
+{
+ "actions": [],
+ "autoname": "CRUN-.#####",
+ "creation": "2026-10-07 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["run_type", "period_start", "period_end", "project", "status", "total_commission", "sec_entries", "entries"],
+ "fields": [
+  {"fieldname": "run_type", "fieldtype": "Select", "label": "Run Type", "options": "Monthly recurring\nOn project completion\nPer deliverable completed", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "period_start", "fieldtype": "Date", "label": "Period Start", "depends_on": "eval:doc.run_type=='Monthly recurring'"},
+  {"fieldname": "period_end", "fieldtype": "Date", "label": "Period End", "depends_on": "eval:doc.run_type=='Monthly recurring'"},
+  {"fieldname": "project", "fieldtype": "Link", "label": "Project (filter)", "options": "Project"},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Draft\nReviewed\nPosted", "default": "Draft", "in_list_view": 1},
+  {"fieldname": "total_commission", "fieldtype": "Currency", "label": "Total Commission", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "sec_entries", "fieldtype": "Section Break", "label": "Entries"},
+  {"fieldname": "entries", "fieldtype": "Table", "label": "Entries", "options": "Commission Entry"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-07 00:00:00",
+ "modified_by": "Administrator",
+ "module": "CX360",
+ "name": "Commission Run",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "HR Manager", "share": 1, "write": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

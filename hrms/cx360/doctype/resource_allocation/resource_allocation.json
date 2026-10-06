@@ -1,0 +1,38 @@
+{
+ "actions": [],
+ "autoname": "ALLOC-.#####",
+ "creation": "2026-10-07 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["employee", "employee_name", "project", "sow", "status", "allocation_percent", "cb1", "start_date", "end_date", "sec_rate", "project_billing_rate", "project_cost_rate", "monthly_capacity_hours"],
+ "fields": [
+  {"fieldname": "employee", "fieldtype": "Link", "label": "Employee", "options": "Employee", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "employee_name", "fieldtype": "Data", "label": "Name", "fetch_from": "employee.employee_name", "read_only": 1},
+  {"fieldname": "project", "fieldtype": "Link", "label": "Project", "options": "Project", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "sow", "fieldtype": "Link", "label": "SOW", "options": "SOW", "fetch_from": "project.custom_sow", "read_only": 1},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Active\nClosed", "default": "Active", "in_list_view": 1},
+  {"fieldname": "allocation_percent", "fieldtype": "Float", "label": "Allocation %", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "cb1", "fieldtype": "Column Break"},
+  {"fieldname": "start_date", "fieldtype": "Date", "label": "Start Date", "reqd": 1},
+  {"fieldname": "end_date", "fieldtype": "Date", "label": "End Date", "reqd": 1},
+  {"fieldname": "sec_rate", "fieldtype": "Section Break", "label": "Rates"},
+  {"fieldname": "project_billing_rate", "fieldtype": "Currency", "label": "Project Billing Rate (per hr)"},
+  {"fieldname": "project_cost_rate", "fieldtype": "Currency", "label": "Project Cost Rate (per hr)"},
+  {"fieldname": "monthly_capacity_hours", "fieldtype": "Float", "label": "Monthly Capacity (hrs)", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-07 00:00:00",
+ "modified_by": "Administrator",
+ "module": "CX360",
+ "name": "Resource Allocation",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "HR Manager", "share": 1, "write": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
