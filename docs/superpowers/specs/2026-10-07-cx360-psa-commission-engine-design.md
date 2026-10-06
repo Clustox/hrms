@@ -37,10 +37,11 @@ Project ← resources allocated by % ← governed by an SOW (Sale or Internal; S
 Governs a client engagement and its commercial terms.
 
 - `title`, `customer` (Link Customer), `status` (Draft / Active / Closed / Cancelled), `start_date`, `end_date`.
-- `sow_type` (Select: **Sale** / **Internal**). Internal carries no client cost and, by default, no commission.
-- `sale_type` (Select: **Time & Material** / **Deliverable**) — shown when `sow_type = Sale`.
+- `sow_type` (Select: **Sale** / **Internal**). Sale invoices the client; Internal does not — but **Internal projects can still pay commission** (base is a Flat amount or the configured Project / Fixed-Monthly value, via a rule scoped to Internal).
+- `billing_model` (Select: **Time & Material** / **Deliverable** / **Fixed Monthly**) — applies to both Sale and Internal.
 - Time & Material fields: `monthly_hours_commitment` (Int), `default_billing_rate` (Currency, per hour) — a default; per-resource rates live on the allocation.
-- `total_value` (Currency) — for Deliverable SOWs, the sum of deliverable amounts; for T&M, an estimate.
+- Fixed Monthly field: `monthly_value` (Currency) — the fixed monthly figure; commission rules use it as the base (typically scaled by allocation %).
+- `total_value` (Currency) — for Deliverable SOWs, the sum of deliverable amounts; for T&M / Fixed Monthly, an estimate of the engagement value.
 - **Deliverables** — child table *SOW Deliverable*: `title`, `due_date`, `amount` (Currency), `status` (Pending / Completed), `completed_on`.
 - **Team** — child table *SOW Team Member*: `employee` (Link Employee), `role` (Select: **Sales** / **Delivery Lead** / **PM** / **Other**). This is where non-allocated commission roles (Sales, Delivery Lead) are tagged. Working Resources are NOT entered here — they come from Resource Allocation.
 - **Projects** — a Project links to its SOW via a custom field `custom_sow` (Link SOW). One SOW may have several Projects; the SOW shows them as a read-only list.
@@ -93,7 +94,7 @@ For the run's scope and trigger:
 3. **Compute base** per rule base type:
    - Resource revenue = Σ(billable hours in period for person+project × billing rate).
    - Margin = resource revenue − Σ(hours × cost rate).
-   - Project revenue = invoiced amount in period (Monthly), or SOW `total_value` (On completion), as applicable.
+   - Project revenue = invoiced amount in period (Monthly) or SOW `total_value` (On completion) for Sale projects. For Internal / Fixed-Monthly projects (no invoice), it resolves to the SOW's `monthly_value` (Monthly) or `total_value` (On completion).
    - Deliverable amount = the completed deliverable's `amount` (Per deliverable runs iterate completed deliverables).
    - Flat amount = `rate_value` (base is the figure itself).
 4. **Compute commission** = base × `rate_value`% (or the flat figure), × allocation% if `scale_by_allocation`, clamped to `min_amount`/`max_amount`.
@@ -108,6 +109,7 @@ For the run's scope and trigger:
 | Fixed-cost payout | Working Resource | Project revenue | On project completion |
 | Deliverable payout | Working Resource | Deliverable amount | Per deliverable completed |
 | Delivery lead | Delivery Lead | Margin | Monthly recurring |
+| Internal fixed-monthly | Working Resource | Project value (`monthly_value`), scaled by allocation | Monthly recurring |
 
 ## 6. Capacity & hours enforcement
 
@@ -116,7 +118,7 @@ For the run's scope and trigger:
 
 ## 7. Revenue / invoicing
 
-Reuse Sales Invoice: T&M projects invoice from Timesheet; Deliverable projects invoice per completed milestone; Internal projects do not invoice. Revenue reporting uses the resulting invoices. No custom revenue doctype.
+Reuse Sales Invoice: T&M projects invoice from Timesheet; Deliverable projects invoice per completed milestone; Internal projects do not invoice. Revenue reporting uses the resulting invoices. No custom revenue doctype. Internal-project commissions draw on the SOW's configured value (`monthly_value` / `total_value`), not on invoices.
 
 ## 8. Build sequence
 
