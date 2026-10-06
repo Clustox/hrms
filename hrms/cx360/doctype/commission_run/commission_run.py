@@ -19,6 +19,14 @@ class CommissionRun(Document):
         self._team_role_entries(rules)
         self.total_commission = sum(flt(e.commission_amount) for e in self.entries)
 
+    @frappe.whitelist()
+    def run_generation(self):
+        """Rebuild entries from current allocations/timesheets/rules and persist.
+        Called by the 'Generate' button on a saved (Draft) run."""
+        self.generate()
+        self.save()
+        return len(self.entries)
+
     # --- working resources come from Resource Allocation ---
     def _working_resource_entries(self, rules):
         filters = {"status": "Active"}
