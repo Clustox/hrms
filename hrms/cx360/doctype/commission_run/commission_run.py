@@ -99,6 +99,11 @@ class CommissionRun(Document):
             return ce.resource_revenue(employee, project, s, e)
         if rule.base == "Total project revenue":
             return ce.project_timesheet_revenue(project, s, e) if (project and s and e) else 0
+        if rule.base in ("Project value", "Project cost", "Project profit"):
+            bv = ce.project_budget_values(project)
+            key = {"Project value": "value", "Project cost": "cost",
+                   "Project profit": "profit"}[rule.base]
+            return bv[key]
         if rule.base == "Margin":
             return ce.margin(employee, project, s, e)
         if rule.base == "Project revenue":

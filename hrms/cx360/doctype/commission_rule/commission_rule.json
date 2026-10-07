@@ -18,7 +18,7 @@
   {"fieldname": "customer_scope", "fieldtype": "Link", "label": "Customer", "options": "Customer"},
   {"fieldname": "project_scope", "fieldtype": "Link", "label": "Project", "options": "Project"},
   {"fieldname": "sec_calc", "fieldtype": "Section Break", "label": "Calculation"},
-  {"fieldname": "base", "fieldtype": "Select", "label": "Base", "options": "Resource revenue\nTotal project revenue\nProject revenue\nMargin\nDeliverable amount\nFlat amount", "reqd": 1},
+  {"fieldname": "base", "fieldtype": "Select", "label": "Base", "options": "Resource revenue\nTotal project revenue\nProject value\nProject profit\nProject cost\nProject revenue\nMargin\nDeliverable amount\nFlat amount", "reqd": 1},
   {"fieldname": "rate_type", "fieldtype": "Select", "label": "Rate Type", "options": "Percent\nFlat", "default": "Percent", "reqd": 1},
   {"fieldname": "rate_value", "fieldtype": "Float", "label": "Rate Value", "reqd": 1},
   {"fieldname": "scale_by_allocation", "fieldtype": "Check", "label": "Scale by Allocation %"},

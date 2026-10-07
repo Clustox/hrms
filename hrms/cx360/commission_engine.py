@@ -68,6 +68,22 @@ def project_invoiced(project, start, end):
     return flt(rows[0][0]) if rows else 0.0
 
 
+def project_budget_values(project):
+    """{value, cost, profit} from the project's latest Project Budget (all USD)."""
+    if not project:
+        return {"value": 0.0, "cost": 0.0, "profit": 0.0}
+    rows = frappe.get_all(
+        "Project Budget", filters={"project": project},
+        fields=["project_value", "budgeted_cost", "budgeted_profit"],
+        order_by="modified desc", limit=1,
+    )
+    if not rows:
+        return {"value": 0.0, "cost": 0.0, "profit": 0.0}
+    b = rows[0]
+    return {"value": flt(b.project_value), "cost": flt(b.budgeted_cost),
+            "profit": flt(b.budgeted_profit)}
+
+
 def scope_matches(rule, sow_type, billing_model):
     scope = rule.sow_type_scope or "Any"
     if scope != "Any":
