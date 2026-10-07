@@ -52,14 +52,17 @@ class CommissionRun(Document):
                     continue
                 if rule.project_scope and a.project != rule.project_scope:
                     continue
+                override = (rule.get("overrides_map") or {}).get(a.employee)
+                eff_rate = override if override is not None else rule.rate_value
                 base_amount = self._base_amount(rule, a.employee, a.project, a.sow)
-                amt = ce.compute_commission(base_amount, rule, a.allocation_percent)
+                amt = ce.compute_commission(base_amount, rule, a.allocation_percent,
+                                            override_rate=override)
                 self._add_entry(a.employee, a.employee_name, "Working Resource",
-                                a.project, a.sow, rule, base_amount, amt)
+                                a.project, a.sow, rule, base_amount, amt, eff_rate)
 
-    # --- Sales / Delivery Lead / PM come from SOW team ---
+    # --- Sales / Delivery Lead / Team Lead / PM / Referrer come from SOW team ---
     def _team_role_entries(self, rules):
-        team_rules = [r for r in rules if r.role in ("Sales", "Delivery Lead", "PM")]
+        team_rules = [r for r in rules if r.role != "Working Resource"]
         if not team_rules:
             return
         sows = frappe.get_all("SOW", fields=["name", "sow_type", "billing_model", "customer"])
@@ -81,15 +84,19 @@ class CommissionRun(Document):
                         continue
                     if rule.project_scope and project != rule.project_scope:
                         continue
+                    override = (rule.get("overrides_map") or {}).get(member.employee)
+                    eff_rate = override if override is not None else rule.rate_value
                     base_amount = self._base_amount(rule, member.employee, project, sow.name)
-                    amt = ce.compute_commission(base_amount, rule, 0)
+                    amt = ce.compute_commission(base_amount, rule, 0, override_rate=override)
                     self._add_entry(member.employee, member.employee_name, member.role,
-                                    project, sow.name, rule, base_amount, amt)
+                                    project, sow.name, rule, base_amount, amt, eff_rate)
 
     def _base_amount(self, rule, employee, project, sow):
         s, e = self.period_start, self.period_end
         if rule.base == "Resource revenue":
             return ce.resource_revenue(employee, project, s, e)
+        if rule.base == "Total project revenue":
+            return ce.project_timesheet_revenue(project, s, e) if (project and s and e) else 0
         if rule.base == "Margin":
             return ce.margin(employee, project, s, e)
         if rule.base == "Project revenue":
@@ -101,23 +108,31 @@ class CommissionRun(Document):
             return 0  # Flat rate_type uses rate_value directly
         return 0  # Deliverable amount handled by per-deliverable runs (future extension)
 
-    def _add_entry(self, employee, employee_name, role, project, sow, rule, base_amount, amt):
+    def _add_entry(self, employee, employee_name, role, project, sow, rule, base_amount, amt, eff_rate):
         self.append("entries", {
             "employee": employee, "employee_name": employee_name, "role": role,
             "project": project, "sow": sow, "rule": rule.name, "base": rule.base,
             "currency": self.currency or "USD", "base_amount": base_amount,
-            "rate": f"{rule.rate_value}{'%' if rule.rate_type == 'Percent' else ''}",
+            "rate": f"{eff_rate}{'%' if rule.rate_type == 'Percent' else ''}",
             "commission_amount": amt,
         })
 
 
 def _active_rules(run_type):
-    return frappe.get_all(
+    rules = frappe.get_all(
         "Commission Rule", filters={"active": 1, "trigger": run_type},
         fields=["name", "role", "sow_type_scope", "customer_scope", "project_scope",
                 "base", "rate_type", "rate_value", "scale_by_allocation",
                 "min_amount", "max_amount"],
     )
+    for r in rules:
+        r["overrides_map"] = {
+            o.employee: o.rate_value
+            for o in frappe.get_all("Commission Rule Override",
+                                    filters={"parent": r.name},
+                                    fields=["employee", "rate_value"])
+        }
+    return rules
 
 
 def _sow_type_model(sow):

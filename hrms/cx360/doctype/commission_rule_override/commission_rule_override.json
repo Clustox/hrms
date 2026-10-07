@@ -5,18 +5,18 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "istable": 1,
- "field_order": ["employee", "employee_name", "role"],
+ "field_order": ["employee", "employee_name", "rate_value"],
  "fields": [
   {"fieldname": "employee", "fieldtype": "Link", "label": "Employee", "options": "Employee", "in_list_view": 1, "reqd": 1},
   {"fieldname": "employee_name", "fieldtype": "Data", "label": "Name", "fetch_from": "employee.employee_name", "read_only": 1, "in_list_view": 1},
-  {"fieldname": "role", "fieldtype": "Select", "label": "Role", "options": "Sales\nDelivery Lead\nTeam Lead\nPM\nReferrer\nOther", "in_list_view": 1, "reqd": 1}
+  {"fieldname": "rate_value", "fieldtype": "Float", "label": "Rate Value (override)", "in_list_view": 1, "reqd": 1}
  ],
  "index_web_pages_for_search": 1,
  "links": [],
  "modified": "2026-10-07 00:00:00",
  "modified_by": "Administrator",
  "module": "CX360",
- "name": "SOW Team Member",
+ "name": "Commission Rule Override",
  "owner": "Administrator",
  "permissions": [],
  "sort_field": "modified",
