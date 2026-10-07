@@ -22,8 +22,8 @@
   {"fieldname": "rate_type", "fieldtype": "Select", "label": "Rate Type", "options": "Percent\nFlat", "default": "Percent", "reqd": 1},
   {"fieldname": "rate_value", "fieldtype": "Float", "label": "Rate Value", "reqd": 1},
   {"fieldname": "scale_by_allocation", "fieldtype": "Check", "label": "Scale by Allocation %"},
-  {"fieldname": "min_amount", "fieldtype": "Currency", "label": "Min Amount"},
-  {"fieldname": "max_amount", "fieldtype": "Currency", "label": "Max Amount"},
+  {"fieldname": "min_amount", "fieldtype": "Currency", "label": "Min Amount", "options": "USD"},
+  {"fieldname": "max_amount", "fieldtype": "Currency", "label": "Max Amount", "options": "USD"},
   {"fieldname": "sec_when", "fieldtype": "Section Break", "label": "When"},
   {"fieldname": "trigger", "fieldtype": "Select", "label": "Trigger", "options": "Monthly recurring\nOn project completion\nPer deliverable completed", "reqd": 1},
   {"fieldname": "notes", "fieldtype": "Small Text", "label": "Notes"}

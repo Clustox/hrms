@@ -11,6 +11,8 @@ class CommissionRun(Document):
     @frappe.whitelist()
     def generate(self):
         self.entries = []
+        if not self.currency:
+            self.currency = "USD"
         rules = _active_rules(self.run_type)
         if not rules:
             self.total_commission = 0
@@ -103,7 +105,7 @@ class CommissionRun(Document):
         self.append("entries", {
             "employee": employee, "employee_name": employee_name, "role": role,
             "project": project, "sow": sow, "rule": rule.name, "base": rule.base,
-            "base_amount": base_amount,
+            "currency": self.currency or "USD", "base_amount": base_amount,
             "rate": f"{rule.rate_value}{'%' if rule.rate_type == 'Percent' else ''}",
             "commission_amount": amt,
         })

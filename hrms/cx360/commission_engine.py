@@ -37,9 +37,11 @@ def _sum_timesheet(column, employee, project, start, end):
 
 
 def project_invoiced(project, start, end):
+    # net_amount (document currency, e.g. USD) — commissions are computed in the
+    # client-billing currency, not the company base currency.
     rows = frappe.db.sql(
         """
-        SELECT COALESCE(SUM(sii.base_net_amount), 0)
+        SELECT COALESCE(SUM(sii.net_amount), 0)
         FROM `tabSales Invoice Item` sii
         JOIN `tabSales Invoice` si ON si.name = sii.parent
         WHERE sii.project=%s AND si.docstatus=1

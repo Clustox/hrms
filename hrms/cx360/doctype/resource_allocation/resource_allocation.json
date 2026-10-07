@@ -17,8 +17,8 @@
   {"fieldname": "start_date", "fieldtype": "Date", "label": "Start Date", "reqd": 1},
   {"fieldname": "end_date", "fieldtype": "Date", "label": "End Date", "reqd": 1},
   {"fieldname": "sec_rate", "fieldtype": "Section Break", "label": "Rates"},
-  {"fieldname": "project_billing_rate", "fieldtype": "Currency", "label": "Project Billing Rate (per hr)"},
-  {"fieldname": "project_cost_rate", "fieldtype": "Currency", "label": "Project Cost Rate (per hr)"},
+  {"fieldname": "project_billing_rate", "fieldtype": "Currency", "label": "Project Billing Rate (per hr)", "options": "USD"},
+  {"fieldname": "project_cost_rate", "fieldtype": "Currency", "label": "Project Cost Rate (per hr)", "options": "USD"},
   {"fieldname": "monthly_capacity_hours", "fieldtype": "Float", "label": "Monthly Capacity (hrs)", "read_only": 1}
  ],
  "index_web_pages_for_search": 1,
