@@ -11,8 +11,10 @@ class CommissionRun(Document):
     @frappe.whitelist()
     def generate(self):
         self.entries = []
-        if not self.currency:
-            self.currency = "USD"
+        # Commissions are always computed in USD (the client-billing currency).
+        # Forced here because Frappe's global default for a "currency" field is the
+        # company currency (PKR), which would otherwise override the field default.
+        self.currency = "USD"
         rules = _active_rules(self.run_type)
         if not rules:
             self.total_commission = 0
