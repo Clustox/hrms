@@ -15,8 +15,12 @@ class ProjectBudget(Document):
                 )
                 if dr:
                     line.rate = dr.monthly_rate if line.basis == "Monthly" else dr.hourly_rate
+            line.currency = "USD"
             line.line_cost = flt(line.quantity) * flt(line.rate) * flt(line.duration)
             resource_total += flt(line.line_cost)
-        other_total = sum(flt(c.amount) for c in self.other_costs)
+        other_total = 0.0
+        for c in self.other_costs:
+            c.currency = "USD"
+            other_total += flt(c.amount)
         self.budgeted_cost = resource_total + other_total
         self.budgeted_profit = flt(self.project_value) - flt(self.budgeted_cost)

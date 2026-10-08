@@ -5,5 +5,6 @@ from frappe.utils import flt
 
 class SOW(Document):
     def validate(self):
+        self.currency = "USD"
         if self.billing_model == "Deliverable":
             self.total_value = sum(flt(d.amount) for d in self.deliverables)

@@ -5,7 +5,7 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": ["employee", "employee_name", "project", "sow", "status", "allocation_percent", "cb1", "start_date", "end_date", "sec_rate", "project_billing_rate", "project_cost_rate", "monthly_capacity_hours"],
+ "field_order": ["employee", "employee_name", "project", "sow", "status", "allocation_percent", "cb1", "start_date", "end_date", "sec_rate", "project_billing_rate", "project_cost_rate", "monthly_capacity_hours", "currency"],
  "fields": [
   {"fieldname": "employee", "fieldtype": "Link", "label": "Employee", "options": "Employee", "reqd": 1, "in_list_view": 1},
   {"fieldname": "employee_name", "fieldtype": "Data", "label": "Name", "fetch_from": "employee.employee_name", "read_only": 1},
@@ -17,9 +17,10 @@
   {"fieldname": "start_date", "fieldtype": "Date", "label": "Start Date", "reqd": 1},
   {"fieldname": "end_date", "fieldtype": "Date", "label": "End Date", "reqd": 1},
   {"fieldname": "sec_rate", "fieldtype": "Section Break", "label": "Rates"},
-  {"fieldname": "project_billing_rate", "fieldtype": "Currency", "label": "Project Billing Rate (per hr)", "options": "USD"},
-  {"fieldname": "project_cost_rate", "fieldtype": "Currency", "label": "Project Cost Rate (per hr)", "options": "USD"},
-  {"fieldname": "monthly_capacity_hours", "fieldtype": "Float", "label": "Monthly Capacity (hrs)", "read_only": 1}
+  {"fieldname": "project_billing_rate", "fieldtype": "Currency", "label": "Project Billing Rate (per hr)", "options": "currency"},
+  {"fieldname": "project_cost_rate", "fieldtype": "Currency", "label": "Project Cost Rate (per hr)", "options": "currency"},
+  {"fieldname": "monthly_capacity_hours", "fieldtype": "Float", "label": "Monthly Capacity (hrs)", "read_only": 1},
+  {"fieldname": "currency", "fieldtype": "Data", "label": "Currency", "default": "USD", "read_only": 1, "hidden": 1}
  ],
  "index_web_pages_for_search": 1,
  "links": [],

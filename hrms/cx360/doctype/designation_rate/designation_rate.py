@@ -2,4 +2,5 @@ from frappe.model.document import Document
 
 
 class DesignationRate(Document):
-    pass
+    def validate(self):
+        self.currency = "USD"
