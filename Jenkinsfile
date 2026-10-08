@@ -129,14 +129,26 @@ pipeline {
             // discards ad-hoc edits in the deploy tree; develop is the single source of
             // truth. Untracked files like docs/ are left in place.)
             steps {
+                // Run git as root INSIDE a throwaway frappe/bench container (not on the
+                // host): the Jenkins user is in the 'docker' group but NOT 'hrms' and has
+                // no sudo, so it cannot write /opt/app/hrms/.git (root:hrms). Mounting the
+                // repo and running as -u 0 sidesteps that with the access jenkins already
+                // has. --network=host because the default docker bridge can't resolve
+                // external DNS since the firewalld migration (same reason the Sonar stage
+                // uses it). umask 002 keeps new .git objects group-writable for the hrms
+                // group so manual ops by hamad/administrator still work.
                 sh '''
-                  set -e
-                  cd /opt/app/hrms
-                  git config --global --add safe.directory /opt/app/hrms || true
-                  git fetch https://github.com/Clustox/hrms.git develop:refs/remotes/origin/develop
-                  git checkout -B develop origin/develop
-                  git reset --hard origin/develop
-                  echo "deploy checkout now at $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD)"
+                  docker run --rm --network=host -u 0 \
+                    -v /opt/app/hrms:/repo -w /repo \
+                    frappe/bench:latest bash -c '
+                      set -e
+                      umask 002
+                      git config --global --add safe.directory /repo
+                      git fetch https://github.com/Clustox/hrms.git develop:refs/remotes/origin/develop
+                      git checkout -B develop origin/develop
+                      git reset --hard origin/develop
+                      echo "deploy checkout now at $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD)"
+                    '
                 '''
             }
         }
