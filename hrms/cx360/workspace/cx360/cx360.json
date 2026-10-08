@@ -1,5 +1,5 @@
 {
- "app": "erpnext",
+ "app": "hrms",
  "charts": [],
  "content": "[{\"id\":\"cx360Hdr\",\"type\":\"header\",\"data\":{\"text\":\"<h4>CX360 PSA</h4>\",\"col\":12}},{\"id\":\"cx360Delivery\",\"type\":\"card\",\"data\":{\"card_name\":\"Delivery\",\"col\":4}},{\"id\":\"cx360Commissions\",\"type\":\"card\",\"data\":{\"card_name\":\"Commissions\",\"col\":4}}]",
  "creation": "2026-10-07 00:00:00",

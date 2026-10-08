@@ -134,7 +134,10 @@ jinja = {
 
 # before_install = "hrms.install.before_install"
 after_install = "hrms.install.after_install"
-after_migrate = "hrms.setup.update_select_perm_after_install"
+after_migrate = [
+	"hrms.setup.update_select_perm_after_install",
+	"hrms.cx360.setup.place_cx360_workspace",
+]
 
 setup_wizard_complete = "hrms.subscription_utils.update_erpnext_access"
 
