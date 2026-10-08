@@ -118,6 +118,28 @@ pipeline {
                 }
             }
         }
+        stage('Sync deploy checkout to develop') {
+            // Root-cause fix (2026-10-08): the Redeploy stage below runs docker compose
+            // against $COMPOSE_FILE, whose dir (/opt/app/hrms) is bind-mounted into the
+            // container as the running app. 'checkout scm' only populates the Jenkins
+            // workspace (what Sonar scans) and NEVER writes /opt/app/hrms -- so the
+            // deployed tree stayed frozen on an old manual branch while CI reported green
+            // on develop. Force the deploy checkout to the develop commit this build is
+            // running, so every run actually deploys develop. (reset --hard intentionally
+            // discards ad-hoc edits in the deploy tree; develop is the single source of
+            // truth. Untracked files like docs/ are left in place.)
+            steps {
+                sh '''
+                  set -e
+                  cd /opt/app/hrms
+                  git config --global --add safe.directory /opt/app/hrms || true
+                  git fetch https://github.com/Clustox/hrms.git develop:refs/remotes/origin/develop
+                  git checkout -B develop origin/develop
+                  git reset --hard origin/develop
+                  echo "deploy checkout now at $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD)"
+                '''
+            }
+        }
         stage('Redeploy dev stack') {
             steps {
                 sh 'docker compose -f $COMPOSE_FILE -p $PROJECT down'
