@@ -1,0 +1,57 @@
+pipeline {
+    agent any
+    options { timeout(time: 30, unit: 'MINUTES') }
+    environment {
+        COMPOSE_FILE = '/opt/app/hrms-dev-stack/docker-compose.yml'
+        PROJECT = 'dev'
+    }
+    stages {
+        stage('Checkout') {
+            steps { checkout scm }
+        }
+        stage('Sync deploy checkout to dev') {
+            // The Redeploy stage runs docker compose against the dev stack, whose
+            // bind-mount (/opt/app/hrms-dev -> /opt/hrms-src) is the running dev app.
+            // 'checkout scm' only populates the Jenkins workspace, so force the dev
+            // deploy checkout to the dev commit this build is running. Runs git as root
+            // in a throwaway container because the Jenkins user is in the docker group
+            // but not hrms and has no sudo, so it can't write /opt/app/hrms-dev/.git on
+            // the host. --network=host for external DNS; umask 002 keeps .git
+            // group-writable for the hrms group.
+            steps {
+                sh '''
+                  docker run --rm --network=host -u 0 \
+                    -v /opt/app/hrms-dev:/repo -w /repo \
+                    frappe/bench:latest bash -c '
+                      set -e
+                      umask 002
+                      git config --global --add safe.directory /repo
+                      git fetch https://github.com/Clustox/hrms.git dev:refs/remotes/origin/dev
+                      git checkout -B dev origin/dev
+                      git reset --hard origin/dev
+                      echo "dev deploy checkout now at $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD)"
+                    '
+                '''
+            }
+        }
+        stage('Redeploy dev stack') {
+            steps {
+                sh 'docker compose -f $COMPOSE_FILE -p $PROJECT down'
+                sh 'docker compose -f $COMPOSE_FILE -p $PROJECT up -d'
+            }
+        }
+        stage('Health check') {
+            steps {
+                sh '''
+                  for i in $(seq 1 80); do
+                    if curl -sf http://localhost:8001 > /dev/null; then
+                      echo "hrms-dev is up"; exit 0
+                    fi
+                    sleep 15
+                  done
+                  echo "hrms-dev did not become healthy in time"; exit 1
+                '''
+            }
+        }
+    }
+}
