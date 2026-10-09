@@ -14,7 +14,7 @@
   {"fieldname": "sec_who", "fieldtype": "Section Break", "label": "Who"},
   {"fieldname": "role", "fieldtype": "Select", "label": "Role on Project", "options": "Working Resource\nSales\nDelivery Lead\nTeam Lead\nPM\nReferrer", "reqd": 1, "in_list_view": 1},
   {"fieldname": "sec_scope", "fieldtype": "Section Break", "label": "Scope"},
-  {"fieldname": "sow_type_scope", "fieldtype": "Select", "label": "SOW Type Scope", "options": "Any\nSale - Time & Material\nSale - Deliverable\nInternal", "default": "Any"},
+  {"fieldname": "sow_type_scope", "fieldtype": "Select", "label": "Engagement Scope", "options": "Any\nSale - Time & Material\nSale - Deliverable\nInternal", "default": "Any"},
   {"fieldname": "customer_scope", "fieldtype": "Link", "label": "Customer", "options": "Customer"},
   {"fieldname": "project_scope", "fieldtype": "Link", "label": "Project", "options": "Project"},
   {"fieldname": "sec_calc", "fieldtype": "Section Break", "label": "Calculation"},
