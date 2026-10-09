@@ -1,5 +1,5 @@
 from frappe.model.document import Document
 
 
-class SOWDeliverable(Document):
+class ProjectTeamMember(Document):
     pass

@@ -8,6 +8,7 @@ STANDARD_MONTHLY_HOURS = 160
 
 class ResourceAllocation(Document):
     def validate(self):
+        self.currency = "USD"
         self.monthly_capacity_hours = flt(self.allocation_percent) / 100.0 * STANDARD_MONTHLY_HOURS
         self._check_total_allocation()
 

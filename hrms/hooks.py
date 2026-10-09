@@ -30,7 +30,10 @@ fixtures = [
 					"Employee-custom_onboarding_documents",
 					"Employee Education-custom_certificate",
 					"Employee External Work History-custom_experience_letter",
-					"Project-custom_sow",
+					"Project-custom_engagement_type",
+					"Project-custom_billing_model",
+					"Project-custom_sales_order",
+					"Project-custom_team",
 				],
 			]
 		],
@@ -134,7 +137,10 @@ jinja = {
 
 # before_install = "hrms.install.before_install"
 after_install = "hrms.install.after_install"
-after_migrate = "hrms.setup.update_select_perm_after_install"
+after_migrate = [
+	"hrms.setup.update_select_perm_after_install",
+	"hrms.cx360.setup.place_cx360_workspace",
+]
 
 setup_wizard_complete = "hrms.subscription_utils.update_erpnext_access"
 

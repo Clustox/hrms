@@ -1,5 +1,5 @@
 from frappe.model.document import Document
 
 
-class SOWTeamMember(Document):
+class CommissionRuleOverride(Document):
     pass
