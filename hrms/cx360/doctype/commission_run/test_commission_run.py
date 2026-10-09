@@ -5,22 +5,8 @@ from frappe.tests.utils import FrappeTestCase
 class TestCommissionRun(FrappeTestCase):
     def setUp(self):
         self.emp = frappe.get_all("Employee", filters={"status": "Active"}, limit=1)[0].name
-        if not frappe.db.exists("Customer", "CRun Client"):
-            frappe.get_doc({"doctype": "Customer", "customer_name": "CRun Client",
-                            "customer_type": "Company", "customer_group": "Commercial",
-                            "territory": "Rest Of The World"}).insert()
-        self.sow = frappe.get_doc({
-            "doctype": "SOW", "title": "CRun SOW", "customer": "CRun Client",
-            "sow_type": "Sale", "billing_model": "Time & Material", "status": "Active",
-        }).insert()
-        self.project = frappe.db.get_value("Project", {"project_name": "CRun Project"}, "name")
-        if not self.project:
-            self.project = frappe.get_doc({
-                "doctype": "Project", "project_name": "CRun Project",
-                "custom_sow": self.sow.name,
-            }).insert().name
-        else:
-            frappe.db.set_value("Project", self.project, "custom_sow", self.sow.name)
+        self.project = frappe.db.get_value("Project", {"project_name": "CRun Project"}, "name") \
+            or frappe.get_doc({"doctype": "Project", "project_name": "CRun Project"}).insert().name
         frappe.get_doc({
             "doctype": "Resource Allocation", "employee": self.emp, "project": self.project,
             "allocation_percent": 50, "start_date": "2026-03-01", "end_date": "2026-03-31",
