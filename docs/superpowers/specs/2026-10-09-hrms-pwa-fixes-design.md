@@ -14,9 +14,11 @@
 - Frontend `views/leave/Form.vue`: show the Half Day control only when `leave_type` is Casual; clear it when the type changes away from Casual.
 - Backend `hrms/leave_rules.py`: validate — `half_day` set AND leave type != Casual → `frappe.throw`. Enforced via form and API.
 
-**2. Check-in / check-out status (early / on-time / late).**
-- One shared helper (frontend `utils`) with config `WORK_START=10:00`, `WORK_END=18:00`, `GRACE=15min`. Derives two chips per day: **check-in** Early / On-time / Late (vs start ± grace) and **check-out** Early / On-time / Late (vs end ± grace).
+**2. Check-in / check-out status (early / on-time / late) — from the employee's ACTUAL shift.**
+- Reference = the employee's assigned shift, resolved per date: Shift Assignment for that day, else `Employee.default_shift` (reuse `hrms.hr.doctype.shift_assignment.shift_assignment.get_employee_shift`). Use the Shift Type's own `start_time` / `end_time` and its `late_entry_grace_period` / `early_exit_grace_period`.
+- Backend helper returns the shift timing (start/end/grace) for the viewed employee+date; the frontend derives two chips per day: **check-in** Early / On-time / Late (vs shift start + late-grace) and **check-out** Early / On-time / Late (vs shift end − early-grace). If the employee has no shift that day → no status chips.
 - Rendered on the attendance cards (`DayAttendanceCard.vue`, `DesktopAttendanceDashboard.vue`) and the timesheet view (`views/attendance/Timesheet.vue`). Computed from the in/out times already shown; no biometric change.
+- NOTE: current Shift Types are `Morning` 11:00–20:00 and `Clustox General` 12:00–21:00 (91 employees carry a `default_shift`). Those times are used as-is; if they are wrong, fix them in the Shift Type master (the correct place), not in code.
 
 **3. 12-hour time (AM/PM).**
 - Most displays already use `h:mm A` / `hh:mm a`. Fix the 24-hour instances: `components/ListView.vue:334` (`HH:mm a` → `h:mm A`) and `components/FormField.vue:152` where it shows punch times.
@@ -39,5 +41,5 @@
 - Deploy: `cd frontend && yarn build` → tar `hrms/public/frontend` + `hrms/www/hrms.html` → docker cp to prod → `bench build --app hrms` + clear-cache → hard refresh (PWA service-worker caches; use incognito). Backend via the usual bench deploy.
 
 ## Open points
-- #2 hours: using 10:00–18:00 as confirmed; the 11–20 / 12–21 Shift Types look misconfigured — separate cleanup if those are wrong.
+- #2 reference = **actual per-employee shift** (Hamad, 2026-10-09). If the Morning 11–20 / Clustox General 12–21 times are wrong, fix them in the Shift Type master.
 - #5: confirm whether to auto-generate Attendance from check-ins (process fix) or derive the widget from check-ins (UI fix). Leaning UI-derive to avoid changing the attendance pipeline.

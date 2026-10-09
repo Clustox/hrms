@@ -111,6 +111,10 @@ def validate_leave_application(doc, method=None):
     days = doc.total_leave_days or (date_diff(to, frm) + 1)
     emp = frappe.get_doc("Employee", doc.employee)
 
+    # 0) half-day only for Casual Leave (policy: half-day = 0.5 of a Casual day)
+    if doc.half_day and lt != CASUAL:
+        frappe.throw(_("Half-day leave is only available for Casual Leave."))
+
     # 1) gender
     req_gender = GENDER_REQUIRED.get(lt)
     if req_gender and (emp.get("gender") or "") != req_gender:

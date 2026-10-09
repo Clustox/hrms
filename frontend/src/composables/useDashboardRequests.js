@@ -19,10 +19,10 @@ function statusLabel(doc) {
 	if (doc.doctype === "Expense Claim") {
 		if (doc.approval_status === "Rejected") return "Rejected"
 		if (doc.approval_status === "Approved") return "Approved"
-		return doc.approval_status === "Draft" ? "Pending" : doc.status
+		return doc.approval_status === "Draft" ? "Pending Request" : doc.status
 	}
 	if (doc.doctype === "Attendance Request") return null // no status field, docstatus only
-	return doc.status === "Open" || doc.status === "Draft" ? "Pending" : doc.status
+	return ["Open", "Draft", "Pending"].includes(doc.status) ? "Pending Request" : doc.status
 }
 
 /**

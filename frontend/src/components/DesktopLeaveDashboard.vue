@@ -199,7 +199,7 @@ const pillClass = {
 
 const recentLeaves = computed(() =>
 	(myLeaves.data || []).slice(0, 6).map((leave) => {
-		const label = leave.status === "Open" ? "Pending" : leave.status
+		const label = ["Open", "Draft", "Pending"].includes(leave.status) ? "Pending Request" : leave.status
 		return {
 			key: leave.name,
 			title: __(leave.leave_type, null, "Leave Type"),

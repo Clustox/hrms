@@ -221,7 +221,7 @@ const tiles = computed(() => [
 	{
 		key: "pending",
 		type: "pending",
-		label: __("Pending"),
+		label: __("Pending Request"),
 		available: true,
 		value: Math.round(pendingShown.value),
 		note: props.pendingCount ? __("Awaiting approval") : __("Nothing waiting"),
