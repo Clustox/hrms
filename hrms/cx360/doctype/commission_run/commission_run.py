@@ -41,84 +41,88 @@ class CommissionRun(Document):
             filters["end_date"] = [">=", self.period_start]
         allocs = frappe.get_all(
             "Resource Allocation", filters=filters,
-            fields=["employee", "employee_name", "project", "sow", "allocation_percent"],
+            fields=["employee", "employee_name", "project", "allocation_percent"],
         )
         for a in allocs:
-            sow_type, billing_model = _sow_type_model(a.sow)
+            eng_type, billing_model = _project_type_model(a.project)
+            customer = _project_customer(a.project)
             for rule in rules:
                 if rule.role != "Working Resource":
                     continue
-                if not ce.scope_matches(rule, sow_type, billing_model):
+                if not ce.scope_matches(rule, eng_type, billing_model):
                     continue
-                if rule.customer_scope and _sow_customer(a.sow) != rule.customer_scope:
+                if rule.customer_scope and customer != rule.customer_scope:
                     continue
                 if rule.project_scope and a.project != rule.project_scope:
                     continue
                 override = (rule.get("overrides_map") or {}).get(a.employee)
                 eff_rate = override if override is not None else rule.rate_value
-                base_amount = self._base_amount(rule, a.employee, a.project, a.sow)
+                base_amount = self._base_amount(rule, a.employee, a.project)
                 amt = ce.compute_commission(base_amount, rule, a.allocation_percent,
                                             override_rate=override)
                 self._add_entry(a.employee, a.employee_name, "Working Resource",
-                                a.project, a.sow, rule, base_amount, amt, eff_rate)
+                                a.project, rule, base_amount, amt, eff_rate)
 
-    # --- Sales / Delivery Lead / Team Lead / PM / Referrer come from SOW team ---
+    # --- Sales / Delivery Lead / Team Lead / PM / Referrer come from the Project team ---
     def _team_role_entries(self, rules):
         team_rules = [r for r in rules if r.role != "Working Resource"]
         if not team_rules:
             return
-        sows = frappe.get_all("SOW", fields=["name", "sow_type", "billing_model", "customer"])
-        for sow in sows:
+        projects = set(frappe.get_all("Project Team Member", fields=["parent"], pluck="parent"))
+        if self.project:
+            projects = projects & {self.project}
+        for project in projects:
+            eng_type, billing_model = _project_type_model(project)
+            customer = _project_customer(project)
             members = frappe.get_all(
-                "SOW Team Member", filters={"parent": sow.name},
+                "Project Team Member", filters={"parent": project},
                 fields=["employee", "employee_name", "role"],
             )
-            project = frappe.db.get_value("Project", {"custom_sow": sow.name}, "name")
-            if self.project and project != self.project:
-                continue
             for member in members:
                 for rule in team_rules:
                     if rule.role != member.role:
                         continue
-                    if not ce.scope_matches(rule, sow.sow_type, sow.billing_model):
+                    if not ce.scope_matches(rule, eng_type, billing_model):
                         continue
-                    if rule.customer_scope and sow.customer != rule.customer_scope:
+                    if rule.customer_scope and customer != rule.customer_scope:
                         continue
                     if rule.project_scope and project != rule.project_scope:
                         continue
                     override = (rule.get("overrides_map") or {}).get(member.employee)
                     eff_rate = override if override is not None else rule.rate_value
-                    base_amount = self._base_amount(rule, member.employee, project, sow.name)
+                    base_amount = self._base_amount(rule, member.employee, project)
                     amt = ce.compute_commission(base_amount, rule, 0, override_rate=override)
                     self._add_entry(member.employee, member.employee_name, member.role,
-                                    project, sow.name, rule, base_amount, amt, eff_rate)
+                                    project, rule, base_amount, amt, eff_rate)
 
-    def _base_amount(self, rule, employee, project, sow):
-        s, e = self.period_start, self.period_end
+    def _base_amount(self, rule, employee, project):
+        # widen to all-time for completion/deliverable runs that carry no period
+        s = self.period_start or "1900-01-01"
+        e = self.period_end or "2999-12-31"
         if rule.base == "Resource revenue":
             return ce.resource_revenue(employee, project, s, e)
         if rule.base == "Total project revenue":
-            return ce.project_timesheet_revenue(project, s, e) if (project and s and e) else 0
-        if rule.base in ("Project value", "Project cost", "Project profit"):
-            bv = ce.project_budget_values(project)
-            key = {"Project value": "value", "Project cost": "cost",
-                   "Project profit": "profit"}[rule.base]
-            return bv[key]
+            return ce.project_timesheet_revenue(project, s, e) if project else 0
+        if rule.base == "Project value":
+            return ce.project_sales_order_value(project)
+        if rule.base == "Project cost":
+            return ce.project_timesheet_cost(project, s, e) if project else 0
+        if rule.base == "Project profit":
+            if not project:
+                return 0
+            return ce.project_timesheet_revenue(project, s, e) - ce.project_timesheet_cost(project, s, e)
         if rule.base == "Margin":
             return ce.margin(employee, project, s, e)
         if rule.base == "Project revenue":
-            invoiced = ce.project_invoiced(project, s, e) if (project and s and e) else 0
-            if invoiced:
-                return invoiced
-            return _configured_value(sow, self.run_type)
+            return ce.project_invoiced(project, s, e) if project else 0
         if rule.base == "Flat amount":
             return 0  # Flat rate_type uses rate_value directly
         return 0  # Deliverable amount handled by per-deliverable runs (future extension)
 
-    def _add_entry(self, employee, employee_name, role, project, sow, rule, base_amount, amt, eff_rate):
+    def _add_entry(self, employee, employee_name, role, project, rule, base_amount, amt, eff_rate):
         self.append("entries", {
             "employee": employee, "employee_name": employee_name, "role": role,
-            "project": project, "sow": sow, "rule": rule.name, "base": rule.base,
+            "project": project, "rule": rule.name, "base": rule.base,
             "currency": self.currency or "USD", "base_amount": base_amount,
             "rate": f"{eff_rate}{'%' if rule.rate_type == 'Percent' else ''}",
             "commission_amount": amt,
@@ -142,21 +146,13 @@ def _active_rules(run_type):
     return rules
 
 
-def _sow_type_model(sow):
-    if not sow:
+def _project_type_model(project):
+    if not project:
         return (None, None)
-    row = frappe.db.get_value("SOW", sow, ["sow_type", "billing_model"], as_dict=True)
-    return (row.sow_type, row.billing_model) if row else (None, None)
+    row = frappe.db.get_value(
+        "Project", project, ["custom_engagement_type", "custom_billing_model"], as_dict=True)
+    return (row.custom_engagement_type, row.custom_billing_model) if row else (None, None)
 
 
-def _sow_customer(sow):
-    return frappe.db.get_value("SOW", sow, "customer") if sow else None
-
-
-def _configured_value(sow, run_type):
-    if not sow:
-        return 0
-    row = frappe.db.get_value("SOW", sow, ["monthly_value", "total_value"], as_dict=True)
-    if not row:
-        return 0
-    return flt(row.monthly_value) if run_type == "Monthly recurring" else flt(row.total_value)
+def _project_customer(project):
+    return frappe.db.get_value("Project", project, "customer") if project else None

@@ -59,15 +59,14 @@ class TestMultiRoleStacking(FrappeTestCase):
             frappe.get_doc({"doctype": "Customer", "customer_name": "Acme Test",
                             "customer_type": "Company", "customer_group": "Commercial",
                             "territory": "Rest Of The World"}).insert()
-        self.sow = frappe.get_doc({
-            "doctype": "SOW", "title": "Acme Test SOW", "customer": "Acme Test",
-            "sow_type": "Sale", "billing_model": "Time & Material", "status": "Active",
-            "team": [{"employee": self.sales, "role": "Sales"}],
-        }).insert()
         self.project = frappe.db.get_value("Project", {"project_name": "Acme Test Project"}, "name") \
             or frappe.get_doc({"doctype": "Project", "project_name": "Acme Test Project",
-                               "custom_sow": self.sow.name}).insert().name
-        frappe.db.set_value("Project", self.project, "custom_sow", self.sow.name)
+                               "customer": "Acme Test"}).insert().name
+        proj = frappe.get_doc("Project", self.project)
+        proj.custom_engagement_type = "Sale"
+        proj.custom_billing_model = "Time & Material"
+        proj.set("custom_team", [{"employee": self.sales, "role": "Sales"}])
+        proj.save()
         for emp in (self.wa, self.wb):
             frappe.get_doc({
                 "doctype": "Resource Allocation", "employee": emp, "project": self.project,

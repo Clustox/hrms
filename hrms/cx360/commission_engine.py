@@ -68,20 +68,30 @@ def project_invoiced(project, start, end):
     return flt(rows[0][0]) if rows else 0.0
 
 
-def project_budget_values(project):
-    """{value, cost, profit} from the project's latest Project Budget (all USD)."""
-    if not project:
-        return {"value": 0.0, "cost": 0.0, "profit": 0.0}
-    rows = frappe.get_all(
-        "Project Budget", filters={"project": project},
-        fields=["project_value", "budgeted_cost", "budgeted_profit"],
-        order_by="modified desc", limit=1,
+def project_timesheet_cost(project, start, end):
+    """Total costing on the project in the period, across ALL resources (document
+    currency, USD) — fed by native Activity Cost rates on the timesheets."""
+    rows = frappe.db.sql(
+        """
+        SELECT COALESCE(SUM(td.costing_amount), 0)
+        FROM `tabTimesheet Detail` td
+        JOIN `tabTimesheet` ts ON ts.name = td.parent
+        WHERE td.project=%s AND td.from_time BETWEEN %s AND %s AND ts.docstatus < 2
+        """,
+        (project, start, f"{end} 23:59:59"),
     )
-    if not rows:
-        return {"value": 0.0, "cost": 0.0, "profit": 0.0}
-    b = rows[0]
-    return {"value": flt(b.project_value), "cost": flt(b.budgeted_cost),
-            "profit": flt(b.budgeted_profit)}
+    return flt(rows[0][0]) if rows else 0.0
+
+
+def project_sales_order_value(project):
+    """Engagement value (USD) from the Project's linked Sales Order (net total,
+    document currency). Zero for Internal projects with no order."""
+    if not project:
+        return 0.0
+    so = frappe.db.get_value("Project", project, "custom_sales_order")
+    if not so:
+        return 0.0
+    return flt(frappe.db.get_value("Sales Order", so, "net_total"))
 
 
 def scope_matches(rule, sow_type, billing_model):
