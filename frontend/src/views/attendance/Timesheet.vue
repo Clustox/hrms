@@ -41,6 +41,8 @@
 						:outTime="day.out_time"
 						:workingHours="day.working_hours"
 						:status="day.status"
+						:shiftStart="day.shift_start"
+						:shiftEnd="day.shift_end"
 					/>
 				</div>
 
@@ -136,19 +138,31 @@
 										{{ dayjs(day.attendance_date).format("ddd, D MMM") }}
 									</td>
 									<td class="px-5 py-3.5 text-[14px] tabular-nums text-gray-700">
-										{{ fmtTime(day.in_time) }}
+										<div class="flex items-center gap-2">
+											<span>{{ fmtTime(day.in_time) }}</span>
+											<span
+												v-if="checkinStatus(day)"
+												class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium"
+												:class="checkinStatus(day).cls"
+											>
+												{{ checkinStatus(day).label }}
+											</span>
+										</div>
 									</td>
 									<td class="px-5 py-3.5 text-[14px] tabular-nums text-gray-700">
-										{{ fmtTime(day.out_time) }}
+										<div class="flex items-center gap-2">
+											<span>{{ fmtTime(day.out_time) }}</span>
+											<span
+												v-if="checkoutStatus(day)"
+												class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium"
+												:class="checkoutStatus(day).cls"
+											>
+												{{ checkoutStatus(day).label }}
+											</span>
+										</div>
 									</td>
 									<td class="px-5 py-3.5">
-										<span
-											v-if="shiftStatus(day)"
-											class="inline-flex rounded-full px-2.5 py-0.5 text-[12px] font-medium"
-											:class="shiftStatus(day).cls"
-										>
-											{{ shiftStatus(day).label }}
-										</span>
+										<span v-if="day.status" class="text-[13px] text-gray-700">{{ __(day.status) }}</span>
 										<span v-else class="text-[13px] text-gray-400">—</span>
 									</td>
 									<td class="px-5 py-3.5 text-right text-[14px] font-semibold tabular-nums text-gray-900">
@@ -214,18 +228,31 @@ watch(
 const fmtTime = (t) => (t && dayjs(t).isValid() ? dayjs(t).format("h:mm A") : "—")
 const fmtHours = (h) => (Number(h) ? Number(h).toFixed(2) : "—")
 
-// Early / On time / Late vs the day's scheduled shift start, with a 10-minute
-// buffer either side. shift_start comes from the day's first check-in
-// (hrms.api.get_attendance_timesheet). No shift or no check-in -> no badge.
+// Check-in / check-out status vs the employee's ACTUAL shift for that day.
+// shift_start / shift_end come from the Employee Checkin's own shift fields
+// (hrms.api.get_attendance_timesheet), i.e. the Shift Type assigned to the
+// employee. A 10-minute buffer either side. No shift / no punch -> no badge.
 const SHIFT_BUFFER_MINUTES = 10
-function shiftStatus(day) {
+const AMBER = "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
+const SKY = "bg-sky-50 text-sky-700 ring-1 ring-sky-600/20"
+const GREEN = "bg-green-50 text-green-700 ring-1 ring-green-600/20"
+
+// Check-in: Late (after shift start) is the concern; Early is just info.
+function checkinStatus(day) {
 	if (!day.in_time || !day.shift_start) return null
 	const diff = dayjs(day.in_time).diff(dayjs(day.shift_start), "minute")
-	if (diff > SHIFT_BUFFER_MINUTES)
-		return { label: __("Late"), cls: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20" }
-	if (diff < -SHIFT_BUFFER_MINUTES)
-		return { label: __("Early"), cls: "bg-sky-50 text-sky-700 ring-1 ring-sky-600/20" }
-	return { label: __("On time"), cls: "bg-green-50 text-green-700 ring-1 ring-green-600/20" }
+	if (diff > SHIFT_BUFFER_MINUTES) return { label: __("Late"), cls: AMBER }
+	if (diff < -SHIFT_BUFFER_MINUTES) return { label: __("Early"), cls: SKY }
+	return { label: __("On time"), cls: GREEN }
+}
+
+// Check-out: Early (left before shift end) is the concern; Late is just info.
+function checkoutStatus(day) {
+	if (!day.out_time || !day.shift_end) return null
+	const diff = dayjs(day.out_time).diff(dayjs(day.shift_end), "minute")
+	if (diff < -SHIFT_BUFFER_MINUTES) return { label: __("Early"), cls: AMBER }
+	if (diff > SHIFT_BUFFER_MINUTES) return { label: __("Late"), cls: SKY }
+	return { label: __("On time"), cls: GREEN }
 }
 
 const totalHours = computed(() =>

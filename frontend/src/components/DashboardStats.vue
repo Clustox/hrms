@@ -102,6 +102,11 @@ const RING = 2 * Math.PI * 21 // circumference of the r=21 ring
 // Rings start empty and fill once mounted (CSS transition; disabled for reduced motion).
 const armed = ref(false)
 onMounted(() => requestAnimationFrame(() => requestAnimationFrame(() => (armed.value = true))))
+// monthAttendance is auto:false and shared; fetch it here so the Home
+// attendance tile loads even when the attendance dashboard hasn't mounted.
+onMounted(() => {
+	if (!monthAttendance.data && !monthAttendance.loading) monthAttendance.fetch()
+})
 
 const monthLabel = computed(() => dayjs().format("MMM"))
 

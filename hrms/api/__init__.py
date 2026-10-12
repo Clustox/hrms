@@ -218,6 +218,7 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 				"out_time": day.get("out_time"),
 				"working_hours": day.get("working_hours"),
 				"shift_start": day.get("shift_start"),
+				"shift_end": day.get("shift_end"),
 				"status": status_by_date.get(date_str),
 			}
 		)
@@ -436,7 +437,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 	logs = frappe.get_all(
 		"Employee Checkin",
 		filters={"employee": employee, "time": ["between", [from_date, f"{to_date} 23:59:59"]]},
-		fields=["log_type", "time", "shift_start"],
+		fields=["log_type", "time", "shift_start", "shift_end"],
 		order_by="time asc",
 	)
 
@@ -449,6 +450,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 				"out_time": None,
 				"working_hours": None,
 				"shift_start": None,
+				"shift_end": None,
 			},
 		)
 
@@ -469,6 +471,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 		if row["in_time"] is None:
 			row["in_time"] = log.time
 			row["shift_start"] = log.shift_start
+			row["shift_end"] = log.shift_end
 
 	days = {}
 	pending_in = None  # an open IN awaiting its OUT
@@ -484,10 +487,15 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 				row = _row(getdate(pending_in.time).isoformat())
 				row["out_time"] = log.time
 				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
+				if row["shift_end"] is None:
+					row["shift_end"] = log.shift_end
 			else:
 				# no open IN, or the span is implausibly long (missed punch):
 				# record the OUT on its own day, unpaired.
-				_row(getdate(log.time).isoformat())["out_time"] = log.time
+				orow = _row(getdate(log.time).isoformat())
+				orow["out_time"] = log.time
+				if orow["shift_end"] is None:
+					orow["shift_end"] = log.shift_end
 			pending_in = None
 
 	rows = list(days.values())
