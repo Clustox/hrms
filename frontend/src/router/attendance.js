@@ -57,6 +57,11 @@ const routes = [
 		path: "/employee-checkins",
 		component: () => import("@/views/attendance/EmployeeCheckinList.vue"),
 	},
+	{
+		name: "TeamAttendanceView",
+		path: "/team-attendance",
+		component: () => import("@/views/attendance/TeamAttendance.vue"),
+	},
 ]
 
 export default routes

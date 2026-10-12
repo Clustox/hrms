@@ -11,6 +11,13 @@
 						</Button>
 					</router-link>
 				</div>
+				<div class="w-full" v-if="isManager">
+					<router-link :to="{ name: 'TeamAttendanceView' }" v-slot="{ navigate }">
+						<Button @click="navigate" variant="outline" class="w-full py-5 text-base">
+							{{ __("My Team") }}
+						</Button>
+					</router-link>
+				</div>
 				<div class="w-full">
 					<router-link :to="{ name: 'AttendanceRequestFormView' }" v-slot="{ navigate }">
 						<Button @click="navigate" variant="solid" class="w-full py-5 text-base">
@@ -60,6 +67,7 @@
 				v-if="isDesktop"
 				:upcomingShifts="upcomingShifts"
 				:shiftsLoading="shifts.loading"
+				:isManager="isManager"
 			/>
 		</template>
 	</BaseLayout>
@@ -116,4 +124,8 @@ const upcomingShifts = computed(() => {
 	// show only 5 upcoming shifts
 	return filteredShifts?.slice(0, 5)
 })
+
+// Surface the manager "My Team" view only to users who have direct reports.
+const teamSize = createResource({ url: "hrms.api.get_team_size", auto: true })
+const isManager = computed(() => (teamSize.data || 0) > 0)
 </script>

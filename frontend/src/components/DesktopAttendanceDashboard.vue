@@ -13,26 +13,36 @@
 				</h1>
 				<p class="mt-2.5 text-base text-air-muted">{{ subline }}</p>
 			</div>
-			<!-- Month navigator -->
-			<div class="flex shrink-0 items-center gap-2 rounded-air border border-air-line bg-air-surface px-2 py-1.5">
-				<button
-					class="rounded-md p-1.5 text-air-muted hover:bg-air-bg hover:text-air-ink"
-					@click="changeMonth(-1)"
-					:aria-label="__('Previous month')"
+			<div class="flex shrink-0 items-center gap-3">
+				<router-link
+					v-if="props.isManager"
+					:to="{ name: 'TeamAttendanceView' }"
+					class="inline-flex items-center gap-1.5 rounded-air border border-air-line bg-air-surface px-3 py-2 text-[13px] font-semibold text-air-ink hover:bg-air-bg"
 				>
-					<FeatherIcon name="chevron-left" class="h-4 w-4" />
-				</button>
-				<span class="min-w-[120px] text-center text-[14px] font-semibold text-air-ink">
-					{{ firstOfMonth.format("MMMM YYYY") }}
-				</span>
-				<button
-					class="rounded-md p-1.5 text-air-muted enabled:hover:bg-air-bg enabled:hover:text-air-ink disabled:opacity-40"
-					@click="changeMonth(1)"
-					:disabled="isCurrentMonth"
-					:aria-label="__('Next month')"
-				>
-					<FeatherIcon name="chevron-right" class="h-4 w-4" />
-				</button>
+					<FeatherIcon name="users" class="h-4 w-4" />
+					{{ __("My Team") }}
+				</router-link>
+				<!-- Month navigator -->
+				<div class="flex items-center gap-2 rounded-air border border-air-line bg-air-surface px-2 py-1.5">
+					<button
+						class="rounded-md p-1.5 text-air-muted hover:bg-air-bg hover:text-air-ink"
+						@click="changeMonth(-1)"
+						:aria-label="__('Previous month')"
+					>
+						<FeatherIcon name="chevron-left" class="h-4 w-4" />
+					</button>
+					<span class="min-w-[120px] text-center text-[14px] font-semibold text-air-ink">
+						{{ firstOfMonth.format("MMMM YYYY") }}
+					</span>
+					<button
+						class="rounded-md p-1.5 text-air-muted enabled:hover:bg-air-bg enabled:hover:text-air-ink disabled:opacity-40"
+						@click="changeMonth(1)"
+						:disabled="isCurrentMonth"
+						:aria-label="__('Next month')"
+					>
+						<FeatherIcon name="chevron-right" class="h-4 w-4" />
+					</button>
+				</div>
 			</div>
 		</div>
 
@@ -194,6 +204,8 @@ const props = defineProps({
 	// Upcoming shifts computed by the Attendance view (single hrms.api.get_shifts fetch).
 	upcomingShifts: { type: Array, default: () => [] },
 	shiftsLoading: { type: Boolean, default: false },
+	// True when the current user has direct reports (shows the My Team link).
+	isManager: { type: Boolean, default: false },
 })
 
 const __ = inject("$translate")

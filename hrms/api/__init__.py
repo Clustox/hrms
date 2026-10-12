@@ -185,12 +185,14 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 	they still show up here, just with `status: None` (no badge) instead of
 	silently vanishing from the timesheet.
 	"""
-	employee = get_current_employee()
+	return _build_employee_timesheet(get_current_employee(), from_date, to_date)
 
-	# In / out / worked-hours (and shift_start for the early/late flag) come from
-	# the day's check-ins, paired and capped in _group_checkins_by_day -- NOT from
-	# Attendance's own working_hours, which can carry bad values (e.g. multi-day
-	# spans) from the machine sync. Attendance supplies only the day's status.
+
+def _build_employee_timesheet(employee: str, from_date: str, to_date: str) -> list[dict]:
+	# In / out / worked-hours (and shift_start/end for the early/late flag) come
+	# from the day's check-ins, paired and capped in _group_checkins_by_day -- NOT
+	# from Attendance's own working_hours, which can carry bad values (e.g.
+	# multi-day spans) from the machine sync. Attendance supplies only the status.
 	checkin_by_date = {
 		d["attendance_date"]: d for d in _group_checkins_by_day(employee, from_date, to_date)
 	}
@@ -224,6 +226,38 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 		)
 
 	return sorted(rows, key=lambda r: str(r["attendance_date"]), reverse=True)
+
+
+def _assert_manages(employee: str) -> None:
+	"""Allow only the employee's own manager (reports_to) -- or HR -- to view a
+	team member's attendance/timesheet."""
+	hr_roles = {"HR Manager", "HR User", "System Manager", "Administrator"}
+	if set(frappe.get_roles()) & hr_roles:
+		return
+	manager = get_current_employee()
+	if not manager or frappe.db.get_value("Employee", employee, "reports_to") != manager:
+		frappe.throw(
+			_("You can only view the attendance of your own team members."),
+			frappe.PermissionError,
+		)
+
+
+@frappe.whitelist()
+def get_team_member_timesheet(employee: str, from_date: str, to_date: str) -> list[dict]:
+	"""Per-day attendance/timesheet for a direct report, for the manager view.
+	Guarded: caller must be the employee's reports_to (or HR)."""
+	_assert_manages(employee)
+	return _build_employee_timesheet(employee, from_date, to_date)
+
+
+@frappe.whitelist()
+def get_team_size() -> int:
+	"""Number of active direct reports of the current user -- used to decide
+	whether to surface the manager 'My Team' view."""
+	emp = (get_current_employee_info() or {}).get("name")
+	if not emp:
+		return 0
+	return frappe.db.count("Employee", {"reports_to": emp, "status": "Active"})
 
 
 TIMESHEET_SHIFT_BUFFER_MIN = 10
