@@ -27,32 +27,34 @@
 		<ion-content>
 			<!-- Mobile (unchanged) -->
 			<div class="flex flex-col p-4 gap-5 w-full sm:w-96 lg:hidden">
-				<TabButtons :buttons="TAB_BUTTONS" v-model="activeTab" />
+				<template v-if="!expandedEmployee">
+					<TabButtons :buttons="TAB_BUTTONS" v-model="activeTab" />
 
-				<!-- Month change, same pattern as AttendanceCalendar -->
-				<div class="flex flex-row justify-between items-center px-1" v-if="!areFiltersApplied">
-					<Button
-						icon="chevron-left"
-						variant="ghost"
-						@click="firstOfMonth = firstOfMonth.subtract(1, 'M')"
-					/>
-					<span class="text-lg text-gray-800 font-bold">
-						{{ firstOfMonth.format("MMMM") }} {{ firstOfMonth.format("YYYY") }}
-					</span>
-					<Button
-						icon="chevron-right"
-						variant="ghost"
-						@click="firstOfMonth = firstOfMonth.add(1, 'M')"
-					/>
-				</div>
-				<div class="flex flex-row justify-between items-center px-1" v-else>
-					<span class="text-base text-gray-800 font-semibold">
-						{{ dayjs(appliedRange.from).format("D MMM") }} - {{ dayjs(appliedRange.to).format("D MMM YYYY") }}
-					</span>
-					<Button variant="outline" class="text-sm" @click="clearFilters">
-						{{ __("Clear") }}
-					</Button>
-				</div>
+					<!-- Month change, same pattern as AttendanceCalendar -->
+					<div class="flex flex-row justify-between items-center px-1" v-if="!areFiltersApplied">
+						<Button
+							icon="chevron-left"
+							variant="ghost"
+							@click="firstOfMonth = firstOfMonth.subtract(1, 'M')"
+						/>
+						<span class="text-lg text-gray-800 font-bold">
+							{{ firstOfMonth.format("MMMM") }} {{ firstOfMonth.format("YYYY") }}
+						</span>
+						<Button
+							icon="chevron-right"
+							variant="ghost"
+							@click="firstOfMonth = firstOfMonth.add(1, 'M')"
+						/>
+					</div>
+					<div class="flex flex-row justify-between items-center px-1" v-else>
+						<span class="text-base text-gray-800 font-semibold">
+							{{ dayjs(appliedRange.from).format("D MMM") }} - {{ dayjs(appliedRange.to).format("D MMM YYYY") }}
+						</span>
+						<Button variant="outline" class="text-sm" @click="clearFilters">
+							{{ __("Clear") }}
+						</Button>
+					</div>
+				</template>
 
 				<!-- My Timesheet -->
 				<template v-if="!isTeam">
@@ -81,30 +83,27 @@
 				</template>
 
 				<!-- Team Timesheet -->
-				<template v-else>
+				<template v-else-if="!expandedEmployee">
 					<div class="flex flex-col gap-3" v-if="!teamTimesheet.loading && teamTimesheet.data?.rows?.length">
 						<div
 							v-for="row in teamTimesheet.data.rows"
 							:key="row.employee"
 							class="flex flex-col gap-3 bg-white rounded-lg border p-3.5"
-							@click="toggleEmployee(row.employee)"
+							@click="toggleEmployee(row.employee, row.employee_name)"
 						>
 							<div class="flex flex-row items-center justify-between">
-								<div class="flex items-center gap-2">
-									<FeatherIcon
-										:name="expandedEmployee === row.employee ? 'chevron-down' : 'chevron-right'"
-										class="h-4 w-4 shrink-0 text-gray-400"
-									/>
-									<div>
-										<div class="text-base font-semibold text-gray-900">{{ row.employee_name }}</div>
-										<div class="text-xs text-gray-500">{{ row.designation }}</div>
-									</div>
+								<div>
+									<div class="text-base font-semibold text-gray-900">{{ row.employee_name }}</div>
+									<div class="text-xs text-gray-500">{{ row.designation }}</div>
 								</div>
-								<div class="text-right">
-									<div class="text-base font-semibold text-gray-900">
-										{{ fmtHours(row.worked_hours) }}<span class="text-xs text-gray-500">/{{ fmtHours(row.expected_hours) }}h</span>
+								<div class="flex items-center gap-2">
+									<div class="text-right">
+										<div class="text-base font-semibold text-gray-900">
+											{{ fmtHours(row.worked_hours) }}<span class="text-xs text-gray-500">/{{ fmtHours(row.expected_hours) }}h</span>
+										</div>
+										<div class="text-xs text-gray-500">{{ __("Worked / Expected") }}</div>
 									</div>
-									<div class="text-xs text-gray-500">{{ __("Worked / Expected") }}</div>
+									<FeatherIcon name="chevron-right" class="h-4 w-4 shrink-0 text-gray-400" />
 								</div>
 							</div>
 							<hr />
@@ -134,53 +133,42 @@
 									<div class="text-[11px] text-gray-500">{{ __("Early") }}</div>
 								</div>
 							</div>
-
-							<template v-if="expandedEmployee === row.employee">
-								<hr />
-								<div v-if="employeeLog.loading" class="flex items-center justify-center py-4">
-									<LoadingIndicator class="h-5 w-5 text-gray-400" />
-								</div>
-								<div v-else-if="employeeLog.data?.length" class="flex flex-col gap-2.5" @click.stop>
-									<div
-										v-for="day in employeeLog.data"
-										:key="day.attendance_date"
-										class="flex flex-col gap-1 rounded bg-gray-50 p-2.5"
-									>
-										<div class="text-xs font-semibold text-gray-700">
-											{{ dayjs(day.attendance_date).format("ddd, D MMM") }}
-										</div>
-										<div class="flex items-center justify-between text-[13px] text-gray-700">
-											<span class="flex items-center gap-1.5">
-												{{ fmtTime(day.in_time) }}
-												<span
-													v-if="day.late_entry"
-													class="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-600/20"
-												>
-													{{ __("Late") }}
-												</span>
-												<FeatherIcon name="arrow-right" class="h-3 w-3 text-gray-400" />
-												{{ fmtTime(day.out_time) }}
-												<span
-													v-if="day.early_exit"
-													class="inline-flex rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 ring-1 ring-sky-600/20"
-												>
-													{{ __("Early") }}
-												</span>
-											</span>
-											<span class="font-semibold text-gray-900">{{ fmtHours(day.working_hours) }}</span>
-										</div>
-									</div>
-								</div>
-								<div v-else class="py-3 text-center text-[13px] text-gray-500">
-									{{ __("No attendance records for this period") }}
-								</div>
-							</template>
 						</div>
 					</div>
 
 					<EmptyState :message="__('No direct reports found')" v-else-if="!teamTimesheet.loading" />
 
 					<div v-if="teamTimesheet.loading" class="flex mt-2 items-center justify-center">
+						<LoadingIndicator class="w-8 h-8 text-gray-800" />
+					</div>
+				</template>
+
+				<!-- Team Timesheet: one employee's day-by-day log -->
+				<template v-else>
+					<div class="flex flex-row items-center gap-2">
+						<Button variant="ghost" class="!px-1 hover:bg-white" @click="expandedEmployee = null">
+							<FeatherIcon name="chevron-left" class="h-5 w-5" />
+						</Button>
+						<span class="text-lg font-bold text-gray-800">{{ expandedEmployeeName }}</span>
+					</div>
+
+					<div class="flex flex-col gap-3" v-if="!employeeLog.loading && employeeLog.data?.length">
+						<DayAttendanceCard
+							v-for="day in employeeLog.data"
+							:key="day.attendance_date"
+							:date="day.attendance_date"
+							:inTime="day.in_time"
+							:outTime="day.out_time"
+							:workingHours="day.working_hours"
+							:status="day.status"
+							:lateEntry="day.late_entry"
+							:earlyExit="day.early_exit"
+						/>
+					</div>
+
+					<EmptyState :message="__('No attendance records for this period')" v-else-if="!employeeLog.loading" />
+
+					<div v-if="employeeLog.loading" class="flex mt-2 items-center justify-center">
 						<LoadingIndicator class="w-8 h-8 text-gray-800" />
 					</div>
 				</template>
@@ -235,11 +223,20 @@
 						</div>
 					</div>
 
-					<TabButtons class="mb-5" :buttons="TAB_BUTTONS" v-model="activeTab" />
+					<TabButtons v-if="!expandedEmployee" class="mb-5" :buttons="TAB_BUTTONS" v-model="activeTab" />
+					<div v-else class="mb-5 flex items-center gap-2">
+						<button
+							class="flex h-9 w-9 items-center justify-center rounded-full text-air-ink-2 transition hover:bg-air-surface-2"
+							@click="expandedEmployee = null"
+						>
+							<FeatherIcon name="chevron-left" class="h-4 w-4" />
+						</button>
+						<span class="font-display text-[17px] font-semibold text-air-ink">{{ expandedEmployeeName }}</span>
+					</div>
 
-					<!-- My Timesheet -->
-					<template v-if="!isTeam">
-						<div class="mb-5 grid grid-cols-3 gap-4">
+					<!-- My Timesheet (reused for a drilled-into team member's log too) -->
+					<template v-if="!isTeam || expandedEmployee">
+						<div class="mb-5 grid grid-cols-3 gap-4" v-if="!expandedEmployee">
 							<div class="rounded-air border border-air-line bg-air-surface p-4">
 								<div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
 									{{ __("Hours logged") }}
@@ -270,7 +267,7 @@
 						<div class="overflow-hidden rounded-air border border-air-line bg-white shadow-air">
 							<table
 								class="w-full border-collapse text-left"
-								v-if="!timesheet.loading && timesheet.data?.length"
+								v-if="!displayedLog.loading && displayedLog.data?.length"
 							>
 								<thead>
 									<tr
@@ -284,7 +281,7 @@
 								</thead>
 								<tbody>
 									<tr
-										v-for="day in timesheet.data"
+										v-for="day in displayedLog.data"
 										:key="day.attendance_date"
 										class="border-b border-gray-50 last:border-0 hover:bg-gray-50/60"
 									>
@@ -319,7 +316,7 @@
 									</tr>
 								</tbody>
 							</table>
-							<div v-else-if="timesheet.loading" class="flex items-center justify-center py-16">
+							<div v-else-if="displayedLog.loading" class="flex items-center justify-center py-16">
 								<LoadingIndicator class="h-7 w-7 text-gray-400" />
 							</div>
 							<div v-else class="px-5 py-16 text-center text-[14px] text-gray-500">
@@ -348,102 +345,42 @@
 								</tr>
 							</thead>
 							<tbody>
-								<template v-for="row in teamTimesheet.data.rows" :key="row.employee">
-									<tr
-										class="cursor-pointer border-b border-gray-50 hover:bg-gray-50/60"
-										:class="{ 'bg-gray-50/60': expandedEmployee === row.employee }"
-										@click="toggleEmployee(row.employee)"
+								<tr
+									v-for="row in teamTimesheet.data.rows"
+									:key="row.employee"
+									class="cursor-pointer border-b border-gray-50 last:border-0 hover:bg-gray-50/60"
+									@click="toggleEmployee(row.employee, row.employee_name)"
+								>
+									<td class="px-5 py-3.5 text-[14px]">
+										<div class="flex items-center gap-2">
+											<div>
+												<div class="font-medium text-gray-900">{{ row.employee_name }}</div>
+												<div class="text-[12px] text-gray-500">{{ row.designation }}</div>
+											</div>
+										</div>
+									</td>
+									<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-700">{{ row.present }}</td>
+									<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-700">{{ row.absent }}</td>
+									<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-700">{{ row.leave }}</td>
+									<td
+										class="px-5 py-3.5 text-right text-[14px] tabular-nums"
+										:class="row.late_arrival ? 'font-semibold text-amber-600' : 'text-gray-700'"
 									>
-										<td class="px-5 py-3.5 text-[14px]">
-											<div class="flex items-center gap-2">
-												<FeatherIcon
-													:name="expandedEmployee === row.employee ? 'chevron-down' : 'chevron-right'"
-													class="h-3.5 w-3.5 shrink-0 text-gray-400"
-												/>
-												<div>
-													<div class="font-medium text-gray-900">{{ row.employee_name }}</div>
-													<div class="text-[12px] text-gray-500">{{ row.designation }}</div>
-												</div>
-											</div>
-										</td>
-										<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-700">{{ row.present }}</td>
-										<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-700">{{ row.absent }}</td>
-										<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-700">{{ row.leave }}</td>
-										<td
-											class="px-5 py-3.5 text-right text-[14px] tabular-nums"
-											:class="row.late_arrival ? 'font-semibold text-amber-600' : 'text-gray-700'"
-										>
-											{{ row.late_arrival }}
-										</td>
-										<td
-											class="px-5 py-3.5 text-right text-[14px] tabular-nums"
-											:class="row.early_left ? 'font-semibold text-sky-600' : 'text-gray-700'"
-										>
-											{{ row.early_left }}
-										</td>
-										<td class="px-5 py-3.5 text-right text-[14px] font-semibold tabular-nums text-gray-900">
-											{{ fmtHours(row.worked_hours) }} / {{ fmtHours(row.expected_hours) }}
-										</td>
-									</tr>
-									<tr v-if="expandedEmployee === row.employee" class="border-b border-gray-50 last:border-0">
-										<td colspan="7" class="bg-gray-50/60 px-5 py-4">
-											<div
-												v-if="employeeLog.loading"
-												class="flex items-center justify-center py-6"
-											>
-												<LoadingIndicator class="h-5 w-5 text-gray-400" />
-											</div>
-											<table
-												v-else-if="employeeLog.data?.length"
-												class="w-full border-collapse text-left"
-											>
-												<thead>
-													<tr class="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-500">
-														<th class="pb-2 pr-4 font-semibold">{{ __("Date") }}</th>
-														<th class="pb-2 pr-4 font-semibold">{{ __("Check-in") }}</th>
-														<th class="pb-2 pr-4 font-semibold">{{ __("Check-out") }}</th>
-														<th class="pb-2 text-right font-semibold">{{ __("Hours logged") }}</th>
-													</tr>
-												</thead>
-												<tbody>
-													<tr v-for="day in employeeLog.data" :key="day.attendance_date">
-														<td class="py-1.5 pr-4 text-[13.5px] font-medium text-gray-900">
-															{{ dayjs(day.attendance_date).format("ddd, D MMM") }}
-														</td>
-														<td class="py-1.5 pr-4 text-[13.5px] tabular-nums text-gray-700">
-															<div class="flex items-center gap-2">
-																{{ fmtTime(day.in_time) }}
-																<span
-																	v-if="day.late_entry"
-																	class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-600/20"
-																>
-																	{{ __("Late") }}
-																</span>
-															</div>
-														</td>
-														<td class="py-1.5 pr-4 text-[13.5px] tabular-nums text-gray-700">
-															<div class="flex items-center gap-2">
-																{{ fmtTime(day.out_time) }}
-																<span
-																	v-if="day.early_exit"
-																	class="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 ring-1 ring-sky-600/20"
-																>
-																	{{ __("Early") }}
-																</span>
-															</div>
-														</td>
-														<td class="py-1.5 text-right text-[13.5px] font-semibold tabular-nums text-gray-900">
-															{{ fmtHours(day.working_hours) }}
-														</td>
-													</tr>
-												</tbody>
-											</table>
-											<div v-else class="py-4 text-center text-[13.5px] text-gray-500">
-												{{ __("No attendance records for this period") }}
-											</div>
-										</td>
-									</tr>
-								</template>
+										{{ row.late_arrival }}
+									</td>
+									<td
+										class="px-5 py-3.5 text-right text-[14px] tabular-nums"
+										:class="row.early_left ? 'font-semibold text-sky-600' : 'text-gray-700'"
+									>
+										{{ row.early_left }}
+									</td>
+									<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-900">
+										<div class="flex items-center justify-end gap-2">
+											<span class="font-semibold">{{ fmtHours(row.worked_hours) }} / {{ fmtHours(row.expected_hours) }}</span>
+											<FeatherIcon name="chevron-right" class="h-3.5 w-3.5 shrink-0 text-gray-400" />
+										</div>
+									</td>
+								</tr>
 							</tbody>
 						</table>
 						<div v-else-if="teamTimesheet.loading" class="flex items-center justify-center py-16">
@@ -589,11 +526,13 @@ watch(effectiveRange, () => {
 	if (expandedEmployee.value) employeeLog.fetch()
 })
 
-// Drill-down: clicking a Team Timesheet row expands that employee's own
-// day-by-day log underneath, in the same Date/Check-in/Check-out/Hours shape
-// as My Timesheet, via hrms.api.get_team_member_attendance_timesheet (which
-// only allows looking up a direct report, not an arbitrary employee).
+// Drill-down: clicking a Team Timesheet row replaces the summary table with
+// that employee's own day-by-day log, in the exact same Date/Check-in/
+// Check-out/Hours table as My Timesheet (see `displayedLog` below), via
+// hrms.api.get_team_member_attendance_timesheet -- only allows looking up a
+// direct report this way, not an arbitrary employee.
 const expandedEmployee = ref(null)
+const expandedEmployeeName = ref("")
 const employeeLog = createResource({
 	url: "hrms.api.get_team_member_attendance_timesheet",
 	auto: false,
@@ -606,14 +545,15 @@ const employeeLog = createResource({
 	},
 })
 
-function toggleEmployee(employee) {
-	if (expandedEmployee.value === employee) {
-		expandedEmployee.value = null
-		return
-	}
+function toggleEmployee(employee, employeeName) {
 	expandedEmployee.value = employee
+	expandedEmployeeName.value = employeeName
 	employeeLog.fetch()
 }
+
+// Whichever log is on screen: the employee's own (My Timesheet) normally, or
+// a drilled-into team member's when one is selected -- same table either way.
+const displayedLog = computed(() => (expandedEmployee.value ? employeeLog : timesheet))
 
 // Desktop table helpers (mobile keeps DayAttendanceCard).
 const fmtTime = (t) => (t && dayjs(t).isValid() ? dayjs(t).format("h:mm A") : "—")
