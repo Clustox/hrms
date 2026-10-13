@@ -130,10 +130,10 @@
 			</div>
 			<Dialog v-model="otp.showDialog">
 				<template #body-title>
-					<h2 class="text-lg font-bold">{{ __("OTP Verification") }}</h2>
+					<h2 class="text-lg font-bold text-gray-900">{{ __("OTP Verification") }}</h2>
 				</template>
 				<template #body-content>
-					<p class="mb-4" v-if="otp.verification.prompt">
+					<p class="mb-4 text-gray-700" v-if="otp.verification.prompt">
 						{{ otp.verification.prompt }}
 					</p>
 

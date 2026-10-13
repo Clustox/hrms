@@ -2,10 +2,10 @@
 	<!-- Install PWA dialog -->
 	<Dialog v-model="showDialog">
 		<template #body-title>
-			<h2 class="text-lg font-bold">{{ __("Install Frappe HR") }} </h2>
+			<h2 class="text-lg font-bold text-gray-900">{{ __("Install Frappe HR") }} </h2>
 		</template>
 		<template #body-content>
-			<p>{{ __("Get the app on your device for easy access & a better experience!") }} </p>
+			<p class="text-gray-700">{{ __("Get the app on your device for easy access & a better experience!") }} </p>
 		</template>
 		<template #actions>
 			<Button variant="solid" @click="() => install()" class="py-5 w-full">
