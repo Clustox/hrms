@@ -3,11 +3,23 @@
 		<DesktopShell />
 		<ion-header class="ion-no-border lg:hidden">
 			<div class="w-full sm:w-96">
-				<div class="flex flex-row bg-white shadow-sm py-4 px-3 items-center border-b">
-					<Button variant="ghost" class="!px-1 mr-1 hover:bg-white" @click="router.back()">
-						<FeatherIcon name="chevron-left" class="h-5 w-5" />
-					</Button>
-					<h2 class="text-xl font-semibold text-gray-900">{{ __("Timesheet") }}</h2>
+				<div class="flex flex-row bg-white shadow-sm py-4 px-3 items-center justify-between border-b">
+					<div class="flex flex-row items-center">
+						<Button variant="ghost" class="!px-1 mr-1 hover:bg-white" @click="router.back()">
+							<FeatherIcon name="chevron-left" class="h-5 w-5" />
+						</Button>
+						<h2 class="text-xl font-semibold text-gray-900">{{ __("Timesheet") }}</h2>
+					</div>
+					<Button
+						icon="filter"
+						variant="subtle"
+						:class="[
+							areFiltersApplied
+								? '!border !border-gray-800 !bg-white !text-gray-900 !font-semibold'
+								: '',
+						]"
+						@click="showFilterModal = true"
+					/>
 				</div>
 			</div>
 		</ion-header>
@@ -16,7 +28,7 @@
 			<!-- Mobile (unchanged) -->
 			<div class="flex flex-col p-4 gap-5 w-full sm:w-96 lg:hidden">
 				<!-- Month change, same pattern as AttendanceCalendar -->
-				<div class="flex flex-row justify-between items-center px-1">
+				<div class="flex flex-row justify-between items-center px-1" v-if="!areFiltersApplied">
 					<Button
 						icon="chevron-left"
 						variant="ghost"
@@ -30,6 +42,14 @@
 						variant="ghost"
 						@click="firstOfMonth = firstOfMonth.add(1, 'M')"
 					/>
+				</div>
+				<div class="flex flex-row justify-between items-center px-1" v-else>
+					<span class="text-base text-gray-800 font-semibold">
+						{{ dayjs(appliedRange.from).format("D MMM") }} - {{ dayjs(appliedRange.to).format("D MMM YYYY") }}
+					</span>
+					<Button variant="outline" class="text-sm" @click="clearFilters">
+						{{ __("Clear") }}
+					</Button>
 				</div>
 
 				<div class="flex flex-col gap-3" v-if="!timesheet.loading && timesheet.data?.length">
@@ -46,7 +66,10 @@
 					/>
 				</div>
 
-				<EmptyState :message="__('No attendance records for this month')" v-else-if="!timesheet.loading" />
+				<EmptyState
+					:message="areFiltersApplied ? __('No attendance records for this range') : __('No attendance records for this month')"
+					v-else-if="!timesheet.loading"
+				/>
 
 				<div v-if="timesheet.loading" class="flex mt-2 items-center justify-center">
 					<LoadingIndicator class="w-8 h-8 text-gray-800" />
@@ -65,21 +88,39 @@
 								{{ __("Hours logged from your daily check-in and check-out") }}
 							</p>
 						</div>
-						<div class="flex items-center gap-1">
-							<button
-								class="flex h-9 w-9 items-center justify-center rounded-full text-air-ink-2 transition hover:bg-air-surface-2"
-								@click="firstOfMonth = firstOfMonth.subtract(1, 'M')"
-							>
-								<FeatherIcon name="chevron-left" class="h-4 w-4" />
-							</button>
-							<span class="w-[150px] text-center font-display text-[15px] font-semibold text-air-ink">
-								{{ firstOfMonth.format("MMMM YYYY") }}
+						<div class="flex items-center gap-2.5">
+							<template v-if="!areFiltersApplied">
+								<button
+									class="flex h-9 w-9 items-center justify-center rounded-full text-air-ink-2 transition hover:bg-air-surface-2"
+									@click="firstOfMonth = firstOfMonth.subtract(1, 'M')"
+								>
+									<FeatherIcon name="chevron-left" class="h-4 w-4" />
+								</button>
+								<span class="w-[150px] text-center font-display text-[15px] font-semibold text-air-ink">
+									{{ firstOfMonth.format("MMMM YYYY") }}
+								</span>
+								<button
+									class="flex h-9 w-9 items-center justify-center rounded-full text-air-ink-2 transition hover:bg-air-surface-2"
+									@click="firstOfMonth = firstOfMonth.add(1, 'M')"
+								>
+									<FeatherIcon name="chevron-right" class="h-4 w-4" />
+								</button>
+							</template>
+							<span v-else class="font-display text-[15px] font-semibold text-air-ink">
+								{{ dayjs(appliedRange.from).format("D MMM") }} - {{ dayjs(appliedRange.to).format("D MMM YYYY") }}
 							</span>
 							<button
-								class="flex h-9 w-9 items-center justify-center rounded-full text-air-ink-2 transition hover:bg-air-surface-2"
-								@click="firstOfMonth = firstOfMonth.add(1, 'M')"
+								id="show-filter-modal"
+								class="flex items-center gap-2 rounded-full border px-4 py-2 text-[13.5px] font-medium transition ease-air"
+								:class="
+									areFiltersApplied
+										? 'border-air-ink bg-air-surface text-air-ink'
+										: 'border-air-line bg-air-surface text-air-ink-2 hover:border-air-ink'
+								"
+								@click="areFiltersApplied ? clearFilters() : (showFilterModal = true)"
 							>
-								<FeatherIcon name="chevron-right" class="h-4 w-4" />
+								<FeatherIcon :name="areFiltersApplied ? 'x' : 'filter'" class="h-4 w-4" />
+								{{ areFiltersApplied ? __("Clear") : __("Filter") }}
 							</button>
 						</div>
 					</div>
@@ -168,30 +209,87 @@
 							<LoadingIndicator class="h-7 w-7 text-gray-400" />
 						</div>
 						<div v-else class="px-5 py-16 text-center text-[14px] text-gray-500">
-							{{ __("No attendance records for this month") }}
+							{{ areFiltersApplied ? __("No attendance records for this range") : __("No attendance records for this month") }}
 						</div>
 					</div>
 				</div>
 			</div>
 		</ion-content>
+
+		<CustomIonModal
+			trigger="show-filter-modal"
+			:isOpen="showFilterModal"
+			@did-dismiss="showFilterModal = false"
+		>
+			<template #actionSheet>
+				<ListFiltersActionSheet
+					:filterConfig="FILTER_CONFIG"
+					@applyFilters="applyFilters"
+					@clearFilters="clearFilters"
+					v-model:filters="filterMap"
+				/>
+			</template>
+		</CustomIonModal>
 	</ion-page>
 </template>
 
 <script setup>
-import { ref, inject, watch, computed } from "vue"
+import { ref, reactive, inject, watch, computed } from "vue"
 import { useRouter } from "vue-router"
-import { IonPage, IonHeader, IonContent } from "@ionic/vue"
+import { IonPage, IonHeader, IonContent, modalController } from "@ionic/vue"
 import { Button, FeatherIcon, LoadingIndicator, createResource } from "frappe-ui"
 
 import EmptyState from "@/components/EmptyState.vue"
 import DayAttendanceCard from "@/components/DayAttendanceCard.vue"
 import DesktopShell from "@/components/DesktopShell.vue"
+import ListFiltersActionSheet from "@/components/ListFiltersActionSheet.vue"
+import CustomIonModal from "@/components/CustomIonModal.vue"
 
 const dayjs = inject("$dayjs")
 const __ = inject("$translate")
 const router = useRouter()
 
 const firstOfMonth = ref(dayjs().date(1).startOf("D"))
+
+// Arbitrary From Date/To Date range, same UI pattern as the Leave list's
+// filter panel (ListFiltersActionSheet). While applied, this replaces the
+// month-navigation range below instead of combining with it.
+const FILTER_CONFIG = [
+	{ fieldname: "from_date", fieldtype: "Date", label: __("From Date") },
+	{ fieldname: "to_date", fieldtype: "Date", label: __("To Date") },
+]
+const filterMap = reactive({})
+const showFilterModal = ref(false)
+const areFiltersApplied = ref(false)
+const appliedRange = ref({ from: null, to: null })
+
+function initializeFilters() {
+	FILTER_CONFIG.forEach((filter) => {
+		filterMap[filter.fieldname] = { condition: "=", value: null }
+	})
+}
+initializeFilters()
+
+function applyFilters() {
+	const from = filterMap.from_date.value
+	const to = filterMap.to_date.value
+	if (from && to) {
+		appliedRange.value = { from, to }
+		areFiltersApplied.value = true
+		timesheet.fetch()
+	}
+	showFilterModal.value = false
+	modalController.dismiss()
+}
+
+function clearFilters() {
+	initializeFilters()
+	appliedRange.value = { from: null, to: null }
+	areFiltersApplied.value = false
+	timesheet.fetch()
+	showFilterModal.value = false
+	modalController.dismiss()
+}
 
 // Basic timesheet: Date / Check-in / Check-out / Worked Hours, sourced from
 // Attendance's own in_time/out_time/working_hours (see
@@ -201,6 +299,9 @@ const timesheet = createResource({
 	url: "hrms.api.get_attendance_timesheet",
 	auto: true,
 	makeParams() {
+		if (areFiltersApplied.value && appliedRange.value.from && appliedRange.value.to) {
+			return { from_date: appliedRange.value.from, to_date: appliedRange.value.to }
+		}
 		return {
 			from_date: firstOfMonth.value.format("YYYY-MM-DD"),
 			to_date: firstOfMonth.value.endOf("M").format("YYYY-MM-DD"),
