@@ -5,14 +5,15 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": ["run_type", "period_start", "period_end", "project", "status", "total_commission", "sec_entries", "entries"],
+ "field_order": ["run_type", "period_start", "period_end", "project", "currency", "status", "total_commission", "sec_entries", "entries"],
  "fields": [
   {"fieldname": "run_type", "fieldtype": "Select", "label": "Run Type", "options": "Monthly recurring\nOn project completion\nPer deliverable completed", "reqd": 1, "in_list_view": 1},
   {"fieldname": "period_start", "fieldtype": "Date", "label": "Period Start", "depends_on": "eval:doc.run_type=='Monthly recurring'"},
   {"fieldname": "period_end", "fieldtype": "Date", "label": "Period End", "depends_on": "eval:doc.run_type=='Monthly recurring'"},
   {"fieldname": "project", "fieldtype": "Link", "label": "Project (filter)", "options": "Project"},
+  {"fieldname": "currency", "fieldtype": "Link", "label": "Currency", "options": "Currency", "default": "USD"},
   {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Draft\nReviewed\nPosted", "default": "Draft", "in_list_view": 1},
-  {"fieldname": "total_commission", "fieldtype": "Currency", "label": "Total Commission", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "total_commission", "fieldtype": "Currency", "label": "Total Commission", "options": "currency", "read_only": 1, "in_list_view": 1},
   {"fieldname": "sec_entries", "fieldtype": "Section Break", "label": "Entries"},
   {"fieldname": "entries", "fieldtype": "Table", "label": "Entries", "options": "Commission Entry"}
  ],
