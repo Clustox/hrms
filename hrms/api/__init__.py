@@ -174,10 +174,30 @@ def get_attendance_for_calendar(employee: str, from_date: str, to_date: str) -> 
 
 @frappe.whitelist()
 def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
-	"""Per-day check-in/check-out/worked-hours for the current employee --
-	the "basic" timesheet view (Date, Check-in, Check-out, Worked Hours),
-	built primarily from Attendance's own in_time/out_time/working_hours
-	rather than re-deriving them from raw Employee Checkin rows.
+	"""Per-day check-in/check-out/worked-hours for the current employee -- see
+	_get_employee_attendance_timesheet for the shared implementation."""
+	return _get_employee_attendance_timesheet(get_current_employee(), from_date, to_date)
+
+
+@frappe.whitelist()
+def get_team_member_attendance_timesheet(employee: str, from_date: str, to_date: str) -> list[dict]:
+	"""Same per-day rows as get_attendance_timesheet, for a direct report's
+	drill-down from the Team Timesheet view -- only their own manager (or HR)
+	may look up someone else's log this way."""
+	manager = get_current_employee()
+	hr_roles = {"HR Manager", "HR User", "System Manager"}
+	if not hr_roles & set(frappe.get_roles()):
+		if frappe.db.get_value("Employee", employee, "reports_to") != manager:
+			frappe.throw(_("Not permitted to view this employee's timesheet"), frappe.PermissionError)
+
+	return _get_employee_attendance_timesheet(employee, from_date, to_date)
+
+
+def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: str) -> list[dict]:
+	"""Per-day check-in/check-out/worked-hours for one employee -- the "basic"
+	timesheet view (Date, Check-in, Check-out, Worked Hours), built primarily
+	from Attendance's own in_time/out_time/working_hours rather than
+	re-deriving them from raw Employee Checkin rows.
 
 	A day can have checkins but no Attendance record at all -- nothing on
 	this site auto-creates one from a checkin (that needs a Shift Type with
@@ -187,8 +207,6 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 	they still show up here, just with `status: None` (no badge) instead of
 	silently vanishing from the timesheet.
 	"""
-	employee = get_current_employee()
-
 	# In / out / worked-hours (and shift/shift_start/shift_end, used below for the
 	# late-entry/early-exit flags) come from the day's check-ins, paired and capped
 	# in _group_checkins_by_day -- NOT from Attendance's own working_hours, which
