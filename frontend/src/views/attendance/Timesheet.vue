@@ -27,6 +27,8 @@
 		<ion-content>
 			<!-- Mobile (unchanged) -->
 			<div class="flex flex-col p-4 gap-5 w-full sm:w-96 lg:hidden">
+				<TabButtons :buttons="TAB_BUTTONS" v-model="activeTab" />
+
 				<!-- Month change, same pattern as AttendanceCalendar -->
 				<div class="flex flex-row justify-between items-center px-1" v-if="!areFiltersApplied">
 					<Button
@@ -52,28 +54,88 @@
 					</Button>
 				</div>
 
-				<div class="flex flex-col gap-3" v-if="!timesheet.loading && timesheet.data?.length">
-					<DayAttendanceCard
-						v-for="day in timesheet.data"
-						:key="day.attendance_date"
-						:date="day.attendance_date"
-						:inTime="day.in_time"
-						:outTime="day.out_time"
-						:workingHours="day.working_hours"
-						:status="day.status"
-						:lateEntry="day.late_entry"
-						:earlyExit="day.early_exit"
+				<!-- My Timesheet -->
+				<template v-if="!isTeam">
+					<div class="flex flex-col gap-3" v-if="!timesheet.loading && timesheet.data?.length">
+						<DayAttendanceCard
+							v-for="day in timesheet.data"
+							:key="day.attendance_date"
+							:date="day.attendance_date"
+							:inTime="day.in_time"
+							:outTime="day.out_time"
+							:workingHours="day.working_hours"
+							:status="day.status"
+							:lateEntry="day.late_entry"
+							:earlyExit="day.early_exit"
+						/>
+					</div>
+
+					<EmptyState
+						:message="areFiltersApplied ? __('No attendance records for this range') : __('No attendance records for this month')"
+						v-else-if="!timesheet.loading"
 					/>
-				</div>
 
-				<EmptyState
-					:message="areFiltersApplied ? __('No attendance records for this range') : __('No attendance records for this month')"
-					v-else-if="!timesheet.loading"
-				/>
+					<div v-if="timesheet.loading" class="flex mt-2 items-center justify-center">
+						<LoadingIndicator class="w-8 h-8 text-gray-800" />
+					</div>
+				</template>
 
-				<div v-if="timesheet.loading" class="flex mt-2 items-center justify-center">
-					<LoadingIndicator class="w-8 h-8 text-gray-800" />
-				</div>
+				<!-- Team Timesheet -->
+				<template v-else>
+					<div class="flex flex-col gap-3" v-if="!teamTimesheet.loading && teamTimesheet.data?.rows?.length">
+						<div
+							v-for="row in teamTimesheet.data.rows"
+							:key="row.employee"
+							class="flex flex-col gap-3 bg-white rounded-lg border p-3.5"
+						>
+							<div class="flex flex-row items-center justify-between">
+								<div>
+									<div class="text-base font-semibold text-gray-900">{{ row.employee_name }}</div>
+									<div class="text-xs text-gray-500">{{ row.designation }}</div>
+								</div>
+								<div class="text-right">
+									<div class="text-base font-semibold text-gray-900">
+										{{ fmtHours(row.worked_hours) }}<span class="text-xs text-gray-500">/{{ fmtHours(row.expected_hours) }}h</span>
+									</div>
+									<div class="text-xs text-gray-500">{{ __("Worked / Expected") }}</div>
+								</div>
+							</div>
+							<hr />
+							<div class="grid grid-cols-5 gap-2 text-center">
+								<div>
+									<div class="text-sm font-semibold text-gray-900">{{ row.present }}</div>
+									<div class="text-[11px] text-gray-500">{{ __("Present") }}</div>
+								</div>
+								<div>
+									<div class="text-sm font-semibold text-gray-900">{{ row.absent }}</div>
+									<div class="text-[11px] text-gray-500">{{ __("Absent") }}</div>
+								</div>
+								<div>
+									<div class="text-sm font-semibold text-gray-900">{{ row.leave }}</div>
+									<div class="text-[11px] text-gray-500">{{ __("Leave") }}</div>
+								</div>
+								<div>
+									<div class="text-sm font-semibold" :class="row.late_arrival ? 'text-amber-600' : 'text-gray-900'">
+										{{ row.late_arrival }}
+									</div>
+									<div class="text-[11px] text-gray-500">{{ __("Late") }}</div>
+								</div>
+								<div>
+									<div class="text-sm font-semibold" :class="row.early_left ? 'text-sky-600' : 'text-gray-900'">
+										{{ row.early_left }}
+									</div>
+									<div class="text-[11px] text-gray-500">{{ __("Early") }}</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<EmptyState :message="__('No direct reports found')" v-else-if="!teamTimesheet.loading" />
+
+					<div v-if="teamTimesheet.loading" class="flex mt-2 items-center justify-center">
+						<LoadingIndicator class="w-8 h-8 text-gray-800" />
+					</div>
+				</template>
 			</div>
 
 			<!-- Air desktop timesheet -->
@@ -125,91 +187,154 @@
 						</div>
 					</div>
 
-					<div class="mb-5 grid grid-cols-3 gap-4">
-						<div class="rounded-air border border-air-line bg-air-surface p-4">
-							<div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
-								{{ __("Hours logged") }}
-							</div>
-							<div class="mt-1.5 font-display text-[26px] font-semibold tracking-tight text-air-ink tabular-nums">
-								{{ totalHours.toFixed(1) }}<small class="ml-1 text-[13px] font-medium text-air-muted">h</small>
-							</div>
-						</div>
-						<div class="rounded-air border border-air-line bg-air-surface p-4">
-							<div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
-								{{ __("Days logged") }}
-							</div>
-							<div class="mt-1.5 font-display text-[26px] font-semibold tracking-tight text-air-ink tabular-nums">
-								{{ daysLogged }}
-							</div>
-						</div>
-						<div class="rounded-air border border-air-line bg-air-surface p-4">
-							<div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
-								{{ __("Avg / day") }}
-							</div>
-							<div class="mt-1.5 font-display text-[26px] font-semibold tracking-tight text-air-ink tabular-nums">
-								{{ daysLogged ? (totalHours / daysLogged).toFixed(1) : "0.0"
-								}}<small class="ml-1 text-[13px] font-medium text-air-muted">h</small>
-							</div>
-						</div>
-					</div>
+					<TabButtons class="mb-5 max-w-[320px]" :buttons="TAB_BUTTONS" v-model="activeTab" />
 
-					<div class="overflow-hidden rounded-air border border-air-line bg-white shadow-air">
+					<!-- My Timesheet -->
+					<template v-if="!isTeam">
+						<div class="mb-5 grid grid-cols-3 gap-4">
+							<div class="rounded-air border border-air-line bg-air-surface p-4">
+								<div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
+									{{ __("Hours logged") }}
+								</div>
+								<div class="mt-1.5 font-display text-[26px] font-semibold tracking-tight text-air-ink tabular-nums">
+									{{ totalHours.toFixed(1) }}<small class="ml-1 text-[13px] font-medium text-air-muted">h</small>
+								</div>
+							</div>
+							<div class="rounded-air border border-air-line bg-air-surface p-4">
+								<div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
+									{{ __("Days logged") }}
+								</div>
+								<div class="mt-1.5 font-display text-[26px] font-semibold tracking-tight text-air-ink tabular-nums">
+									{{ daysLogged }}
+								</div>
+							</div>
+							<div class="rounded-air border border-air-line bg-air-surface p-4">
+								<div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-air-muted">
+									{{ __("Avg / day") }}
+								</div>
+								<div class="mt-1.5 font-display text-[26px] font-semibold tracking-tight text-air-ink tabular-nums">
+									{{ daysLogged ? (totalHours / daysLogged).toFixed(1) : "0.0"
+									}}<small class="ml-1 text-[13px] font-medium text-air-muted">h</small>
+								</div>
+							</div>
+						</div>
+
+						<div class="overflow-hidden rounded-air border border-air-line bg-white shadow-air">
+							<table
+								class="w-full border-collapse text-left"
+								v-if="!timesheet.loading && timesheet.data?.length"
+							>
+								<thead>
+									<tr
+										class="border-b border-gray-100 text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-500"
+									>
+										<th class="px-5 py-3 font-semibold">{{ __("Date") }}</th>
+										<th class="px-5 py-3 font-semibold">{{ __("Check-in") }}</th>
+										<th class="px-5 py-3 font-semibold">{{ __("Check-out") }}</th>
+										<th class="px-5 py-3 text-right font-semibold">{{ __("Hours logged") }}</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr
+										v-for="day in timesheet.data"
+										:key="day.attendance_date"
+										class="border-b border-gray-50 last:border-0 hover:bg-gray-50/60"
+									>
+										<td class="px-5 py-3.5 text-[14px] font-medium text-gray-900">
+											{{ dayjs(day.attendance_date).format("ddd, D MMM") }}
+										</td>
+										<td class="px-5 py-3.5 text-[14px] tabular-nums text-gray-700">
+											<div class="flex items-center gap-2">
+												{{ fmtTime(day.in_time) }}
+												<span
+													v-if="day.late_entry"
+													class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-600/20"
+												>
+													{{ __("Late") }}
+												</span>
+											</div>
+										</td>
+										<td class="px-5 py-3.5 text-[14px] tabular-nums text-gray-700">
+											<div class="flex items-center gap-2">
+												{{ fmtTime(day.out_time) }}
+												<span
+													v-if="day.early_exit"
+													class="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 ring-1 ring-sky-600/20"
+												>
+													{{ __("Early") }}
+												</span>
+											</div>
+										</td>
+										<td class="px-5 py-3.5 text-right text-[14px] font-semibold tabular-nums text-gray-900">
+											{{ fmtHours(day.working_hours) }}
+										</td>
+									</tr>
+								</tbody>
+							</table>
+							<div v-else-if="timesheet.loading" class="flex items-center justify-center py-16">
+								<LoadingIndicator class="h-7 w-7 text-gray-400" />
+							</div>
+							<div v-else class="px-5 py-16 text-center text-[14px] text-gray-500">
+								{{ areFiltersApplied ? __("No attendance records for this range") : __("No attendance records for this month") }}
+							</div>
+						</div>
+					</template>
+
+					<!-- Team Timesheet -->
+					<div v-else class="overflow-hidden rounded-air border border-air-line bg-white shadow-air">
 						<table
 							class="w-full border-collapse text-left"
-							v-if="!timesheet.loading && timesheet.data?.length"
+							v-if="!teamTimesheet.loading && teamTimesheet.data?.rows?.length"
 						>
 							<thead>
 								<tr
 									class="border-b border-gray-100 text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-500"
 								>
-									<th class="px-5 py-3 font-semibold">{{ __("Date") }}</th>
-									<th class="px-5 py-3 font-semibold">{{ __("Check-in") }}</th>
-									<th class="px-5 py-3 font-semibold">{{ __("Check-out") }}</th>
-									<th class="px-5 py-3 text-right font-semibold">{{ __("Hours logged") }}</th>
+									<th class="px-5 py-3 font-semibold">{{ __("Employee") }}</th>
+									<th class="px-5 py-3 text-right font-semibold">{{ __("Present") }}</th>
+									<th class="px-5 py-3 text-right font-semibold">{{ __("Absent") }}</th>
+									<th class="px-5 py-3 text-right font-semibold">{{ __("Leave") }}</th>
+									<th class="px-5 py-3 text-right font-semibold">{{ __("Late") }}</th>
+									<th class="px-5 py-3 text-right font-semibold">{{ __("Early") }}</th>
+									<th class="px-5 py-3 text-right font-semibold">{{ __("Worked / Expected") }}</th>
 								</tr>
 							</thead>
 							<tbody>
 								<tr
-									v-for="day in timesheet.data"
-									:key="day.attendance_date"
+									v-for="row in teamTimesheet.data.rows"
+									:key="row.employee"
 									class="border-b border-gray-50 last:border-0 hover:bg-gray-50/60"
 								>
-									<td class="px-5 py-3.5 text-[14px] font-medium text-gray-900">
-										{{ dayjs(day.attendance_date).format("ddd, D MMM") }}
+									<td class="px-5 py-3.5 text-[14px]">
+										<div class="font-medium text-gray-900">{{ row.employee_name }}</div>
+										<div class="text-[12px] text-gray-500">{{ row.designation }}</div>
 									</td>
-									<td class="px-5 py-3.5 text-[14px] tabular-nums text-gray-700">
-										<div class="flex items-center gap-2">
-											{{ fmtTime(day.in_time) }}
-											<span
-												v-if="day.late_entry"
-												class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-600/20"
-											>
-												{{ __("Late") }}
-											</span>
-										</div>
+									<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-700">{{ row.present }}</td>
+									<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-700">{{ row.absent }}</td>
+									<td class="px-5 py-3.5 text-right text-[14px] tabular-nums text-gray-700">{{ row.leave }}</td>
+									<td
+										class="px-5 py-3.5 text-right text-[14px] tabular-nums"
+										:class="row.late_arrival ? 'font-semibold text-amber-600' : 'text-gray-700'"
+									>
+										{{ row.late_arrival }}
 									</td>
-									<td class="px-5 py-3.5 text-[14px] tabular-nums text-gray-700">
-										<div class="flex items-center gap-2">
-											{{ fmtTime(day.out_time) }}
-											<span
-												v-if="day.early_exit"
-												class="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 ring-1 ring-sky-600/20"
-											>
-												{{ __("Early") }}
-											</span>
-										</div>
+									<td
+										class="px-5 py-3.5 text-right text-[14px] tabular-nums"
+										:class="row.early_left ? 'font-semibold text-sky-600' : 'text-gray-700'"
+									>
+										{{ row.early_left }}
 									</td>
 									<td class="px-5 py-3.5 text-right text-[14px] font-semibold tabular-nums text-gray-900">
-										{{ fmtHours(day.working_hours) }}
+										{{ fmtHours(row.worked_hours) }} / {{ fmtHours(row.expected_hours) }}
 									</td>
 								</tr>
 							</tbody>
 						</table>
-						<div v-else-if="timesheet.loading" class="flex items-center justify-center py-16">
+						<div v-else-if="teamTimesheet.loading" class="flex items-center justify-center py-16">
 							<LoadingIndicator class="h-7 w-7 text-gray-400" />
 						</div>
 						<div v-else class="px-5 py-16 text-center text-[14px] text-gray-500">
-							{{ areFiltersApplied ? __("No attendance records for this range") : __("No attendance records for this month") }}
+							{{ __("No direct reports found") }}
 						</div>
 					</div>
 				</div>
@@ -244,10 +369,15 @@ import DayAttendanceCard from "@/components/DayAttendanceCard.vue"
 import DesktopShell from "@/components/DesktopShell.vue"
 import ListFiltersActionSheet from "@/components/ListFiltersActionSheet.vue"
 import CustomIonModal from "@/components/CustomIonModal.vue"
+import TabButtons from "@/components/TabButtons.vue"
 
 const dayjs = inject("$dayjs")
 const __ = inject("$translate")
 const router = useRouter()
+
+const TAB_BUTTONS = ["My Timesheet", "Team Timesheet"] // __("My Timesheet"), __("Team Timesheet")
+const activeTab = ref(TAB_BUTTONS[0])
+const isTeam = computed(() => activeTab.value === TAB_BUTTONS[1])
 
 const firstOfMonth = ref(dayjs().date(1).startOf("D"))
 
@@ -276,7 +406,6 @@ function applyFilters() {
 	if (from && to) {
 		appliedRange.value = { from, to }
 		areFiltersApplied.value = true
-		timesheet.fetch()
 	}
 	showFilterModal.value = false
 	modalController.dismiss()
@@ -286,10 +415,22 @@ function clearFilters() {
 	initializeFilters()
 	appliedRange.value = { from: null, to: null }
 	areFiltersApplied.value = false
-	timesheet.fetch()
 	showFilterModal.value = false
 	modalController.dismiss()
 }
+
+// Either the applied From/To Date filter, or the current month -- shared by
+// both "My Timesheet" and "Team Timesheet" so switching tabs keeps the same
+// period selected.
+const effectiveRange = computed(() => {
+	if (areFiltersApplied.value && appliedRange.value.from && appliedRange.value.to) {
+		return { from: appliedRange.value.from, to: appliedRange.value.to }
+	}
+	return {
+		from: firstOfMonth.value.format("YYYY-MM-DD"),
+		to: firstOfMonth.value.endOf("M").format("YYYY-MM-DD"),
+	}
+})
 
 // Basic timesheet: Date / Check-in / Check-out / Worked Hours, sourced from
 // Attendance's own in_time/out_time/working_hours (see
@@ -299,22 +440,36 @@ const timesheet = createResource({
 	url: "hrms.api.get_attendance_timesheet",
 	auto: true,
 	makeParams() {
-		if (areFiltersApplied.value && appliedRange.value.from && appliedRange.value.to) {
-			return { from_date: appliedRange.value.from, to_date: appliedRange.value.to }
-		}
+		return { from_date: effectiveRange.value.from, to_date: effectiveRange.value.to }
+	},
+})
+
+// Team Timesheet: per-direct-report summary (present/absent/leave/late/early,
+// worked vs expected hours) for the same period, via hrms.api.get_timesheet_overview
+// -- already supports scope="subordinates" (filters Employee by reports_to) but
+// was previously only wired into the legacy desk "HR Timesheet" page, unused
+// by this app. Fetched lazily, only once the Team Timesheet tab is opened.
+const teamTimesheet = createResource({
+	url: "hrms.api.get_timesheet_overview",
+	auto: false,
+	makeParams() {
 		return {
-			from_date: firstOfMonth.value.format("YYYY-MM-DD"),
-			to_date: firstOfMonth.value.endOf("M").format("YYYY-MM-DD"),
+			from_date: effectiveRange.value.from,
+			to_date: effectiveRange.value.to,
+			scope: "subordinates",
+			page_length: 100,
 		}
 	},
 })
 
-watch(
-	() => firstOfMonth.value,
-	() => {
-		timesheet.fetch()
-	}
-)
+watch(isTeam, (nowTeam) => {
+	if (nowTeam) teamTimesheet.fetch()
+})
+
+watch(effectiveRange, () => {
+	timesheet.fetch()
+	if (isTeam.value) teamTimesheet.fetch()
+})
 
 // Desktop table helpers (mobile keeps DayAttendanceCard).
 const fmtTime = (t) => (t && dayjs(t).isValid() ? dayjs(t).format("h:mm A") : "—")
