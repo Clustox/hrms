@@ -187,7 +187,7 @@
 						</div>
 					</div>
 
-					<TabButtons class="mb-5 max-w-[320px]" :buttons="TAB_BUTTONS" v-model="activeTab" />
+					<TabButtons class="mb-5" :buttons="TAB_BUTTONS" v-model="activeTab" />
 
 					<!-- My Timesheet -->
 					<template v-if="!isTeam">
