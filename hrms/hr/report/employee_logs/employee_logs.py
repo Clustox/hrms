@@ -32,9 +32,9 @@ def get_columns():
 		{"label": _("Employee"), "fieldname": "employee", "fieldtype": "Link", "options": "Employee", "width": 150},
 		{"label": _("Employee Name"), "fieldname": "employee_name", "fieldtype": "Data", "width": 200},
 		{"label": _("Date"), "fieldname": "date", "fieldtype": "Date", "width": 130},
-		{"label": _("Check-in"), "fieldname": "check_in", "fieldtype": "Datetime", "width": 200},
+		{"label": _("Check-in"), "fieldname": "check_in", "fieldtype": "Data", "width": 210},
 		{"label": _("Check-in Status"), "fieldname": "check_in_status", "fieldtype": "Data", "width": 150},
-		{"label": _("Check-out"), "fieldname": "check_out", "fieldtype": "Datetime", "width": 200},
+		{"label": _("Check-out"), "fieldname": "check_out", "fieldtype": "Data", "width": 210},
 		{"label": _("Check-out Status"), "fieldname": "check_out_status", "fieldtype": "Data", "width": 150},
 		{"label": _("Worked Hours"), "fieldname": "worked_hours", "fieldtype": "Data", "width": 150},
 	]
@@ -115,11 +115,26 @@ def get_data(filters):
 		else:
 			row.worked_hours = "--"
 
+		# Formatted last, after the raw datetimes above are done with -- System
+		# Settings' Time Format has no 12-hour option at all (just "HH:mm:ss" /
+		# "HH:mm"), so this is spelled out explicitly rather than left to the
+		# column's default Datetime rendering.
+		row.check_in = _format_12h(row.check_in)
+		row.check_out = _format_12h(row.check_out)
+
 		del row["shift"]
 		del row["shift_start"]
 		del row["shift_end"]
 
 	return rows
+
+
+def _format_12h(dt) -> str:
+	if not dt:
+		return ""
+	date_part = dt.strftime("%d-%m-%Y")
+	time_part = dt.strftime("%I:%M %p").lstrip("0")  # "09:35 AM" -> "9:35 AM"
+	return f"{date_part} {time_part}"
 
 
 def get_conditions(filters) -> tuple[str, dict]:
