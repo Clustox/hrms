@@ -47,12 +47,15 @@ const props = defineProps({
 })
 
 const status = computed(() => {
-	return props.workflowStateField ? props.doc[props.workflowStateField] : props.doc.status
+	const s = props.workflowStateField ? props.doc[props.workflowStateField] : props.doc.status
+	// Display-only rename: a pending/open request reads as "Pending Request".
+	return ["Open", "Draft", "Pending"].includes(s) ? "Pending Request" : s
 })
 
 const colorMap = {
 	Approved: "green",
 	Rejected: "red",
 	Pending: "orange",
+	"Pending Request": "orange",
 }
 </script>

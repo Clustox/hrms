@@ -6,11 +6,36 @@
 		parent) plus monthAttendance, the same source as the Home attendance tile.
 	-->
 	<div class="hidden max-w-[1180px] px-10 pb-[70px] pt-[34px] lg:block">
-		<div class="air-rise mb-8">
-			<h1 class="font-display text-[34px] font-bold tracking-[-0.03em] text-air-ink">
-				{{ __("Attendance") }}
-			</h1>
-			<p class="mt-2.5 text-base text-air-muted">{{ subline }}</p>
+		<div class="air-rise mb-8 flex items-end justify-between gap-4">
+			<div>
+				<h1 class="font-display text-[34px] font-bold tracking-[-0.03em] text-air-ink">
+					{{ __("Attendance") }}
+				</h1>
+				<p class="mt-2.5 text-base text-air-muted">{{ subline }}</p>
+			</div>
+			<div class="flex shrink-0 items-center gap-3">
+				<!-- Month navigator -->
+				<div class="flex items-center gap-2 rounded-air border border-air-line bg-air-surface px-2 py-1.5">
+					<button
+						class="rounded-md p-1.5 text-air-muted hover:bg-air-bg hover:text-air-ink"
+						@click="changeMonth(-1)"
+						:aria-label="__('Previous month')"
+					>
+						<FeatherIcon name="chevron-left" class="h-4 w-4" />
+					</button>
+					<span class="min-w-[120px] text-center text-[14px] font-semibold text-air-ink">
+						{{ firstOfMonth.format("MMMM YYYY") }}
+					</span>
+					<button
+						class="rounded-md p-1.5 text-air-muted enabled:hover:bg-air-bg enabled:hover:text-air-ink disabled:opacity-40"
+						@click="changeMonth(1)"
+						:disabled="isCurrentMonth"
+						:aria-label="__('Next month')"
+					>
+						<FeatherIcon name="chevron-right" class="h-4 w-4" />
+					</button>
+				</div>
+			</div>
 		</div>
 
 		<!-- stat tiles -->
@@ -153,7 +178,7 @@
 </template>
 
 <script setup>
-import { computed, inject, onMounted } from "vue"
+import { computed, inject, onMounted, ref } from "vue"
 import { FeatherIcon } from "frappe-ui"
 
 import {
@@ -176,9 +201,22 @@ const props = defineProps({
 const __ = inject("$translate")
 const dayjs = inject("$dayjs")
 
-onMounted(() => monthAttendance.fetch())
+// Month the dashboard is showing; navigable via the prev/next controls.
+const firstOfMonth = ref(dayjs().date(1).startOf("D"))
+function fetchMonth() {
+	monthAttendance.fetch({
+		from_date: firstOfMonth.value.format("YYYY-MM-DD"),
+		to_date: firstOfMonth.value.endOf("M").format("YYYY-MM-DD"),
+	})
+}
+function changeMonth(delta) {
+	firstOfMonth.value = firstOfMonth.value.add(delta, "M")
+	fetchMonth()
+}
+const isCurrentMonth = computed(() => firstOfMonth.value.isSame(dayjs(), "month"))
+onMounted(fetchMonth)
 
-const monthLabel = computed(() => dayjs().format("MMM"))
+const monthLabel = computed(() => firstOfMonth.value.format("MMM"))
 
 // ---- This month (hrms.api.get_attendance_timesheet via monthAttendance) ----
 const stats = computed(() => {
@@ -260,7 +298,7 @@ const tiles = computed(() => {
 		{
 			key: "pending",
 			type: "pending",
-			label: __("Pending"),
+			label: __("Pending Request"),
 			available: true,
 			value: Math.round(pendingShown.value),
 			note: pendingCount.value ? __("Awaiting approval") : __("Nothing waiting"),

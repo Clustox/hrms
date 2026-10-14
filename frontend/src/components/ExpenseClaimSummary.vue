@@ -17,7 +17,7 @@
 				<div class="flex flex-col gap-1">
 					<div class="flex flex-row gap-1 items-center">
 						<span class="text-gray-600 text-sm font-medium leading-5">
-							{{ __("Pending") }}
+							{{ __("Pending Request") }}
 						</span>
 						<FeatherIcon name="alert-circle" class="text-yellow-500 h-3 w-3" />
 					</div>

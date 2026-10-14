@@ -198,7 +198,7 @@ const tiles = computed(() => [
 	},
 	{
 		key: "pending",
-		label: __("Pending"),
+		label: __("Pending Request"),
 		shown: shownPending.value,
 		note: __("Awaiting approval"),
 		icon: "alert-circle",
