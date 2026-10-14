@@ -79,6 +79,10 @@ const formFields = createResource({
 		return fields.map((field) => {
 			if (field.fieldname === "half_day_date") field.hidden = true
 
+			// Half-day is only allowed for Casual Leave (policy). Hidden by
+			// default; shown only when the leave type is Casual.
+			if (field.fieldname === "half_day") field.hidden = true
+
 			if (field.fieldname === "posting_date") field.default = today
 
 			// This field only ever renders for an *existing* application (new
@@ -135,7 +139,10 @@ watch(
 )
 watch(
 	() => leaveApplication.value.leave_type,
-	(leave_type) => setLeaveBalance(leave_type)
+	(leave_type) => {
+		setLeaveBalance(leave_type)
+		setHalfDayVisibility(leave_type)
+	}
 )
 
 watch(
@@ -263,6 +270,19 @@ function setLeaveBalance() {
 		},
 	})
 	leaveBalance.reload()
+}
+
+function setHalfDayVisibility(leave_type) {
+	// Half-day leave is only permitted for Casual Leave (policy). Show the
+	// toggle only for Casual; for any other type hide it and clear any value.
+	const half_day = formFields.data?.find((field) => field.fieldname === "half_day")
+	if (!half_day) return
+	const isCasual = leave_type === "Casual Leave"
+	half_day.hidden = !isCasual
+	if (!isCasual && leaveApplication.value.half_day) {
+		leaveApplication.value.half_day = 0
+		leaveApplication.value.half_day_date = null
+	}
 }
 
 function setHalfDayDate(half_day) {
