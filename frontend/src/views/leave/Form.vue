@@ -127,10 +127,14 @@ watch(
 		if (props.id && employee_id !== currEmployee.value) {
 			// if employee is not the current user, set form as read only
 			setFormReadOnly()
+		} else if (props.id && employee_id === sessionEmployee.data.name) {
+			// the applicant viewing their own application can only cancel it --
+			// approving/rejecting is the approver's call, not theirs
+			restrictStatusToCancelOnly()
 		}
 		currEmployee.value = employee_id
 		leaveTypes.fetch({ employee: currEmployee.value, date: today })
-		leaveApprovalDetails.fetch({ employee: currEmployee.value })		
+		leaveApprovalDetails.fetch({ employee: currEmployee.value })
 	}
 )
 watch(
@@ -210,6 +214,11 @@ function getFilteredFields(fields) {
 function setFormReadOnly() {
 	if (leaveApplication.value.leave_approver === sessionEmployee.data.user_id) return
 	formFields.data.map((field) => (field.read_only = true))
+}
+
+function restrictStatusToCancelOnly() {
+	const status_field = formFields.data?.find((field) => field.fieldname === "status")
+	if (status_field) status_field.options = "Cancelled"
 }
 
 function validateDates(from_date, to_date) {
