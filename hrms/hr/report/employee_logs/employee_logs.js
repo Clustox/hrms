@@ -35,7 +35,7 @@ frappe.query_reports["Employee logs"] = {
 			const isProblem = [__("Missing"), __("Late"), __("Early")].some((label) =>
 				value.includes(label),
 			);
-			const color = isProblem ? "red" : "green";
+			const color = value.includes(__("On Leave")) ? "blue" : isProblem ? "red" : "green";
 			return `<span class="indicator-pill ${color}">${value}</span>`;
 		}
 		return value;
