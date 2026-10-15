@@ -15,7 +15,7 @@ Employee Checkin rows, so it has data regardless of whether that's set up.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, get_datetime
+from frappe.utils import add_days, cint, flt, get_datetime, getdate
 
 from hrms.api import _get_shift_grace_periods, _late_early_flags
 
@@ -126,6 +126,77 @@ def get_data(filters):
 		del row["shift_start"]
 		del row["shift_end"]
 
+	# Nothing on this site auto-creates an Employee Checkin (or an Attendance
+	# record) from an approved leave, so a leave day otherwise has no row at
+	# all here (the main query above is keyed off Employee Checkin) and
+	# silently vanishes from the report. Adds one explicitly for each
+	# employee-day covered by an approved leave and nothing else.
+	existing_days = {(row.employee, row.date) for row in rows}
+	for leave_row in get_leave_rows(filters):
+		if (leave_row.employee, leave_row.date) in existing_days:
+			continue
+		rows.append(
+			{
+				"employee": leave_row.employee,
+				"employee_name": leave_row.employee_name,
+				"company": leave_row.company,
+				"date": leave_row.date,
+				"check_in": "",
+				"check_in_status": _("On Leave"),
+				"check_out": "",
+				"check_out_status": _("On Leave"),
+				"worked_hours": "--",
+			}
+		)
+
+	rows.sort(key=lambda r: (str(r["date"]), r["employee_name"] or ""), reverse=True)
+	return rows
+
+
+def get_leave_rows(filters) -> list[dict]:
+	"""One row per employee-day covered by an approved, submitted Leave
+	Application within the report's date range/employee/company filters."""
+	conditions, values = get_leave_conditions(filters)
+
+	leaves = frappe.db.sql(
+		f"""
+		select
+			la.employee as employee,
+			employee.employee_name as employee_name,
+			employee.company as company,
+			la.from_date as from_date,
+			la.to_date as to_date
+		from `tabLeave Application` la
+		inner join `tabEmployee` employee on employee.name = la.employee
+		where la.status = 'Approved' and la.docstatus = 1 and {conditions}
+		""",
+		values,
+		as_dict=True,
+	)
+
+	from_date = getdate(filters.from_date) if filters.from_date else None
+	to_date = getdate(filters.to_date) if filters.to_date else None
+
+	rows = []
+	for leave in leaves:
+		day = getdate(leave.from_date)
+		leave_end = getdate(leave.to_date)
+		if from_date and day < from_date:
+			day = from_date
+		if to_date and leave_end > to_date:
+			leave_end = to_date
+
+		while day <= leave_end:
+			rows.append(
+				frappe._dict(
+					employee=leave.employee,
+					employee_name=leave.employee_name,
+					company=leave.company,
+					date=day,
+				)
+			)
+			day = add_days(day, 1)
+
 	return rows
 
 
@@ -160,6 +231,35 @@ def get_conditions(filters) -> tuple[str, dict]:
 	if not hr_roles & set(frappe.get_roles()):
 		own_employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
 		conditions.append("checkin.employee = %(own_employee)s")
+		values["own_employee"] = own_employee or ""
+
+	return " and ".join(conditions), values
+
+
+def get_leave_conditions(filters) -> tuple[str, dict]:
+	"""Same employee/company/own-employee scoping as get_conditions, but for
+	the Leave Application query: a date *range* overlap (la.from_date/to_date)
+	rather than a single checkin timestamp falling between two dates."""
+	conditions = ["1=1"]
+	values = {}
+
+	if filters.from_date:
+		conditions.append("la.to_date >= %(from_date)s")
+		values["from_date"] = filters.from_date
+	if filters.to_date:
+		conditions.append("la.from_date <= %(to_date)s")
+		values["to_date"] = filters.to_date
+	if filters.employee:
+		conditions.append("la.employee = %(employee)s")
+		values["employee"] = filters.employee
+	if filters.company:
+		conditions.append("employee.company = %(company)s")
+		values["company"] = filters.company
+
+	hr_roles = {"HR Manager", "HR User", "System Manager"}
+	if not hr_roles & set(frappe.get_roles()):
+		own_employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
+		conditions.append("la.employee = %(own_employee)s")
 		values["own_employee"] = own_employee or ""
 
 	return " and ".join(conditions), values

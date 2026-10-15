@@ -289,7 +289,7 @@
 											{{ dayjs(day.attendance_date).format("ddd, D MMM") }}
 										</td>
 										<td class="px-5 py-3.5 text-[14px] tabular-nums text-gray-700">
-											<div class="flex items-center gap-2">
+											<div class="flex items-center gap-2" v-if="day.in_time || !day.status">
 												{{ fmtTime(day.in_time) }}
 												<span
 													v-if="day.late_entry"
@@ -298,9 +298,16 @@
 													{{ __("Late") }}
 												</span>
 											</div>
+											<span
+												v-else
+												class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium"
+												:class="statusBadgeClass(day.status)"
+											>
+												{{ __(day.status) }}
+											</span>
 										</td>
 										<td class="px-5 py-3.5 text-[14px] tabular-nums text-gray-700">
-											<div class="flex items-center gap-2">
+											<div class="flex items-center gap-2" v-if="day.out_time || !day.status">
 												{{ fmtTime(day.out_time) }}
 												<span
 													v-if="day.early_exit"
@@ -309,6 +316,7 @@
 													{{ __("Early") }}
 												</span>
 											</div>
+											<span v-else class="text-gray-400">—</span>
 										</td>
 										<td class="px-5 py-3.5 text-right text-[14px] font-semibold tabular-nums text-gray-900">
 											{{ fmtHours(day.working_hours) }}
@@ -558,6 +566,18 @@ const displayedLog = computed(() => (expandedEmployee.value ? employeeLog : time
 // Desktop table helpers (mobile keeps DayAttendanceCard).
 const fmtTime = (t) => (t && dayjs(t).isValid() ? dayjs(t).format("h:mm A") : "—")
 const fmtHours = (h) => (Number(h) ? Number(h).toFixed(2) : "—")
+
+// Same status set/colors as DayAttendanceCard's colorMap (mobile), for a
+// no-checkin day (e.g. "On Leave") shown in the desktop table's Check-in cell.
+const STATUS_BADGE_CLASS = {
+	Present: "bg-green-50 text-green-700 ring-1 ring-green-600/20",
+	"Work From Home": "bg-green-50 text-green-700 ring-1 ring-green-600/20",
+	"Half Day": "bg-orange-50 text-orange-700 ring-1 ring-orange-600/20",
+	Absent: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
+	"On Leave": "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
+}
+const statusBadgeClass = (status) =>
+	STATUS_BADGE_CLASS[status] || "bg-gray-100 text-gray-700 ring-1 ring-gray-400/20"
 
 const totalHours = computed(() =>
 	(timesheet.data || []).reduce((sum, d) => sum + (Number(d.working_hours) || 0), 0)
