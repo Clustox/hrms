@@ -18,6 +18,7 @@ from frappe import _
 from frappe.utils import add_days, cint, flt, get_datetime, getdate
 
 from hrms.api import _get_shift_grace_periods, _late_early_flags
+from hrms.hr.utils import get_checkin_location_labels
 
 
 def execute(filters=None):
@@ -37,6 +38,7 @@ def get_columns():
 		{"label": _("Check-out"), "fieldname": "check_out", "fieldtype": "Data", "width": 210},
 		{"label": _("Check-out Status"), "fieldname": "check_out_status", "fieldtype": "Data", "width": 150},
 		{"label": _("Worked Hours"), "fieldname": "worked_hours", "fieldtype": "Data", "width": 150},
+		{"label": _("Location"), "fieldname": "location", "fieldtype": "Data", "width": 220},
 	]
 
 
@@ -67,7 +69,23 @@ def get_data(filters):
 			substring_index(
 				group_concat(case when checkin.log_type = 'OUT' then checkin.shift_end end order by checkin.time desc),
 				',', 1
-			) as shift_end
+			) as shift_end,
+			substring_index(
+				group_concat(case when checkin.log_type = 'IN' then checkin.latitude end order by checkin.time asc),
+				',', 1
+			) as in_latitude,
+			substring_index(
+				group_concat(case when checkin.log_type = 'IN' then checkin.longitude end order by checkin.time asc),
+				',', 1
+			) as in_longitude,
+			substring_index(
+				group_concat(case when checkin.log_type = 'OUT' then checkin.latitude end order by checkin.time desc),
+				',', 1
+			) as out_latitude,
+			substring_index(
+				group_concat(case when checkin.log_type = 'OUT' then checkin.longitude end order by checkin.time desc),
+				',', 1
+			) as out_longitude
 		from `tabEmployee Checkin` checkin
 		inner join `tabEmployee` employee on employee.name = checkin.employee
 		where {conditions}
@@ -80,8 +98,36 @@ def get_data(filters):
 
 	grace_periods = _get_shift_grace_periods({row.shift for row in rows if row.shift})
 
+	# latitude/longitude come back as strings too (GROUP_CONCAT is always text
+	# in MariaDB), hence the flt() below -- same reason shift_start/shift_end
+	# need get_datetime() further down.
+	in_locations = get_checkin_location_labels(
+		[
+			{
+				"employee": row.employee,
+				"shift": row.shift,
+				"date": row.date,
+				"latitude": flt(row.in_latitude) if row.in_latitude else None,
+				"longitude": flt(row.in_longitude) if row.in_longitude else None,
+			}
+			for row in rows
+		]
+	)
+	out_locations = get_checkin_location_labels(
+		[
+			{
+				"employee": row.employee,
+				"shift": row.shift,
+				"date": row.date,
+				"latitude": flt(row.out_latitude) if row.out_latitude else None,
+				"longitude": flt(row.out_longitude) if row.out_longitude else None,
+			}
+			for row in rows
+		]
+	)
+
 	precision = cint(frappe.db.get_default("float_precision")) or 2
-	for row in rows:
+	for row, in_location, out_location in zip(rows, in_locations, out_locations):
 		# shift_start/shift_end come back as strings from the group_concat +
 		# substring_index trick above (GROUP_CONCAT is always text in MariaDB),
 		# unlike check_in/check_out which MIN/MAX preserve as native datetimes.
@@ -121,10 +167,15 @@ def get_data(filters):
 		# column's default Datetime rendering.
 		row.check_in = _format_12h(row.check_in)
 		row.check_out = _format_12h(row.check_out)
+		row.location = _format_location(in_location, out_location)
 
 		del row["shift"]
 		del row["shift_start"]
 		del row["shift_end"]
+		del row["in_latitude"]
+		del row["in_longitude"]
+		del row["out_latitude"]
+		del row["out_longitude"]
 
 	# Nothing on this site auto-creates an Employee Checkin (or an Attendance
 	# record) from an approved leave, so a leave day otherwise has no row at
@@ -146,6 +197,7 @@ def get_data(filters):
 				"check_out": "",
 				"check_out_status": _("On Leave"),
 				"worked_hours": "--",
+				"location": "",
 			}
 		)
 
@@ -206,6 +258,32 @@ def _format_12h(dt) -> str:
 	date_part = dt.strftime("%d-%m-%Y")
 	time_part = dt.strftime("%I:%M %p").lstrip("0")  # "09:35 AM" -> "9:35 AM"
 	return f"{date_part} {time_part}"
+
+
+def _format_location(in_location, out_location) -> str:
+	"""One short display string for the Location column. "Verified" means
+	the punch fell inside an enforced Shift Location radius (so it can only
+	ever be the configured place); everything else with coordinates is
+	labelled "Remote" -- really "no enforced office reference point matched
+	for that employee/shift/date", not a GPS-confirmed remote location, but
+	shown as Remote since that's the practical reading in this org."""
+
+	def _label(loc):
+		if not loc:
+			return None
+		return _("Office") if loc["verified"] else _("Remote")
+
+	in_label, out_label = _label(in_location), _label(out_location)
+	if not in_label and not out_label:
+		return ""
+	if in_label == out_label:
+		return in_label
+	parts = []
+	if in_label:
+		parts.append(_("In: {0}").format(in_label))
+	if out_label:
+		parts.append(_("Out: {0}").format(out_label))
+	return " · ".join(parts)
 
 
 def get_conditions(filters) -> tuple[str, dict]:

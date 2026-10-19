@@ -38,6 +38,10 @@ frappe.query_reports["Employee logs"] = {
 			const color = value.includes(__("On Leave")) ? "blue" : isProblem ? "red" : "green";
 			return `<span class="indicator-pill ${color}">${value}</span>`;
 		}
+		if (column.fieldname === "location" && value) {
+			const color = value.includes(__("Remote")) ? "orange" : "blue";
+			return `<span class="indicator-pill ${color}">${value}</span>`;
+		}
 		return value;
 	},
 	onload: function (report) {

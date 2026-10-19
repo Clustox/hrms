@@ -9,6 +9,8 @@ from frappe.utils import add_days, cint, date_diff, getdate, strip_html
 
 from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
 
+from hrms.hr.utils import get_checkin_location_labels
+
 SUPPORTED_FIELD_TYPES = [
 	"Link",
 	"Select",
@@ -240,9 +242,23 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 	shift_names = {day["shift"] for day in checkin_by_date.values() if day.get("shift")}
 	grace_periods = _get_shift_grace_periods(shift_names)
 
+	dates = sorted(set(checkin_by_date) | set(status_by_date) | leave_dates)
+	days = [checkin_by_date.get(date_str, {}) for date_str in dates]
+	in_locations = get_checkin_location_labels(
+		[
+			{"employee": employee, "shift": d.get("shift"), "date": date_str, "latitude": d.get("in_latitude"), "longitude": d.get("in_longitude")}
+			for date_str, d in zip(dates, days)
+		]
+	)
+	out_locations = get_checkin_location_labels(
+		[
+			{"employee": employee, "shift": d.get("shift"), "date": date_str, "latitude": d.get("out_latitude"), "longitude": d.get("out_longitude")}
+			for date_str, d in zip(dates, days)
+		]
+	)
+
 	rows = []
-	for date_str in set(checkin_by_date) | set(status_by_date) | leave_dates:
-		day = checkin_by_date.get(date_str, {})
+	for date_str, day, in_location, out_location in zip(dates, days, in_locations, out_locations):
 		late_entry, early_exit = _late_early_flags(day, grace_periods.get(day.get("shift")))
 		status = status_by_date.get(date_str)
 		if not status and date_str in leave_dates:
@@ -256,6 +272,8 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 				"status": status,
 				"late_entry": late_entry,
 				"early_exit": early_exit,
+				"in_location": in_location,
+				"out_location": out_location,
 			}
 		)
 
@@ -545,7 +563,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 	logs = frappe.get_all(
 		"Employee Checkin",
 		filters={"employee": employee, "time": ["between", [from_date, f"{to_date} 23:59:59"]]},
-		fields=["log_type", "time", "shift", "shift_start", "shift_end"],
+		fields=["log_type", "time", "shift", "shift_start", "shift_end", "latitude", "longitude"],
 		order_by="time asc",
 	)
 
@@ -560,6 +578,10 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 				"shift": None,
 				"shift_start": None,
 				"shift_end": None,
+				"in_latitude": None,
+				"in_longitude": None,
+				"out_latitude": None,
+				"out_longitude": None,
 			},
 		)
 
@@ -581,6 +603,8 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 			row["in_time"] = log.time
 			row["shift"] = log.shift
 			row["shift_start"] = log.shift_start
+			row["in_latitude"] = log.latitude
+			row["in_longitude"] = log.longitude
 
 	days = {}
 	pending_in = None  # an open IN awaiting its OUT
@@ -596,11 +620,16 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 				row = _row(getdate(pending_in.time).isoformat())
 				row["out_time"] = log.time
 				row["shift_end"] = log.shift_end
+				row["out_latitude"] = log.latitude
+				row["out_longitude"] = log.longitude
 				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
 			else:
 				# no open IN, or the span is implausibly long (missed punch):
 				# record the OUT on its own day, unpaired.
-				_row(getdate(log.time).isoformat())["out_time"] = log.time
+				out_row = _row(getdate(log.time).isoformat())
+				out_row["out_time"] = log.time
+				out_row["out_latitude"] = log.latitude
+				out_row["out_longitude"] = log.longitude
 			pending_in = None
 
 	rows = list(days.values())
