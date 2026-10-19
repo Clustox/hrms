@@ -205,7 +205,8 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 	check out just means no Attendance record ever gets made for that day.
 	Those days are merged in from get_employee_checkin_history's grouping so
 	they still show up here, just with `status: None` (no badge) instead of
-	silently vanishing from the timesheet.
+	silently vanishing from the timesheet. A day fully covered by an approved
+	leave and nothing else gets `status: "On Leave"` the same way.
 	"""
 	# In / out / worked-hours (and shift/shift_start/shift_end, used below for the
 	# late-entry/early-exit flags) come from the day's check-ins, paired and capped
@@ -229,26 +230,63 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 		)
 	}
 
+	# Nothing on this site auto-creates an Attendance record from an approved
+	# leave either, so a leave day otherwise has no row at all (no checkin, no
+	# Attendance) and silently vanishes from the timesheet. Falls back to the
+	# Leave Application itself for just those dates; an Attendance record's
+	# own status (set e.g. by the shift auto-attendance job) always wins.
+	leave_dates = _get_approved_leave_dates(employee, from_date, to_date)
+
 	shift_names = {day["shift"] for day in checkin_by_date.values() if day.get("shift")}
 	grace_periods = _get_shift_grace_periods(shift_names)
 
 	rows = []
-	for date_str in set(checkin_by_date) | set(status_by_date):
+	for date_str in set(checkin_by_date) | set(status_by_date) | leave_dates:
 		day = checkin_by_date.get(date_str, {})
 		late_entry, early_exit = _late_early_flags(day, grace_periods.get(day.get("shift")))
+		status = status_by_date.get(date_str)
+		if not status and date_str in leave_dates:
+			status = "On Leave"
 		rows.append(
 			{
 				"attendance_date": date_str,
 				"in_time": day.get("in_time"),
 				"out_time": day.get("out_time"),
 				"working_hours": day.get("working_hours"),
-				"status": status_by_date.get(date_str),
+				"status": status,
 				"late_entry": late_entry,
 				"early_exit": early_exit,
 			}
 		)
 
 	return sorted(rows, key=lambda r: str(r["attendance_date"]), reverse=True)
+
+
+def _get_approved_leave_dates(employee: str, from_date: str, to_date: str) -> set[str]:
+	"""Every date within [from_date, to_date] covered by an approved, submitted
+	Leave Application for this employee (clipped to the requested range)."""
+	leaves = frappe.get_all(
+		"Leave Application",
+		filters={
+			"employee": employee,
+			"status": "Approved",
+			"docstatus": 1,
+			"from_date": ["<=", to_date],
+			"to_date": [">=", from_date],
+		},
+		fields=["from_date", "to_date"],
+	)
+
+	range_start, range_end = getdate(from_date), getdate(to_date)
+	dates = set()
+	for leave in leaves:
+		day = max(getdate(leave.from_date), range_start)
+		leave_end = min(getdate(leave.to_date), range_end)
+		while day <= leave_end:
+			dates.add(day.isoformat())
+			day = add_days(day, 1)
+
+	return dates
 
 
 def _get_shift_grace_periods(shift_names: set[str]) -> dict[str, dict]:
