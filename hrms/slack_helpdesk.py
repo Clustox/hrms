@@ -142,9 +142,20 @@ def slack_interact():
     if team in TEAMS and frappe.db.exists("HD Team", team):
         doc["agent_group"] = team
 
-    tk = frappe.get_doc(doc)
-    tk.insert(ignore_permissions=True)
-    frappe.db.commit()
+    # This endpoint runs as Guest (allow_guest). HD Ticket.after_insert applies
+    # tags via update_tags(), which calls doc.check_permission("write") and does
+    # NOT honour ignore_permissions — so as Guest it raises PermissionError and the
+    # ticket rolls back. Elevate to Administrator for the creation so the Helpdesk
+    # after_insert hooks (tagging/assignment/notifications) have the permissions
+    # they expect, then restore Guest.
+    original_user = frappe.session.user
+    try:
+        frappe.set_user("Administrator")
+        tk = frappe.get_doc(doc)
+        tk.insert(ignore_permissions=True)
+        frappe.db.commit()
+    finally:
+        frappe.set_user(original_user)
 
     # DM the reporter their ticket number
     try:
