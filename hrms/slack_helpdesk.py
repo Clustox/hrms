@@ -166,4 +166,13 @@ def slack_interact():
     except Exception:
         pass
 
-    return ""  # empty 200 closes the modal
+    # Slack's view_submission ack must be an EMPTY 200 body to close the modal.
+    # Frappe otherwise wraps the return as {"message": ""} (application/json),
+    # which Slack treats as an invalid response and shows "trouble connecting"
+    # while leaving the modal open. Emit a raw empty body instead.
+    frappe.local.response["type"] = "binary"
+    frappe.local.response["filename"] = "ok"
+    frappe.local.response["filecontent"] = b""
+    frappe.local.response["content_type"] = "text/plain"
+    frappe.local.response["display_content_as"] = "inline"
+    return
