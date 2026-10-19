@@ -28,6 +28,11 @@ const checkinTimestamp = ref(null)
 const latitude = ref(0)
 const longitude = ref(0)
 const locationStatus = ref("")
+// True while a geolocation fetch is in flight, so the UI can keep the
+// Confirm button disabled until it resolves -- clicking through while it's
+// still 0,0 used to submit with no real coordinates and fail server-side
+// with a much less clear "Latitude and longitude values are required" error.
+const isLocating = ref(false)
 
 let initialized = false
 let checkins = null
@@ -104,6 +109,7 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 function handleLocationSuccess(position) {
 	latitude.value = position.coords.latitude
 	longitude.value = position.coords.longitude
+	isLocating.value = false
 
 	locationStatus.value = [
 		__("Latitude: {0}°", [Number(latitude.value).toFixed(5)]),
@@ -112,6 +118,7 @@ function handleLocationSuccess(position) {
 }
 
 function handleLocationError(error) {
+	isLocating.value = false
 	locationStatus.value = "Unable to retrieve your location"
 	if (error) locationStatus.value += `: ERROR(${error.code}): ${error.message}`
 }
@@ -120,6 +127,7 @@ const fetchLocation = () => {
 	if (!navigator.geolocation) {
 		locationStatus.value = __("Geolocation is not supported by your current browser")
 	} else {
+		isLocating.value = true
 		locationStatus.value = __("Locating...")
 		navigator.geolocation.getCurrentPosition(handleLocationSuccess, handleLocationError)
 	}
@@ -129,9 +137,23 @@ const handleEmployeeCheckin = () => {
 	checkinTimestamp.value = dayjs().format("YYYY-MM-DD HH:mm:ss")
 
 	if (settings.data?.allow_geolocation_tracking) {
+		// Reset before fetching, not after -- otherwise a previous check-in's
+		// coordinates (or a previous failed fetch's 0,0) would make this new
+		// one look "ready" for the instant between opening the modal and
+		// fetchLocation's isLocating flip.
+		latitude.value = 0
+		longitude.value = 0
 		fetchLocation()
 	}
 }
+
+// Whether tracking is required but no real fix has come back yet (still
+// fetching, or the fetch hasn't been kicked off / failed and left 0,0) --
+// used to keep the Confirm button disabled so a click can't submit a
+// checkin with no real coordinates.
+const locationNotReady = computed(
+	() => Boolean(settings.data?.allow_geolocation_tracking) && (isLocating.value || (!latitude.value && !longitude.value))
+)
 
 /**
  * Insert an Employee Checkin. `onSuccess` lets each UI close its own
@@ -197,6 +219,8 @@ export function useCheckin() {
 		latitude,
 		longitude,
 		locationStatus,
+		isLocating,
+		locationNotReady,
 		fetchLocation,
 		handleEmployeeCheckin,
 		submitLog,

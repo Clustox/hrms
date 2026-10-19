@@ -70,8 +70,14 @@
 				</div>
 			</template>
 
-			<Button :loading="checkins.insert.loading" variant="solid" class="w-full py-5 text-sm disabled:bg-gray-700" @click="submitLog(nextAction.action)">
-				{{ __("Confirm {0}", [nextAction.label]) }}
+			<Button
+				:loading="checkins.insert.loading"
+				:disabled="locationNotReady"
+				variant="solid"
+				class="w-full py-5 text-sm disabled:bg-gray-700"
+				@click="submitLog(nextAction.action)"
+			>
+				{{ locationNotReady ? __("Fetching location...") : __("Confirm {0}", [nextAction.label]) }}
 			</Button>
 		</div>
 	</ion-modal>
@@ -101,6 +107,7 @@ const {
 	latitude,
 	longitude,
 	locationStatus,
+	locationNotReady,
 	handleEmployeeCheckin,
 	submitLog: submitCheckinLog,
 } = useCheckin()
