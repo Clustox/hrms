@@ -24,8 +24,9 @@ def check_hours_cap(doc, method=None):
             "Resource Allocation",
             filters={
                 "employee": doc.employee, "project": project, "status": "Active",
-                "start_date": ["<=", month_end], "end_date": [">=", month_start],
+                "start_date": ["<=", month_end],
             },
+            or_filters=[["end_date", ">=", month_start], ["end_date", "is", "not set"]],
             fields=["name", "monthly_capacity_hours"], limit=1,
         )
         if not alloc:
