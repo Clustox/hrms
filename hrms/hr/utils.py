@@ -1026,79 +1026,60 @@ def get_distance_between_coordinates(lat1, long1, lat2, long2):
 
 
 def get_checkin_location_labels(punches: list[dict]) -> list[dict | None]:
-	"""Resolve a display-only location label for a batch of checkin punches,
-	matching the same Shift Location lookup Employee Checkin itself enforces
-	at save time (validate_distance_from_shift_location) -- nothing here
-	blocks a checkin, it only labels ones already saved.
+	"""Resolve a display-only location label for a batch of checkin punches.
 
-	Each item in `punches` needs "employee", "shift", "date" (a date or ISO
-	string) and "latitude"/"longitude" for one punch. Returns one result per
-	input item, same order:
-	  - None if the punch has no coordinates.
-	  - {"verified": True, "location_name": str, "latitude", "longitude"} if
-	    its date falls inside an active Shift Assignment (that employee +
-	    shift) whose Shift Location has an enforced (>0) checkin_radius --
-	    an out-of-radius punch can never have been saved in the first place,
-	    so this is always "office" in practice, not just "close enough".
-	  - {"verified": False, "latitude", "longitude"} otherwise: coordinates
-	    exist but no enforced reference point is configured for that
-	    employee/shift/date, so there's nothing to verify against -- this is
-	    NOT the same as "remote", just "unconfirmed".
+	This NEVER blocks a checkin -- it only labels already-saved ones for the
+	timesheet. Office vs Remote is decided purely by distance to a configured
+	office Shift Location (coordinates + checkin_radius), independent of any
+	Shift Assignment, so a remote punch is labelled "Remote" rather than
+	rejected.
+
+	Each item in `punches` needs "employee", "shift", "date", "latitude",
+	"longitude" and "device_id" for one punch. Returns one result per input
+	item, same order:
+	  - {"verified": True, "location_name": str, "latitude", "longitude"} when a
+	    GPS punch is within an office's radius, OR a biometric punch (device_id
+	    set, no coordinates) -- the device is physically at the office, so it is
+	    labelled "office" at the office's own coordinates.
+	  - {"verified": False, "latitude", "longitude"} when a GPS punch is outside
+	    every office radius ("Remote").
+	  - None when there are neither coordinates nor a device (e.g. a browser
+	    check-in with location permission denied) -- nothing to show.
 	"""
-	# Only punches with BOTH a shift and coordinates can possibly match an
-	# enforced Shift Location (Shift Assignment is keyed by shift_type) --
-	# but a punch missing just `shift` (e.g. inserted directly, like the
-	# mobile portal's check-in does, without going through fetch_shift)
-	# still has real coordinates and must still resolve to "unverified"
-	# below, not be dropped entirely just because `needed` ends up empty.
-	needed = {
-		(p["employee"], p["shift"])
-		for p in punches
-		if p.get("shift") and p.get("latitude") and p.get("longitude")
-	}
+	offices = frappe.get_all(
+		"Shift Location",
+		filters={"latitude": ["is", "set"], "longitude": ["is", "set"], "checkin_radius": [">", 0]},
+		fields=["name", "location_name", "latitude", "longitude", "checkin_radius"],
+	)
+	# A biometric punch has no coordinates, so it can't be matched by distance;
+	# it is simply "at the office". With a single configured office that is
+	# unambiguous. (Map device_id -> a specific office here if offices multiply.)
+	default_office = offices[0] if offices else None
 
-	by_employee_shift = {}
-	locations = {}
-	if needed:
-		assignments = frappe.get_all(
-			"Shift Assignment",
-			filters={
-				"employee": ["in", list({e for e, _s in needed})],
-				"shift_type": ["in", list({s for _e, s in needed})],
-				"docstatus": 1,
-				"status": "Active",
-				"shift_location": ["is", "set"],
-			},
-			fields=["employee", "shift_type", "start_date", "end_date", "shift_location"],
-		)
-		for a in assignments:
-			by_employee_shift.setdefault((a.employee, a.shift_type), []).append(a)
-
-		location_names = {a.shift_location for a in assignments}
-		if location_names:
-			locations = {
-				loc.name: loc
-				for loc in frappe.get_all(
-					"Shift Location",
-					filters={"name": ["in", list(location_names)]},
-					fields=["name", "location_name", "checkin_radius"],
-				)
-			}
+	def _nearest(lat, lng):
+		best, best_dist = None, None
+		for o in offices:
+			dist = get_distance_between_coordinates(lat, lng, o.latitude, o.longitude)
+			if best_dist is None or dist < best_dist:
+				best, best_dist = o, dist
+		return best, best_dist
 
 	def _resolve(punch):
 		lat, lng = punch.get("latitude"), punch.get("longitude")
-		if not (lat and lng):
-			return None
-		date = getdate(punch.get("date"))
-		for a in by_employee_shift.get((punch["employee"], punch.get("shift")), []):
-			if a.start_date and getdate(a.start_date) > date:
-				continue
-			if a.end_date and getdate(a.end_date) < date:
-				continue
-			location = locations.get(a.shift_location)
-			if location and (location.checkin_radius or 0) > 0:
-				return {"verified": True, "location_name": location.location_name, "latitude": lat, "longitude": lng}
-		return {"verified": False, "latitude": lat, "longitude": lng}
+		if lat and lng:
+			office, dist = _nearest(lat, lng)
+			if office and dist is not None and dist <= (office.checkin_radius or 0):
+				return {"verified": True, "location_name": office.location_name, "latitude": lat, "longitude": lng}
+			return {"verified": False, "latitude": lat, "longitude": lng}
+		# No coordinates: a device (biometric) punch is physically at the office.
+		if punch.get("device_id") and default_office:
+			return {
+				"verified": True,
+				"location_name": default_office.location_name,
+				"latitude": default_office.latitude,
+				"longitude": default_office.longitude,
+			}
+		return None
 
 	return [_resolve(p) for p in punches]
 

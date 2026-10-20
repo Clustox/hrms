@@ -246,13 +246,13 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 	days = [checkin_by_date.get(date_str, {}) for date_str in dates]
 	in_locations = get_checkin_location_labels(
 		[
-			{"employee": employee, "shift": d.get("shift"), "date": date_str, "latitude": d.get("in_latitude"), "longitude": d.get("in_longitude")}
+			{"employee": employee, "shift": d.get("shift"), "date": date_str, "latitude": d.get("in_latitude"), "longitude": d.get("in_longitude"), "device_id": d.get("in_device_id")}
 			for date_str, d in zip(dates, days)
 		]
 	)
 	out_locations = get_checkin_location_labels(
 		[
-			{"employee": employee, "shift": d.get("shift"), "date": date_str, "latitude": d.get("out_latitude"), "longitude": d.get("out_longitude")}
+			{"employee": employee, "shift": d.get("shift"), "date": date_str, "latitude": d.get("out_latitude"), "longitude": d.get("out_longitude"), "device_id": d.get("out_device_id")}
 			for date_str, d in zip(dates, days)
 		]
 	)
@@ -563,7 +563,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 	logs = frappe.get_all(
 		"Employee Checkin",
 		filters={"employee": employee, "time": ["between", [from_date, f"{to_date} 23:59:59"]]},
-		fields=["log_type", "time", "shift", "shift_start", "shift_end", "latitude", "longitude"],
+		fields=["log_type", "time", "shift", "shift_start", "shift_end", "latitude", "longitude", "device_id"],
 		order_by="time asc",
 	)
 
@@ -580,8 +580,10 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 				"shift_end": None,
 				"in_latitude": None,
 				"in_longitude": None,
+				"in_device_id": None,
 				"out_latitude": None,
 				"out_longitude": None,
+				"out_device_id": None,
 			},
 		)
 
@@ -605,6 +607,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 			row["shift_start"] = log.shift_start
 			row["in_latitude"] = log.latitude
 			row["in_longitude"] = log.longitude
+			row["in_device_id"] = log.device_id
 
 	days = {}
 	pending_in = None  # an open IN awaiting its OUT
@@ -622,6 +625,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 				row["shift_end"] = log.shift_end
 				row["out_latitude"] = log.latitude
 				row["out_longitude"] = log.longitude
+				row["out_device_id"] = log.device_id
 				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
 			else:
 				# no open IN, or the span is implausibly long (missed punch):
@@ -630,6 +634,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 				out_row["out_time"] = log.time
 				out_row["out_latitude"] = log.latitude
 				out_row["out_longitude"] = log.longitude
+				out_row["out_device_id"] = log.device_id
 			pending_in = None
 
 	rows = list(days.values())
