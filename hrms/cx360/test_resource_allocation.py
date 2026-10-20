@@ -1,5 +1,6 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils import flt
 
 
 class TestResourceAllocationParity(FrappeTestCase):
@@ -71,3 +72,63 @@ class TestResourceAllocationParity(FrappeTestCase):
     def test_end_before_start_rejected(self):
         with self.assertRaises(frappe.ValidationError):
             self._alloc(start_date="2099-03-01", end_date="2099-01-01").insert()
+
+
+class TestResourceAllocationRates(FrappeTestCase):
+    """Phase 1 — allocation rates auto-fill from Activity Cost (cost) and the
+    project's Sales Order (billing), only when left blank."""
+
+    def setUp(self):
+        self.emp = frappe.get_all("Employee", filters={"status": "Active"}, limit=1)[0].name
+        self.activity = frappe.db.get_value("Activity Type", {}, "name")
+        if not self.activity:
+            self.activity = frappe.get_doc(
+                {"doctype": "Activity Type", "activity_type": "CX360 Test Activity"}).insert().name
+        ac = frappe.db.get_value(
+            "Activity Cost", {"employee": self.emp, "activity_type": self.activity})
+        if ac:
+            frappe.db.set_value("Activity Cost", ac, {"costing_rate": 40, "billing_rate": 100})
+        else:
+            frappe.get_doc({
+                "doctype": "Activity Cost", "employee": self.emp, "activity_type": self.activity,
+                "costing_rate": 40, "billing_rate": 100}).insert()
+        self.project = frappe.db.get_value("Project", {"project_name": "RA Rate Test"}, "name")
+        if not self.project:
+            self.project = frappe.get_doc(
+                {"doctype": "Project", "project_name": "RA Rate Test"}).insert().name
+        frappe.db.set_value("Project", self.project, "custom_sales_order", None)
+        frappe.db.delete("Resource Allocation", {"project": self.project})
+
+    def _ra(self, **kw):
+        doc = {
+            "doctype": "Resource Allocation", "employee": self.emp, "project": self.project,
+            "allocation_percent": 50, "start_date": "2099-01-01", "end_date": "2099-03-31",
+            "status": "Active", "activity_type": self.activity,
+        }
+        doc.update(kw)
+        return frappe.get_doc(doc)
+
+    def test_cost_rate_from_activity_cost(self):
+        ra = self._ra().insert()
+        self.assertEqual(flt(ra.project_cost_rate), 40.0)
+
+    def test_billing_rate_falls_back_to_activity_cost_without_so(self):
+        ra = self._ra().insert()  # project has no Sales Order
+        self.assertEqual(flt(ra.project_billing_rate), 100.0)
+
+    def test_billing_rate_prefers_sales_order(self):
+        so = frappe.get_all("Sales Order", limit=1)
+        if not so:
+            self.skipTest("no Sales Order on this bench")
+        item = frappe.get_all("Sales Order Item", filters={"parent": so[0].name},
+                              fields=["rate"], order_by="idx", limit=1)
+        if not item:
+            self.skipTest("Sales Order has no items")
+        frappe.db.set_value("Project", self.project, "custom_sales_order", so[0].name)
+        ra = self._ra().insert()
+        self.assertEqual(flt(ra.project_billing_rate), flt(item[0].rate))
+
+    def test_manual_rate_not_overwritten(self):
+        ra = self._ra(project_cost_rate=7, project_billing_rate=9).insert()
+        self.assertEqual(flt(ra.project_cost_rate), 7.0)
+        self.assertEqual(flt(ra.project_billing_rate), 9.0)

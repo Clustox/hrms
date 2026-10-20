@@ -5,7 +5,7 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": ["employee", "employee_name", "project", "status", "allocation_percent", "cb1", "start_date", "end_date", "project_joining_date", "expected_release_date", "sec_class", "resource_role", "billing_model", "billable", "cb2", "cost_category", "bench_reason", "training_reason", "sec_rate", "project_billing_rate", "project_cost_rate", "monthly_capacity_hours", "currency"],
+ "field_order": ["employee", "employee_name", "project", "status", "allocation_percent", "cb1", "start_date", "end_date", "project_joining_date", "expected_release_date", "sec_class", "resource_role", "billing_model", "billable", "cb2", "cost_category", "bench_reason", "training_reason", "sec_rate", "activity_type", "project_billing_rate", "project_cost_rate", "cb3", "monthly_capacity_hours", "currency"],
  "fields": [
   {"fieldname": "employee", "fieldtype": "Link", "label": "Employee", "options": "Employee", "reqd": 1, "in_list_view": 1},
   {"fieldname": "employee_name", "fieldtype": "Data", "label": "Name", "fetch_from": "employee.employee_name", "read_only": 1},
@@ -25,9 +25,11 @@
   {"fieldname": "cost_category", "fieldtype": "Select", "label": "Cost Category", "options": "\nCost of Services\nBench Cost\nLeadership Cost\nTraining & Development Cost\nPre-Sales\nSupport\nInvest"},
   {"fieldname": "bench_reason", "fieldtype": "Select", "label": "Bench Reason", "options": "\nClient Project Delay\nSkill Upgrade\nProject Transition\nResource Allocation\nInternal Project\nMarket Conditions\nPersonal Development\nLeave of Absence\nProject Completion\nBudget Constraints", "depends_on": "eval:doc.cost_category=='Bench Cost'"},
   {"fieldname": "training_reason", "fieldtype": "Select", "label": "Training Reason", "options": "\nSkill Enhancement\nNew Technology Adoption\nCertification Pursuit\nRole-Specific Training\nLeadership Development\nCompliance Training\nCross-Functional Training\nSoft Skills Development\nProcess Improvement\nProject-Specific Training", "depends_on": "eval:doc.cost_category=='Training & Development Cost'"},
-  {"fieldname": "sec_rate", "fieldtype": "Section Break", "label": "Rates"},
+  {"fieldname": "sec_rate", "fieldtype": "Section Break", "label": "Rates", "description": "Billing and cost rates auto-fill from the Sales Order and Activity Cost when left blank; override by typing a value."},
+  {"fieldname": "activity_type", "fieldtype": "Link", "label": "Activity Type", "options": "Activity Type", "description": "Used to look up this employee's rate in Activity Cost."},
   {"fieldname": "project_billing_rate", "fieldtype": "Currency", "label": "Project Billing Rate (per hr)", "options": "currency"},
   {"fieldname": "project_cost_rate", "fieldtype": "Currency", "label": "Project Cost Rate (per hr)", "options": "currency"},
+  {"fieldname": "cb3", "fieldtype": "Column Break"},
   {"fieldname": "monthly_capacity_hours", "fieldtype": "Float", "label": "Monthly Capacity (hrs)", "read_only": 1},
   {"fieldname": "currency", "fieldtype": "Data", "label": "Currency", "default": "USD", "read_only": 1, "hidden": 1}
  ],
