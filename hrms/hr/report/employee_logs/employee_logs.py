@@ -85,7 +85,15 @@ def get_data(filters):
 			substring_index(
 				group_concat(case when checkin.log_type = 'OUT' then checkin.longitude end order by checkin.time desc),
 				',', 1
-			) as out_longitude
+			) as out_longitude,
+			substring_index(
+				group_concat(case when checkin.log_type = 'IN' then checkin.device_id end order by checkin.time asc),
+				',', 1
+			) as in_device_id,
+			substring_index(
+				group_concat(case when checkin.log_type = 'OUT' then checkin.device_id end order by checkin.time desc),
+				',', 1
+			) as out_device_id
 		from `tabEmployee Checkin` checkin
 		inner join `tabEmployee` employee on employee.name = checkin.employee
 		where {conditions}
@@ -109,6 +117,7 @@ def get_data(filters):
 				"date": row.date,
 				"latitude": flt(row.in_latitude) if row.in_latitude else None,
 				"longitude": flt(row.in_longitude) if row.in_longitude else None,
+				"device_id": row.in_device_id,
 			}
 			for row in rows
 		]
@@ -121,6 +130,7 @@ def get_data(filters):
 				"date": row.date,
 				"latitude": flt(row.out_latitude) if row.out_latitude else None,
 				"longitude": flt(row.out_longitude) if row.out_longitude else None,
+				"device_id": row.out_device_id,
 			}
 			for row in rows
 		]
