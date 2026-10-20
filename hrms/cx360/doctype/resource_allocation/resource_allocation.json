@@ -5,7 +5,7 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": ["employee", "employee_name", "project", "status", "allocation_percent", "cb1", "start_date", "end_date", "project_joining_date", "expected_release_date", "sec_class", "resource_role", "billing_model", "billable", "cb2", "cost_category", "bench_reason", "training_reason", "sec_rate", "activity_type", "project_billing_rate", "project_cost_rate", "cb3", "monthly_capacity_hours", "currency"],
+ "field_order": ["employee", "employee_name", "project", "status", "allocation_percent", "cb1", "start_date", "end_date", "sec_class", "resource_role", "billing_model", "billable", "cb2", "cost_category", "bench_reason", "training_reason", "sec_rate", "activity_type", "project_billing_rate", "project_cost_rate", "cb3", "monthly_capacity_hours", "currency"],
  "fields": [
   {"fieldname": "employee", "fieldtype": "Link", "label": "Employee", "options": "Employee", "reqd": 1, "in_list_view": 1},
   {"fieldname": "employee_name", "fieldtype": "Data", "label": "Name", "fetch_from": "employee.employee_name", "read_only": 1},
@@ -15,8 +15,6 @@
   {"fieldname": "cb1", "fieldtype": "Column Break"},
   {"fieldname": "start_date", "fieldtype": "Date", "label": "Start Date", "reqd": 1},
   {"fieldname": "end_date", "fieldtype": "Date", "label": "End Date", "description": "Leave blank for an open-ended allocation."},
-  {"fieldname": "project_joining_date", "fieldtype": "Date", "label": "Project Joining Date"},
-  {"fieldname": "expected_release_date", "fieldtype": "Date", "label": "Expected Release Date"},
   {"fieldname": "sec_class", "fieldtype": "Section Break", "label": "Classification"},
   {"fieldname": "resource_role", "fieldtype": "Select", "label": "Resource Role", "options": "\nProject Manager\nSales Representative\nTeam Lead\nBusiness Analyst\nSenior Developer\nJunior Developer\nSenior QA\nJunior QA\nDesigner", "in_list_view": 1},
   {"fieldname": "billing_model", "fieldtype": "Data", "label": "Billing Model", "fetch_from": "project.custom_billing_model", "read_only": 1},

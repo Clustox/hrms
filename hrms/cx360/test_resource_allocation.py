@@ -35,19 +35,16 @@ class TestResourceAllocationParity(FrappeTestCase):
         ra = self._alloc(
             resource_role="Senior Developer", cost_category="Cost of Services",
             billable=1, bench_reason="Skill Upgrade", training_reason="Certification Pursuit",
-            expected_release_date="2099-04-15", project_joining_date="2099-01-05",
         ).insert()
         got = frappe.db.get_value(
             "Resource Allocation", ra.name,
             ["resource_role", "cost_category", "billable", "bench_reason",
-             "training_reason", "expected_release_date", "project_joining_date"], as_dict=True)
+             "training_reason"], as_dict=True)
         self.assertEqual(got.resource_role, "Senior Developer")
         self.assertEqual(got.cost_category, "Cost of Services")
         self.assertEqual(got.billable, 1)
         self.assertEqual(got.bench_reason, "Skill Upgrade")
         self.assertEqual(got.training_reason, "Certification Pursuit")
-        self.assertEqual(str(got.expected_release_date), "2099-04-15")
-        self.assertEqual(str(got.project_joining_date), "2099-01-05")
 
     def test_billing_model_fetched_from_project(self):
         ra = self._alloc().insert()
