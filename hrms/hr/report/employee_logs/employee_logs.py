@@ -165,7 +165,14 @@ def get_data(filters):
 			row.check_out_status = _("Present")
 
 		if row.check_in and row.check_out:
-			hours = flt((row.check_out - row.check_in).total_seconds() / 3600, precision)
+			hours = (row.check_out - row.check_in).total_seconds() / 3600
+			# Overnight shift: the day's latest OUT (e.g. 2am, closing a shift
+			# that began the previous evening) can precede the day's earliest IN,
+			# giving a negative span -- roll it forward a day so night shifts read
+			# as positive hours instead of ~ -15h.
+			if hours < 0:
+				hours += 24
+			hours = flt(hours, precision)
 			h, m = int(hours), round((hours % 1) * 60)
 			row.worked_hours = _("{0}h {1}m").format(h, str(m).zfill(2))
 		else:
