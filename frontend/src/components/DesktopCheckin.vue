@@ -108,11 +108,11 @@
 
 					<button
 						type="button"
-						:disabled="checkins.insert.loading"
+						:disabled="checkins.insert.loading || locationNotReady"
 						class="w-full rounded-full bg-air-btn px-5 py-2.5 text-[14px] font-semibold text-air-btn-ink transition ease-air hover:bg-air-blue hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
 						@click="confirm"
 					>
-						{{ __("Confirm {0}", [nextAction.label]) }}
+						{{ locationNotReady ? __("Fetching location...") : __("Confirm {0}", [nextAction.label]) }}
 					</button>
 				</div>
 			</template>
@@ -140,6 +140,7 @@ const {
 	latitude,
 	longitude,
 	locationStatus,
+	locationNotReady,
 	handleEmployeeCheckin,
 	submitLog,
 } = useCheckin()

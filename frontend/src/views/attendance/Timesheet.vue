@@ -69,6 +69,8 @@
 							:status="day.status"
 							:lateEntry="day.late_entry"
 							:earlyExit="day.early_exit"
+							:inLocation="day.in_location"
+							:outLocation="day.out_location"
 						/>
 					</div>
 
@@ -163,6 +165,8 @@
 							:status="day.status"
 							:lateEntry="day.late_entry"
 							:earlyExit="day.early_exit"
+							:inLocation="day.in_location"
+							:outLocation="day.out_location"
 						/>
 					</div>
 
@@ -297,6 +301,7 @@
 												>
 													{{ __("Late") }}
 												</span>
+												<CheckinLocationPin :location="day.in_location" :label="__('View check-in location')" />
 											</div>
 											<span
 												v-else
@@ -315,6 +320,7 @@
 												>
 													{{ __("Early") }}
 												</span>
+												<CheckinLocationPin :location="day.out_location" :label="__('View check-out location')" />
 											</div>
 											<span v-else class="text-gray-400">—</span>
 										</td>
@@ -427,6 +433,7 @@ import { Button, FeatherIcon, LoadingIndicator, createResource } from "frappe-ui
 
 import EmptyState from "@/components/EmptyState.vue"
 import DayAttendanceCard from "@/components/DayAttendanceCard.vue"
+import CheckinLocationPin from "@/components/CheckinLocationPin.vue"
 import DesktopShell from "@/components/DesktopShell.vue"
 import ListFiltersActionSheet from "@/components/ListFiltersActionSheet.vue"
 import CustomIonModal from "@/components/CustomIonModal.vue"

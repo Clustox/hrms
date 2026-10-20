@@ -1025,6 +1025,84 @@ def get_distance_between_coordinates(lat1, long1, lat2, long2):
 	return 2 * r * asin(sqrt(a)) * 1000
 
 
+def get_checkin_location_labels(punches: list[dict]) -> list[dict | None]:
+	"""Resolve a display-only location label for a batch of checkin punches,
+	matching the same Shift Location lookup Employee Checkin itself enforces
+	at save time (validate_distance_from_shift_location) -- nothing here
+	blocks a checkin, it only labels ones already saved.
+
+	Each item in `punches` needs "employee", "shift", "date" (a date or ISO
+	string) and "latitude"/"longitude" for one punch. Returns one result per
+	input item, same order:
+	  - None if the punch has no coordinates.
+	  - {"verified": True, "location_name": str, "latitude", "longitude"} if
+	    its date falls inside an active Shift Assignment (that employee +
+	    shift) whose Shift Location has an enforced (>0) checkin_radius --
+	    an out-of-radius punch can never have been saved in the first place,
+	    so this is always "office" in practice, not just "close enough".
+	  - {"verified": False, "latitude", "longitude"} otherwise: coordinates
+	    exist but no enforced reference point is configured for that
+	    employee/shift/date, so there's nothing to verify against -- this is
+	    NOT the same as "remote", just "unconfirmed".
+	"""
+	# Only punches with BOTH a shift and coordinates can possibly match an
+	# enforced Shift Location (Shift Assignment is keyed by shift_type) --
+	# but a punch missing just `shift` (e.g. inserted directly, like the
+	# mobile portal's check-in does, without going through fetch_shift)
+	# still has real coordinates and must still resolve to "unverified"
+	# below, not be dropped entirely just because `needed` ends up empty.
+	needed = {
+		(p["employee"], p["shift"])
+		for p in punches
+		if p.get("shift") and p.get("latitude") and p.get("longitude")
+	}
+
+	by_employee_shift = {}
+	locations = {}
+	if needed:
+		assignments = frappe.get_all(
+			"Shift Assignment",
+			filters={
+				"employee": ["in", list({e for e, _s in needed})],
+				"shift_type": ["in", list({s for _e, s in needed})],
+				"docstatus": 1,
+				"status": "Active",
+				"shift_location": ["is", "set"],
+			},
+			fields=["employee", "shift_type", "start_date", "end_date", "shift_location"],
+		)
+		for a in assignments:
+			by_employee_shift.setdefault((a.employee, a.shift_type), []).append(a)
+
+		location_names = {a.shift_location for a in assignments}
+		if location_names:
+			locations = {
+				loc.name: loc
+				for loc in frappe.get_all(
+					"Shift Location",
+					filters={"name": ["in", list(location_names)]},
+					fields=["name", "location_name", "checkin_radius"],
+				)
+			}
+
+	def _resolve(punch):
+		lat, lng = punch.get("latitude"), punch.get("longitude")
+		if not (lat and lng):
+			return None
+		date = getdate(punch.get("date"))
+		for a in by_employee_shift.get((punch["employee"], punch.get("shift")), []):
+			if a.start_date and getdate(a.start_date) > date:
+				continue
+			if a.end_date and getdate(a.end_date) < date:
+				continue
+			location = locations.get(a.shift_location)
+			if location and (location.checkin_radius or 0) > 0:
+				return {"verified": True, "location_name": location.location_name, "latitude": lat, "longitude": lng}
+		return {"verified": False, "latitude": lat, "longitude": lng}
+
+	return [_resolve(p) for p in punches]
+
+
 def check_app_permission():
 	"""Check if user has permission to access the app (for showing the app on app screen)"""
 	if frappe.session.user == "Administrator":
