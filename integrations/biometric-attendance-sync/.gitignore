@@ -1,0 +1,10 @@
+# Runtime / secrets — never commit (contains device IPs/ports, comm keys,
+# Frappe API key+secret, and live sync state).
+config.json
+sync_state.json
+sync_state.json.tmp
+sync.log
+backup-*/
+venv/
+__pycache__/
+*.pyc

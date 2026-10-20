@@ -1,0 +1,21 @@
+{
+  "frappe_url": "http://localhost:8000",
+  "api_key": "FRAPPE_API_KEY",
+  "api_secret": "FRAPPE_API_SECRET",
+  "import_start": "2026-01-01T00:00:00",
+  "timeout": 30,
+  "devices": [
+    {
+      "device_ip": "192.0.2.10",
+      "device_port": 4370,
+      "comm_key": 0,
+      "device_label": "uface800_office1"
+    },
+    {
+      "device_ip": "192.0.2.11",
+      "device_port": 4370,
+      "comm_key": 0,
+      "device_label": "uface800_office2"
+    }
+  ]
+}
