@@ -129,3 +129,10 @@ class TestResourceAllocationRates(FrappeTestCase):
         ra = self._ra(project_cost_rate=7, project_billing_rate=9).insert()
         self.assertEqual(flt(ra.project_cost_rate), 7.0)
         self.assertEqual(flt(ra.project_billing_rate), 9.0)
+
+    def test_get_suggested_rates_endpoint(self):
+        # the whitelisted method the form calls for live prefill
+        from hrms.cx360.doctype.resource_allocation.resource_allocation import get_suggested_rates
+        res = get_suggested_rates(self.emp, self.project, self.activity)
+        self.assertEqual(flt(res["cost_rate"]), 40.0)
+        self.assertEqual(flt(res["billing_rate"]), 100.0)  # no SO -> Activity Cost billing

@@ -16,32 +16,13 @@ class ResourceAllocation(Document):
         self._check_total_allocation()
 
     def _populate_rates(self):
-        """Fill blank rates from the authoritative sources: cost from Activity Cost,
-        billing from the project's Sales Order (falling back to Activity Cost). A rate
-        typed by hand is left untouched."""
+        """Fill blank rates from the authoritative sources (see get_suggested_rates).
+        A rate typed by hand is left untouched."""
+        rates = get_suggested_rates(self.employee, self.project, self.activity_type)
         if not flt(self.project_cost_rate):
-            self.project_cost_rate = self._activity_cost_rate("costing_rate")
+            self.project_cost_rate = rates["cost_rate"]
         if not flt(self.project_billing_rate):
-            self.project_billing_rate = self._sales_order_rate() or self._activity_cost_rate("billing_rate")
-
-    def _activity_cost_rate(self, field):
-        if not (self.employee and self.activity_type):
-            return 0
-        return flt(frappe.db.get_value(
-            "Activity Cost",
-            {"employee": self.employee, "activity_type": self.activity_type},
-            field,
-        ))
-
-    def _sales_order_rate(self):
-        so = frappe.db.get_value("Project", self.project, "custom_sales_order")
-        if not so:
-            return 0
-        item = frappe.get_all(
-            "Sales Order Item", filters={"parent": so},
-            fields=["rate"], order_by="idx", limit=1,
-        )
-        return flt(item[0].rate) if item else 0
+            self.project_billing_rate = rates["billing_rate"]
 
     def _check_dates(self):
         if self.end_date and getdate(self.end_date) < getdate(self.start_date):
@@ -72,3 +53,34 @@ class ResourceAllocation(Document):
                     self.employee_name or self.employee, total
                 )
             )
+
+
+@frappe.whitelist()
+def get_suggested_rates(
+    employee: str | None = None, project: str | None = None, activity_type: str | None = None
+) -> dict:
+    """Suggested allocation rates: cost from the employee's Activity Cost, billing from
+    the project's Sales Order (falling back to Activity Cost). Shared by the form (live
+    prefill) and the controller (fill-if-blank on save)."""
+    return {
+        "cost_rate": _activity_cost_rate(employee, activity_type, "costing_rate"),
+        "billing_rate": _sales_order_rate(project) or _activity_cost_rate(employee, activity_type, "billing_rate"),
+    }
+
+
+def _activity_cost_rate(employee, activity_type, field):
+    if not (employee and activity_type):
+        return 0
+    return flt(frappe.db.get_value(
+        "Activity Cost", {"employee": employee, "activity_type": activity_type}, field))
+
+
+def _sales_order_rate(project):
+    so = frappe.db.get_value("Project", project, "custom_sales_order") if project else None
+    if not so:
+        return 0
+    item = frappe.get_all(
+        "Sales Order Item", filters={"parent": so},
+        fields=["rate"], order_by="idx", limit=1,
+    )
+    return flt(item[0].rate) if item else 0
