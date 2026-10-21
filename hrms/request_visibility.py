@@ -57,13 +57,16 @@ def expense_claim_query(user=None):
 
 
 def has_permission(doc, ptype=None, user=None, **kwargs):
-	# Scope read visibility only; leave create/write/submit to the role perms
-	# (an employee still raises their own requests, an approver still acts).
+	# Scope read visibility only; allow create/write/submit (the role perms
+	# govern those -- an employee still raises their own requests, e.g. a WFH
+	# Attendance Request, and an approver still acts).
+	#
+	# A has_permission hook must return True/False, never None: Frappe treats a
+	# None return (when a doc is passed) as a DENY, which would block even an
+	# employee reading or creating their own record.
 	if ptype not in (None, "read", "select"):
-		return None
+		return True
 	emps = _visible_employees(user or frappe.session.user)
 	if emps is None:
-		return None  # HR/admin -- defer to normal perms (allowed)
-	if getattr(doc, "employee", None) in emps:
-		return None  # in scope -- defer to normal perms (allowed)
-	return False  # out of scope -- deny read
+		return True  # HR/admin -- see everything
+	return getattr(doc, "employee", None) in emps  # True in-scope, False out-of-scope
