@@ -62,16 +62,46 @@ def _slack_post(method, payload):
     )
 
 
-def _slack_email(user_id):
+def _slack_profile(user_id):
+    """{"email", "name"} for a Slack user from users.info (best-effort)."""
     try:
-        r = requests.get(
+        u = requests.get(
             f"{SLACK_API}/users.info",
             headers={"Authorization": f"Bearer {_conf('slack_bot_token')}"},
             params={"user": user_id}, timeout=8,
-        ).json()
-        return (r.get("user", {}).get("profile", {}) or {}).get("email")
+        ).json().get("user", {}) or {}
+        prof = u.get("profile", {}) or {}
+        return {
+            "email": (prof.get("email") or "").strip() or None,
+            "name": (u.get("real_name") or prof.get("real_name") or prof.get("display_name") or "").strip() or None,
+        }
     except Exception:
-        return None
+        return {"email": None, "name": None}
+
+
+def _employee_email(email=None, name=None):
+    """Canonical Clustox email for a Slack user, resolved against the Employee
+    directory so a ticket is raised by the real person. Tries the Slack email
+    against company/login/personal email, then a UNIQUE exact name match.
+    Returns None if neither resolves."""
+    if email:
+        emp = frappe.db.sql(
+            """select company_email, user_id, personal_email from `tabEmployee`
+               where status='Active' and %(e)s in (lower(company_email), lower(user_id), lower(personal_email))
+               limit 1""",
+            {"e": email.lower()}, as_dict=True,
+        )
+        if emp:
+            return emp[0].company_email or emp[0].user_id or emp[0].personal_email
+        return email  # a real Slack email we just don't have on file -- still real
+    if name:
+        matches = frappe.get_all(
+            "Employee", filters={"status": "Active", "employee_name": name},
+            fields=["company_email", "user_id", "personal_email"], limit=2,
+        )
+        if len(matches) == 1:
+            return matches[0].company_email or matches[0].user_id or matches[0].personal_email
+    return None
 
 
 def _select(options):
@@ -130,7 +160,9 @@ def slack_interact():
     priority = prio_opt["value"] if prio_opt else "Medium"
 
     slack_uid = payload["user"]["id"]
-    email = _slack_email(slack_uid) or f"slack-{slack_uid}@clustox.com"
+    prof = _slack_profile(slack_uid)
+    raiser_name = prof.get("name")
+    email = _employee_email(prof.get("email"), raiser_name) or prof.get("email") or f"slack-{slack_uid}@clustox.com"
 
     doc = {
         "doctype": "HD Ticket",
@@ -153,6 +185,17 @@ def slack_interact():
         frappe.set_user("Administrator")
         tk = frappe.get_doc(doc)
         tk.insert(ignore_permissions=True)
+        # The insert ran as Administrator (needed for the after_insert tagging
+        # permission), so Helpdesk attributes the ticket's description
+        # Communication to Administrator (admin@example.com). Re-attribute it to
+        # the real raiser so the thread shows their email, not Administrator's.
+        frappe.db.sql(
+            """update `tabCommunication` set sender=%(e)s, sender_full_name=%(n)s
+               where reference_doctype='HD Ticket' and reference_name=%(t)s
+                 and sender=%(a)s""",
+            {"e": email, "n": raiser_name or email, "t": tk.name,
+             "a": frappe.db.get_value("User", "Administrator", "email")},
+        )
         frappe.db.commit()
     finally:
         frappe.set_user(original_user)
