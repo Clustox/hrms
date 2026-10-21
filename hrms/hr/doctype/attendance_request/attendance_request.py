@@ -456,6 +456,12 @@ def has_approved_wfh_today(employee: str | None = None) -> bool:
 	if not employee:
 		return False
 
+	# Per-employee exemption: fully-remote / field staff can be allowed to use
+	# the portal Check-in/out without raising a WFH request each day, via the
+	# "Allow Portal Check-in (no WFH request)" flag on their Employee record.
+	if frappe.db.get_value("Employee", employee, "custom_allow_portal_checkin"):
+		return True
+
 	today = nowdate()
 	return bool(
 		frappe.db.exists(
