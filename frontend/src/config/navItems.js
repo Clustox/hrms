@@ -1,6 +1,7 @@
 import HomeIcon from "@/components/icons/HomeIcon.vue"
 import AttendanceIcon from "@/components/icons/AttendanceIcon.vue"
 import LeaveIcon from "@/components/icons/LeaveIcon.vue"
+import WfhIcon from "@/components/icons/WfhIcon.vue"
 import ExpenseIcon from "@/components/icons/ExpenseIcon.vue"
 import SalaryIcon from "@/components/icons/SalaryIcon.vue"
 
@@ -29,6 +30,11 @@ export function getNavItems(__) {
 			icon: LeaveIcon,
 			title: __("Leaves"),
 			route: "/dashboard/leaves",
+		},
+		{
+			icon: WfhIcon,
+			title: __("WFH Requests"),
+			route: "/wfh-requests",
 		},
 		{
 			icon: ExpenseIcon,

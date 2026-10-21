@@ -46,11 +46,21 @@ const props = defineProps({
 
 const status = computed(() => {
 	if (props.workflowStateField) return props.doc[props.workflowStateField]
+	// A Work From Home / On Duty request carries its own Pending/Approved/
+	// Rejected/Cancelled status; a punch request (fixing a missed check-in/
+	// out) doesn't really use that field -- it still defaults to "Pending"
+	// at the schema level, so checking `reason` too (not just truthiness)
+	// keeps it on the plain Draft/Submitted reading it actually means here.
+	if (props.doc.status && props.doc.reason !== "Missed Punch") return props.doc.status
 	return props.doc.docstatus ? "Submitted" : "Draft"
 })
 
 const colorMap = {
 	Draft: "gray",
 	Submitted: "blue",
+	Pending: "orange",
+	Approved: "green",
+	Rejected: "red",
+	Cancelled: "gray",
 }
 </script>

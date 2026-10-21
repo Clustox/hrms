@@ -36,9 +36,15 @@ class AttendanceRequest(Document):
 		half_day: DF.Check
 		half_day_date: DF.Date | None
 		include_holidays: DF.Check
+		manager: DF.Link | None
+		manager_name: DF.Data | None
 		reason: DF.Literal["Work From Home", "On Duty"]
 		shift: DF.Link | None
+		status: DF.Literal["", "Pending", "Approved", "Rejected", "Cancelled"] | None
+		team_lead: DF.Link | None
+		team_lead_name: DF.Data | None
 		to_date: DF.Date
+		total_days: DF.Float
 	# end: auto-generated types
 
 	def validate(self):
@@ -48,11 +54,46 @@ class AttendanceRequest(Document):
 		self.validate_half_day()
 		self.validate_request_overlap()
 		self.validate_no_attendance_to_create()
+		if not self.status:
+			self.status = "Pending"
+		self.validate_status_change()
+		self.set_total_days()
+		self.set_approvers()
+
+	def set_total_days(self):
+		days = date_diff(self.to_date, self.from_date) + 1
+		self.total_days = days - 0.5 if self.half_day else days
+
+	def set_approvers(self):
+		self.team_lead, self.manager = _resolve_team_lead_and_manager(self.employee)
+		# Set explicitly rather than relying on fetch_from to notice the
+		# change -- team_lead/manager are being set programmatically in this
+		# same validate() cycle, not edited by a user, so the usual
+		# changed-value trigger for an automatic fetch isn't guaranteed here.
+		self.team_lead_name = (
+			frappe.db.get_value("Employee", self.team_lead, "employee_name") if self.team_lead else None
+		)
+		self.manager_name = (
+			frappe.db.get_value("Employee", self.manager, "employee_name") if self.manager else None
+		)
 
 	def validate_half_day(self):
 		if self.half_day:
 			if not getdate(self.from_date) <= getdate(self.half_day_date) <= getdate(self.to_date):
 				frappe.throw(_("Half day date should be in between from date and to date"))
+
+	def validate_status_change(self):
+		"""The portal only ever changes status via set_wfh_decision/
+		cancel_wfh_request (both of which write with db_set, bypassing
+		validate entirely) -- this only catches someone editing the field
+		directly through Desk or the API (doc.save(), not submit, which
+		before_submit already covers for the Approved case) without going
+		through either of those, e.g. a colleague maliciously Rejecting
+		someone else's request they have no say over."""
+		if self.is_new() or self.get("custom_is_punch_request") or self.flags.ignore_permissions:
+			return
+		if self.has_value_changed("status") and not _can_decide(self):
+			frappe.throw(_("You are not allowed to change this request's status directly."), frappe.PermissionError)
 
 	def validate_no_attendance_to_create(self):
 		attendance_warnings = self.get_attendance_warnings()
@@ -120,6 +161,14 @@ class AttendanceRequest(Document):
 				& (Request.name != self.name)
 				& (self.to_date >= Request.from_date)
 				& (self.from_date <= Request.to_date)
+				# A Rejected/Cancelled Work From Home / On Duty request still
+				# sits at docstatus 0 forever (see set_wfh_decision/
+				# cancel_wfh_request) -- it's a decided, dead request, not a
+				# live one still competing for these dates, so it must not
+				# block a new request for the same period. A punch request's
+				# status is always blank, so it's unaffected by this either
+				# way.
+				& (Request.status.isnull() | Request.status.notin(["Rejected", "Cancelled"]))
 			)
 		)
 
@@ -139,8 +188,31 @@ class AttendanceRequest(Document):
 
 		frappe.throw(msg, title=_("Overlapping Attendance Request"), exc=OverlappingAttendanceRequestError)
 
+	def before_submit(self):
+		# The portal UI never exposes status as an editable field (every
+		# transition goes through set_wfh_decision), but that's only a UI
+		# nicety -- the doctype's own "write" permission is broad enough
+		# that an employee could otherwise call frappe.client.submit (or
+		# edit+submit via Desk) directly on their own or anyone's request.
+		# set_wfh_decision's approval path sets ignore_permissions after
+		# already checking _can_decide itself, so this only ever blocks an
+		# attempt that skipped that check.
+		if self.get("custom_is_punch_request"):
+			return
+		if self.status == "Approved" and not self.flags.ignore_permissions and not _can_decide(self):
+			frappe.throw(_("You are not allowed to approve this request."), frappe.PermissionError)
+
 	def on_submit(self):
+		# A Work From Home / On Duty request is only ever submitted as the
+		# approval step itself (see set_wfh_decision below) -- Pending/Rejected/
+		# Cancelled never reach docstatus 1, so there's no separate "approved
+		# but not yet submitted" state to worry about.
+		if self.status != "Approved":
+			frappe.throw(_("Only an Approved request can be submitted."))
 		self.create_attendance_records()
+
+	def before_cancel(self):
+		self.status = "Cancelled"
 
 	def on_cancel(self):
 		attendance_list = frappe.get_all(
@@ -336,3 +408,86 @@ class AttendanceRequest(Document):
 					)
 
 		return attendance_warnings
+
+
+def _resolve_team_lead_and_manager(employee: str) -> tuple[str | None, str | None]:
+	"""An employee's Team Lead (direct `reports_to`) and that Team Lead's own
+	Manager (`reports_to.reports_to`), if set -- either can approve a Work
+	From Home / On Duty request. No new Employee field: this is computed from
+	the existing reporting chain, same one "Team Requests" tabs elsewhere in
+	this app already rely on."""
+	team_lead = frappe.db.get_value("Employee", employee, "reports_to")
+	manager = frappe.db.get_value("Employee", team_lead, "reports_to") if team_lead else None
+	return team_lead, manager
+
+
+def _get_approver_employees(employee: str) -> set[str]:
+	return {e for e in _resolve_team_lead_and_manager(employee) if e}
+
+
+@frappe.whitelist()
+def get_my_approvers() -> dict:
+	"""Who would approve a Work From Home request raised right now by the
+	current user -- for the New Request form's live preview, before the
+	document (and its own stored team_lead/manager) exists yet."""
+	employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
+	if not employee:
+		return {}
+	team_lead, manager = _resolve_team_lead_and_manager(employee)
+	return {
+		"team_lead": team_lead,
+		"team_lead_name": frappe.db.get_value("Employee", team_lead, "employee_name") if team_lead else None,
+		"manager": manager,
+		"manager_name": frappe.db.get_value("Employee", manager, "employee_name") if manager else None,
+	}
+
+
+def _can_decide(doc) -> bool:
+	if {"HR Manager", "HR User", "System Manager"} & set(frappe.get_roles()):
+		return True
+	current_employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user})
+	return bool(current_employee) and current_employee in _get_approver_employees(doc.employee)
+
+
+@frappe.whitelist()
+def set_wfh_decision(name: str, decision: str) -> str:
+	"""Approve or reject a Work From Home / On Duty Attendance Request.
+	Callable by either of the employee's two computed approvers (Team Lead or
+	Manager) or an HR role -- not gated by the doctype's normal submit
+	permission, since the Employee role alone can't submit this doctype and
+	an approver is ordinarily just a regular employee themselves."""
+	if decision not in ("Approved", "Rejected"):
+		frappe.throw(_("Invalid decision: {0}").format(decision))
+
+	doc = frappe.get_doc("Attendance Request", name)
+	if doc.get("custom_is_punch_request"):
+		frappe.throw(_("Punch requests are approved by HR, not here."))
+	if doc.status != "Pending":
+		frappe.throw(_("This request has already been decided."))
+	if not _can_decide(doc):
+		frappe.throw(_("You are not an approver for this request."), frappe.PermissionError)
+
+	if decision == "Approved":
+		doc.status = "Approved"
+		doc.flags.ignore_permissions = True
+		doc.submit()
+	else:
+		doc.db_set("status", "Rejected")
+
+	return doc.status
+
+
+@frappe.whitelist()
+def cancel_wfh_request(name: str) -> str:
+	"""The requesting employee cancels their own still-Pending request --
+	before any decision, there's nothing submitted yet to run the doctype's
+	normal cancel (docstatus 1->2) against."""
+	doc = frappe.get_doc("Attendance Request", name)
+	employee_user = frappe.db.get_value("Employee", doc.employee, "user_id")
+	if frappe.session.user != employee_user:
+		frappe.throw(_("You can only cancel your own request."), frappe.PermissionError)
+	if doc.status != "Pending":
+		frappe.throw(_("Only a Pending request can be cancelled."))
+
+	doc.db_set("status", "Cancelled")
+	return doc.status
