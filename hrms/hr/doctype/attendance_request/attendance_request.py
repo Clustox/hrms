@@ -5,7 +5,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, date_diff, format_date, get_link_to_form, getdate
+from frappe.utils import add_days, date_diff, format_date, get_link_to_form, getdate, nowdate
 
 from erpnext.setup.doctype.employee.employee import is_holiday
 
@@ -440,6 +440,36 @@ def get_my_approvers() -> dict:
 		"manager": manager,
 		"manager_name": frappe.db.get_value("Employee", manager, "employee_name") if manager else None,
 	}
+
+
+@frappe.whitelist()
+def has_approved_wfh_today(employee: str | None = None) -> bool:
+	"""Whether `employee` (default: the current user) has an Approved,
+	submitted Work From Home request covering today -- biometric hardware
+	handles normal office attendance automatically now, so the portal's
+	manual Check-in/Check-out button is only meant for an approved remote
+	day, not shown at all otherwise. Only "Approved" requests ever reach
+	docstatus 1 (see before_submit/on_submit above), and this stops
+	mattering the day after to_date -- same inclusive date-range check
+	has_leave_record uses for the analogous Leave Application case."""
+	employee = employee or frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
+	if not employee:
+		return False
+
+	today = nowdate()
+	return bool(
+		frappe.db.exists(
+			"Attendance Request",
+			{
+				"employee": employee,
+				"reason": "Work From Home",
+				"status": "Approved",
+				"docstatus": 1,
+				"from_date": ["<=", today],
+				"to_date": [">=", today],
+			},
+		)
+	)
 
 
 def _can_decide(doc) -> bool:

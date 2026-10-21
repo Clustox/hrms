@@ -17,7 +17,7 @@
  * lifetime (never unsubscribed), matching the other singletons.
  */
 import { computed, effectScope, inject, ref } from "vue"
-import { createListResource, toast } from "frappe-ui"
+import { createListResource, createResource, toast } from "frappe-ui"
 
 import { settings } from "@/data/settings"
 
@@ -28,6 +28,15 @@ const checkinTimestamp = ref(null)
 const latitude = ref(0)
 const longitude = ref(0)
 const locationStatus = ref("")
+// Biometric hardware now handles normal office attendance automatically
+// (see integrations/biometric-attendance-sync), so the manual Check-in/
+// Check-out button only makes sense on a day the employee has an Approved
+// WFH request for -- otherwise it's hidden outright, same as the existing
+// allow_employee_checkin_from_mobile_app gate.
+const hasApprovedWfh = createResource({
+	url: "hrms.hr.doctype.attendance_request.attendance_request.has_approved_wfh_today",
+	auto: false,
+})
 // True while a geolocation fetch is in flight, so the UI can keep the
 // Confirm button disabled until it resolves -- clicking through while it's
 // still 0,0 used to submit with no real coordinates and fail server-side
@@ -64,9 +73,12 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 	if (initialized) {
 		// A consumer (re)mounted, e.g. navigating back to Home: refresh like the
 		// original panel did on mount, but never start a duplicate request, and
-		// re-attach the socket handler in case something removed it.
+		// re-attach the socket handler in case something removed it. Also
+		// re-checks WFH coverage, so a request that expired overnight (or one
+		// just approved) is reflected without needing a full page reload.
 		attachSocket(socket)
 		if (!checkins.list.loading) checkins.reload()
+		hasApprovedWfh.fetch()
 		return
 	}
 	employee = emp
@@ -103,6 +115,7 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 	// employee.data, leaves later consumers free to retry).
 	initialized = true
 	checkins.reload()
+	hasApprovedWfh.fetch()
 	attachSocket(socket)
 }
 
@@ -219,6 +232,7 @@ export function useCheckin() {
 		latitude,
 		longitude,
 		locationStatus,
+		hasApprovedWfh,
 		isLocating,
 		locationNotReady,
 		fetchLocation,

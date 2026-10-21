@@ -14,7 +14,7 @@
 						{{ __("Attendance") }}
 					</div>
 
-					<template v-if="settings.data?.allow_employee_checkin_from_mobile_app">
+					<template v-if="canCheckin">
 						<div v-if="lastLog?.time" class="mt-2 text-[15px] text-air-ink-2">
 							<span>{{
 								__("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)])
@@ -51,7 +51,7 @@
 				</div>
 
 				<button
-					v-if="settings.data?.allow_employee_checkin_from_mobile_app"
+					v-if="canCheckin"
 					type="button"
 					:disabled="checkins.list.loading"
 					class="inline-flex shrink-0 items-center gap-2 rounded-full bg-air-btn px-5 py-2.5 text-[14px] font-semibold text-air-btn-ink transition ease-air hover:bg-air-blue hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
@@ -67,7 +67,7 @@
 		</div>
 
 		<Dialog
-			v-if="settings.data?.allow_employee_checkin_from_mobile_app"
+			v-if="canCheckin"
 			v-model="showDialog"
 			:options="{ title: nextAction.label, size: 'md' }"
 		>
@@ -140,10 +140,18 @@ const {
 	latitude,
 	longitude,
 	locationStatus,
+	hasApprovedWfh,
 	locationNotReady,
 	handleEmployeeCheckin,
 	submitLog,
 } = useCheckin()
+
+// Biometric hardware handles normal office attendance now -- this manual
+// button only makes sense on a day the employee has an Approved WFH
+// request for.
+const canCheckin = computed(
+	() => Boolean(settings.data?.allow_employee_checkin_from_mobile_app) && Boolean(hasApprovedWfh.data)
+)
 
 const showDialog = ref(false)
 
