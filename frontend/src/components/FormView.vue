@@ -28,7 +28,7 @@
 					<h2
 						class="text-xl font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis lg:font-display lg:tracking-tight"
 					>
-						{{ __(props.doctype) }}
+						{{ props.titleOverride || __(props.doctype) }}
 					</h2>
 					<Badge
 						:label="id"
@@ -68,7 +68,7 @@
 					v-else
 					class="text-2xl font-semibold text-gray-900 lg:font-display lg:tracking-tight"
 				>
-					{{ __('New {0}', [__(doctype)], props.doctype) }}
+					{{ props.newTitleOverride || __('New {0}', [__(doctype)], props.doctype) }}
 				</h2>
 			</header>
 
@@ -436,6 +436,17 @@ const props = defineProps({
 		type: String,
 		required: false,
 		default: "",
+	},
+	// Replace the header's otherwise doctype-derived title (e.g. "Attendance
+	// Request" / "New Attendance Request") -- for a dedicated, narrower-purpose
+	// page built on a shared doctype, like WFH Requests on Attendance Request.
+	titleOverride: {
+		type: String,
+		required: false,
+	},
+	newTitleOverride: {
+		type: String,
+		required: false,
 	},
 })
 const emit = defineEmits(["validateForm", "update:modelValue", "formReloaded"])

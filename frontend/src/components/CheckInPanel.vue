@@ -4,7 +4,7 @@
 			{{ __("Hey, {0} 👋", [employee?.data?.first_name]) }}
 		</h2>
 
-		<template v-if="settings.data?.allow_employee_checkin_from_mobile_app">
+		<template v-if="canCheckin">
 			<div class="font-medium text-sm text-gray-500 mt-1.5" v-if="lastLog">
 				<span>{{ __("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)]) }}</span>
 				<span class="whitespace-pre"> &middot; </span>
@@ -34,7 +34,7 @@
 	</div>
 
 	<ion-modal
-		v-if="settings.data?.allow_employee_checkin_from_mobile_app"
+		v-if="canCheckin"
 		ref="modal"
 		trigger="open-checkin-modal"
 		:initial-breakpoint="1"
@@ -85,7 +85,7 @@
 
 <script setup>
 import { FeatherIcon } from "frappe-ui"
-import { inject } from "vue"
+import { computed, inject } from "vue"
 import { IonModal, modalController } from "@ionic/vue"
 
 import { formatTimestamp } from "@/utils/formatters"
@@ -107,10 +107,18 @@ const {
 	latitude,
 	longitude,
 	locationStatus,
+	hasApprovedWfh,
 	locationNotReady,
 	handleEmployeeCheckin,
 	submitLog: submitCheckinLog,
 } = useCheckin()
+
+// Biometric hardware handles normal office attendance now -- this manual
+// button only makes sense on a day the employee has an Approved WFH
+// request for.
+const canCheckin = computed(
+	() => Boolean(settings.data?.allow_employee_checkin_from_mobile_app) && Boolean(hasApprovedWfh.data)
+)
 
 // Mobile: close the bottom-sheet modal on success.
 const submitLog = (logType) =>
