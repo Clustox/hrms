@@ -182,13 +182,21 @@ before_app_uninstall = "hrms.setup.before_app_uninstall"
 # -----------
 # Permissions evaluated in scripted ways
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+# Team-lead visibility: employee request doctypes are scoped to the owning
+# employee + their direct reports (HR/admin see all). See request_visibility.py.
+permission_query_conditions = {
+	"Leave Application": "hrms.request_visibility.leave_application_query",
+	"Attendance Request": "hrms.request_visibility.attendance_request_query",
+	"Shift Request": "hrms.request_visibility.shift_request_query",
+	"Expense Claim": "hrms.request_visibility.expense_claim_query",
+}
+
+has_permission = {
+	"Leave Application": "hrms.request_visibility.has_permission",
+	"Attendance Request": "hrms.request_visibility.has_permission",
+	"Shift Request": "hrms.request_visibility.has_permission",
+	"Expense Claim": "hrms.request_visibility.has_permission",
+}
 
 has_upload_permission = {"Employee": "erpnext.setup.doctype.employee.employee.has_upload_permission"}
 
