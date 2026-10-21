@@ -192,3 +192,31 @@ def cap_compensatory_off_expiry(doc, method=None):
     limit = add_days(getdate(doc.from_date), 30)
     if doc.get("to_date") and getdate(doc.to_date) > limit:
         doc.to_date = limit
+
+
+def submit_approved_leave(leave):
+    """Submit a single Approved-but-draft Leave Application."""
+    doc = frappe.get_doc("Leave Application", leave)
+    if doc.docstatus == 0 and doc.status == "Approved":
+        doc.flags.ignore_permissions = True
+        doc.submit()
+
+
+def submit_approved_drafts():
+    """Scheduler ("all" event): finalise any leave left as Approved-but-draft.
+
+    Approval IS the finalisation -- a leave saved as "Approved" without being
+    submitted looks approved but doesn't deduct the balance or create the
+    "On Leave" attendance, so the employee wrongly shows Absent on those days.
+    This submits such leaves automatically (a few minutes after approval; the
+    "all" event runs on every scheduler tick). Only approvers can reach the
+    Approved status (the applicant's status options are restricted), so
+    finalising here is safe. Each leave is committed/rolled back on its own so
+    one bad leave (e.g. insufficient balance) can't block the rest."""
+    for name in frappe.get_all("Leave Application", {"status": "Approved", "docstatus": 0}, pluck="name"):
+        try:
+            submit_approved_leave(name)
+            frappe.db.commit()
+        except Exception:
+            frappe.db.rollback()
+            frappe.log_error(title=f"auto-submit approved leave {name} failed", message=frappe.get_traceback())

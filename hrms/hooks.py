@@ -317,6 +317,8 @@ scheduler_events = {
 	"all": [
 		"hrms.hr.doctype.interview.interview.send_interview_reminder",
 		"hrms.helpdesk_router.route_tickets",
+		# Clustox: finalise any leave left as Approved-but-draft (approval = submit).
+		"hrms.leave_rules.submit_approved_drafts",
 	],
 	"hourly": [
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.trigger_emails",
