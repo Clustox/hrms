@@ -136,7 +136,7 @@ function extractErrorMessage(error, fallback) {
 // computed below -- all four are read_only in the doctype, so they render
 // as plain disabled fields. The identity fields (Employee, Department,
 // Company) and Status only make sense once the request exists.
-const APPROVAL_FIELDS = ["approval_section", "team_lead", "team_lead_name", "manager", "manager_name"]
+const APPROVAL_FIELDS = ["approval_section", "team_lead", "team_lead_name"]
 const CREATE_FIELDS = ["from_date", "to_date", "total_days", "explanation", ...APPROVAL_FIELDS]
 // Status itself is NOT in this list -- the header badge (FormView's own,
 // driven by formModel.status) already shows it, and rendering the native
@@ -185,8 +185,6 @@ const myApprovers = createResource({
 	onSuccess(data) {
 		wfhRequest.value.team_lead = data.team_lead
 		wfhRequest.value.team_lead_name = data.team_lead_name
-		wfhRequest.value.manager = data.manager
-		wfhRequest.value.manager_name = data.manager_name
 	},
 })
 

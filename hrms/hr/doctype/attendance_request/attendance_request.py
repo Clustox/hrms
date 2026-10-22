@@ -411,14 +411,21 @@ class AttendanceRequest(Document):
 
 
 def _resolve_team_lead_and_manager(employee: str) -> tuple[str | None, str | None]:
-	"""An employee's Team Lead (direct `reports_to`) and that Team Lead's own
-	Manager (`reports_to.reports_to`), if set -- either can approve a Work
-	From Home / On Duty request. No new Employee field: this is computed from
-	the existing reporting chain, same one "Team Requests" tabs elsewhere in
-	this app already rely on."""
-	team_lead = frappe.db.get_value("Employee", employee, "reports_to")
-	manager = frappe.db.get_value("Employee", team_lead, "reports_to") if team_lead else None
-	return team_lead, manager
+	"""The approver for a Work From Home / On Duty request is the employee's
+	Leave Approver -- exactly who Leave Application would pick (Employee's own
+	`leave_approver`, else the first of their Department's leave approvers).
+	Leave Approver is a User; this returns that user's Employee record in the
+	`team_lead` slot. The second slot (`manager`) is kept only so the stored
+	schema and callers stay unchanged -- it's always None now."""
+	from hrms.hr.doctype.leave_application.leave_application import get_employee_leave_approver
+
+	approver_user = get_employee_leave_approver(employee)
+	team_lead = (
+		frappe.db.get_value("Employee", {"user_id": approver_user, "status": "Active"}, "name")
+		if approver_user
+		else None
+	)
+	return team_lead, None
 
 
 def _get_approver_employees(employee: str) -> set[str]:
@@ -437,8 +444,6 @@ def get_my_approvers() -> dict:
 	return {
 		"team_lead": team_lead,
 		"team_lead_name": frappe.db.get_value("Employee", team_lead, "employee_name") if team_lead else None,
-		"manager": manager,
-		"manager_name": frappe.db.get_value("Employee", manager, "employee_name") if manager else None,
 	}
 
 
