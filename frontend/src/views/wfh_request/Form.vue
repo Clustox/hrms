@@ -84,6 +84,7 @@
 import { IonPage, IonContent } from "@ionic/vue"
 import { Button, Dialog, createResource, toast } from "frappe-ui"
 import { ref, computed, inject, onMounted, watch } from "vue"
+import { userResource } from "@/data/user"
 import { useRouter } from "vue-router"
 
 import FormView from "@/components/FormView.vue"
@@ -242,7 +243,20 @@ watch(
 )
 
 const isOwner = computed(() => wfhRequest.value.employee === employee.data.name)
-const isApprover = computed(() => !isOwner.value)
+// Approve/Reject only for the request's Leave Approver (or HR), like Leave --
+// not every colleague who merely has read access to it. Mirrors the
+// server-side _can_decide.
+const HR_ROLES = ["HR Manager", "HR User", "System Manager"]
+const isApprover = computed(() => {
+	if (isOwner.value) return false
+	const user = userResource.data
+	return (
+		wfhRequest.value.leave_approver === user?.name ||
+		HR_ROLES.some((role) => user?.roles?.includes(role))
+	)
+})
+// Anyone who opened someone else's request sees it read-only
+const isViewingOthers = computed(() => !isOwner.value)
 
 // An approver reviews, not edits -- lock every field once there's a decision
 // to make or once one has already been made (mirrors Leave Application's
@@ -250,7 +264,7 @@ const isApprover = computed(() => !isOwner.value)
 watch(
 	() => wfhRequest.value.employee,
 	() => {
-		if (props.id && isApprover.value) {
+		if (props.id && isViewingOthers.value) {
 			formFields.data?.forEach((field) => (field.read_only = true))
 		}
 	}
