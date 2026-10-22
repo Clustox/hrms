@@ -63,6 +63,18 @@ class AttendanceRequest(Document):
 		self.validate_status_change()
 		self.set_total_days()
 		self.set_approvers()
+		self.validate_approver()
+
+	def validate_approver(self):
+		"""Like Leave Application's mandatory-approver check: a request with
+		nobody to approve it would sit Pending forever. Punch requests are
+		approved by HR, so they're exempt."""
+		if self.docstatus != 2 and not self.get("custom_is_punch_request") and not self.leave_approver:
+			frappe.throw(
+				_("No Leave Approver is set for {0}. Please ask HR to set one on the Employee or Department.").format(
+					self.employee_name or self.employee
+				)
+			)
 
 	def set_total_days(self):
 		days = date_diff(self.to_date, self.from_date) + 1
@@ -555,7 +567,15 @@ def has_approved_wfh_today(employee: str | None = None) -> bool:
 	)
 
 
+def _is_own_request(doc) -> bool:
+	return frappe.session.user == frappe.db.get_value("Employee", doc.employee, "user_id")
+
+
 def _can_decide(doc) -> bool:
+	# Like Leave Application's self-approval block: nobody decides their own
+	# request, HR included.
+	if _is_own_request(doc):
+		return False
 	if {"HR Manager", "HR User", "System Manager"} & set(frappe.get_roles()):
 		return True
 	approver = doc.leave_approver or get_employee_leave_approver(doc.employee)
@@ -577,6 +597,8 @@ def set_wfh_decision(name: str, decision: str) -> str:
 		frappe.throw(_("Punch requests are approved by HR, not here."))
 	if doc.status != "Pending":
 		frappe.throw(_("This request has already been decided."))
+	if _is_own_request(doc):
+		frappe.throw(_("Self-approval is not allowed. Your request must be decided by someone else."))
 	if not _can_decide(doc):
 		frappe.throw(_("You are not an approver for this request."), frappe.PermissionError)
 
