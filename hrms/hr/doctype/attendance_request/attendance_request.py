@@ -401,9 +401,30 @@ class AttendanceRequest(Document):
 			frappe.utils.escape_html(self.explanation or "-"),
 		)
 
+		self._send_notification(self.leave_approver, subject, message)
+
+	def notify_employee_of_decision(self):
+		"""Tell the requesting employee their request was approved/rejected,
+		like Leave Application's approval-status notification."""
+		employee_user = frappe.db.get_value("Employee", self.employee, "user_id")
+		if self.get("custom_is_punch_request") or not employee_user:
+			return
+
+		decision = _("approved") if self.status == "Approved" else _("rejected")
+		subject = _("Your {0} request was {1}").format(_(self.reason), decision)
+		message = _("Your {0} request from {1} to {2} was {3} by {4}.").format(
+			_(self.reason),
+			format_date(self.from_date),
+			format_date(self.to_date),
+			decision,
+			frappe.bold(get_fullname(frappe.session.user)),
+		)
+		self._send_notification(employee_user, subject, message)
+
+	def _send_notification(self, user, subject, message):
 		try:
 			enqueue_create_notification(
-				self.leave_approver,
+				user,
 				frappe._dict(
 					{
 						"type": "Alert",
@@ -416,7 +437,7 @@ class AttendanceRequest(Document):
 				),
 			)
 			frappe.sendmail(
-				recipients=[self.leave_approver],
+				recipients=[user],
 				subject=subject,
 				message=message,
 				reference_doctype=self.doctype,
@@ -424,7 +445,7 @@ class AttendanceRequest(Document):
 			)
 		except Exception:
 			# a failed notification must never block the request itself
-			frappe.log_error(title="WFH approver notification failed")
+			frappe.log_error(title="WFH notification failed")
 
 	def on_update(self):
 		self.publish_update()
@@ -566,6 +587,7 @@ def set_wfh_decision(name: str, decision: str) -> str:
 	else:
 		doc.db_set("status", "Rejected")
 
+	doc.notify_employee_of_decision()
 	return doc.status
 
 
