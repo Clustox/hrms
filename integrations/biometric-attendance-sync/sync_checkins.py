@@ -123,36 +123,63 @@ def sync_device(dev, cfg, state, url, headers):
             f"(first={new[0].timestamp}, last={new[-1].timestamp}); nothing pushed")
         return
 
+    # Biometric devices have no GPS, but HR Settings.allow_geolocation_tracking
+    # makes latitude/longitude MANDATORY on every Employee Checkin. The machine
+    # is physically at the office, so stamp the office coordinates on each punch
+    # (top-level office_latitude/longitude in config, optional per-device
+    # override). The office Shift Location is unassigned, so no geofence radius
+    # check fires -- the coords only satisfy the mandatory-coords rule and tag
+    # the punch as Office on the dashboard.
+    lat = dev.get("latitude", cfg.get("office_latitude"))
+    lon = dev.get("longitude", cfg.get("office_longitude"))
+
     pushed = skipped = errors = 0
-    max_ts = cursor
-    for i, a in enumerate(new, 1):
+    # Advance the cursor ONLY over punches Frappe has definitively handled
+    # (accepted, or permanently unmappable). On the first transient/hard error
+    # we HALT this device and leave the cursor before the failed punch, so the
+    # next run retries it instead of silently skipping past it. This makes a
+    # systemic rejection (e.g. the lat/long one) self-healing: fix the cause and
+    # the next run recovers everything, no manual cursor rewind needed.
+    cursor_ts = cursor
+    handled = 0
+    for a in new:
         payload = {
             "employee_field_value": str(a.user_id),
             "timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "device_id": label,
             "log_type": PUNCH_TO_LOGTYPE.get(a.punch, ""),
         }
+        if lat is not None and lon is not None:
+            payload["latitude"] = lat
+            payload["longitude"] = lon
         try:
             r = requests.post(url, headers=headers, data=payload, timeout=30)
-            if r.status_code == 200:
-                pushed += 1
-            elif "No Employee found" in r.text or "not found" in r.text.lower():
-                skipped += 1  # device user not mapped to an employee
-            else:
-                errors += 1
-                log(f"  [{label}] ERROR {r.status_code} user {a.user_id} @ {payload['timestamp']}: {r.text[:120]}")
         except Exception as e:
             errors += 1
-            log(f"  [{label}] EXCEPTION user {a.user_id}: {e}")
+            log(f"  [{label}] EXCEPTION user {a.user_id} @ {payload['timestamp']}: {e}"
+                f" -- halting device; retries next run")
+            break
 
-        max_ts = max(max_ts, a.timestamp)
-        if i % CHECKPOINT_EVERY == 0:      # resume cleanly after a crash
-            state[label] = max_ts.isoformat()
+        if r.status_code == 200:
+            pushed += 1
+        elif "No Employee found" in r.text or "not found" in r.text.lower():
+            skipped += 1  # device user not mapped to an employee (permanent; keep going)
+        else:
+            errors += 1
+            log(f"  [{label}] ERROR {r.status_code} user {a.user_id} @ {payload['timestamp']}: {r.text[:120]}"
+                f" -- halting device; retries next run")
+            break
+
+        cursor_ts = a.timestamp  # punch handled; safe to move past it
+        handled += 1
+        if handled % CHECKPOINT_EVERY == 0:   # checkpoint so a crash resumes cleanly
+            state[label] = cursor_ts.isoformat()
             save_state(state)
 
-    state[label] = max_ts.isoformat()
+    state[label] = cursor_ts.isoformat()
     save_state(state)
-    log(f"[{label}] done: pushed={pushed} skipped_unmapped={skipped} errors={errors} new_cursor={state[label]}")
+    tail = "" if errors == 0 else " (HALTED at first error; unsynced punches retry next run)"
+    log(f"[{label}] done: pushed={pushed} skipped_unmapped={skipped} errors={errors} new_cursor={state[label]}{tail}")
 
 
 def main():
