@@ -5,11 +5,12 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, date_diff, format_date, get_link_to_form, getdate, nowdate
+from frappe.utils import add_days, date_diff, format_date, get_fullname, get_link_to_form, getdate, nowdate
 
 from erpnext.setup.doctype.employee.employee import is_holiday
 
 import hrms
+from hrms.hr.doctype.leave_application.leave_application import get_employee_leave_approver
 from hrms.hr.utils import validate_active_employee, validate_dates
 
 
@@ -36,6 +37,8 @@ class AttendanceRequest(Document):
 		half_day: DF.Check
 		half_day_date: DF.Date | None
 		include_holidays: DF.Check
+		leave_approver: DF.Link | None
+		leave_approver_name: DF.Data | None
 		manager: DF.Link | None
 		manager_name: DF.Data | None
 		reason: DF.Literal["Work From Home", "On Duty"]
@@ -65,6 +68,8 @@ class AttendanceRequest(Document):
 		self.total_days = days - 0.5 if self.half_day else days
 
 	def set_approvers(self):
+		self.leave_approver = get_employee_leave_approver(self.employee)
+		self.leave_approver_name = get_fullname(self.leave_approver) if self.leave_approver else None
 		self.team_lead, self.manager = _resolve_team_lead_and_manager(self.employee)
 		# Set explicitly rather than relying on fetch_from to notice the
 		# change -- team_lead/manager are being set programmatically in this
@@ -417,8 +422,6 @@ def _resolve_team_lead_and_manager(employee: str) -> tuple[str | None, str | Non
 	Leave Approver is a User; this returns that user's Employee record in the
 	`team_lead` slot. The second slot (`manager`) is kept only so the stored
 	schema and callers stay unchanged -- it's always None now."""
-	from hrms.hr.doctype.leave_application.leave_application import get_employee_leave_approver
-
 	approver_user = get_employee_leave_approver(employee)
 	team_lead = (
 		frappe.db.get_value("Employee", {"user_id": approver_user, "status": "Active"}, "name")
@@ -426,10 +429,6 @@ def _resolve_team_lead_and_manager(employee: str) -> tuple[str | None, str | Non
 		else None
 	)
 	return team_lead, None
-
-
-def _get_approver_employees(employee: str) -> set[str]:
-	return {e for e in _resolve_team_lead_and_manager(employee) if e}
 
 
 @frappe.whitelist()
@@ -440,10 +439,10 @@ def get_my_approvers() -> dict:
 	employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
 	if not employee:
 		return {}
-	team_lead, manager = _resolve_team_lead_and_manager(employee)
+	leave_approver = get_employee_leave_approver(employee)
 	return {
-		"team_lead": team_lead,
-		"team_lead_name": frappe.db.get_value("Employee", team_lead, "employee_name") if team_lead else None,
+		"leave_approver": leave_approver,
+		"leave_approver_name": get_fullname(leave_approver) if leave_approver else None,
 	}
 
 
@@ -486,8 +485,8 @@ def has_approved_wfh_today(employee: str | None = None) -> bool:
 def _can_decide(doc) -> bool:
 	if {"HR Manager", "HR User", "System Manager"} & set(frappe.get_roles()):
 		return True
-	current_employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user})
-	return bool(current_employee) and current_employee in _get_approver_employees(doc.employee)
+	approver = doc.leave_approver or get_employee_leave_approver(doc.employee)
+	return bool(approver) and frappe.session.user == approver
 
 
 @frappe.whitelist()

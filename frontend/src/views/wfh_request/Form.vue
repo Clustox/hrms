@@ -136,7 +136,7 @@ function extractErrorMessage(error, fallback) {
 // computed below -- all four are read_only in the doctype, so they render
 // as plain disabled fields. The identity fields (Employee, Department,
 // Company) and Status only make sense once the request exists.
-const APPROVAL_FIELDS = ["approval_section", "team_lead", "team_lead_name"]
+const APPROVAL_FIELDS = ["approval_section", "leave_approver", "leave_approver_name"]
 const CREATE_FIELDS = ["from_date", "to_date", "total_days", "explanation", ...APPROVAL_FIELDS]
 // Status itself is NOT in this list -- the header badge (FormView's own,
 // driven by formModel.status) already shows it, and rendering the native
@@ -165,8 +165,8 @@ const formFields = createResource({
 	transform(data) {
 		const relabel = {
 			explanation: __("Reason"),
-			team_lead: __("Approver"),
-			team_lead_name: __("Approver Name"),
+			leave_approver: __("Approver"),
+			leave_approver_name: __("Approver Name"),
 		}
 		const WFH_FIELDS = props.id ? DETAIL_FIELDS : CREATE_FIELDS
 		let fields = data.filter((f) => WFH_FIELDS.includes(f.fieldname))
@@ -183,8 +183,8 @@ const myApprovers = createResource({
 	url: "hrms.hr.doctype.attendance_request.attendance_request.get_my_approvers",
 	auto: false,
 	onSuccess(data) {
-		wfhRequest.value.team_lead = data.team_lead
-		wfhRequest.value.team_lead_name = data.team_lead_name
+		wfhRequest.value.leave_approver = data.leave_approver
+		wfhRequest.value.leave_approver_name = data.leave_approver_name
 	},
 })
 
