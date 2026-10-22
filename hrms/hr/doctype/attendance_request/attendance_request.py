@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
 from frappe.model.document import Document
 from frappe.utils import add_days, date_diff, format_date, get_fullname, get_link_to_form, getdate, nowdate
 
@@ -11,7 +12,7 @@ from erpnext.setup.doctype.employee.employee import is_holiday
 
 import hrms
 from hrms.hr.doctype.leave_application.leave_application import get_employee_leave_approver
-from hrms.hr.utils import validate_active_employee, validate_dates
+from hrms.hr.utils import share_doc_with_approver, validate_active_employee, validate_dates
 
 
 class OverlappingAttendanceRequestError(frappe.ValidationError):
@@ -373,6 +374,57 @@ class AttendanceRequest(Document):
 				return False
 			return True
 		return False
+
+	def after_insert(self):
+		self.notify_approver()
+
+	def notify_approver(self):
+		"""Same as Leave Application: share the request with its approver
+		(so they can open it) and tell them a new one is waiting -- an
+		in-app notification plus an email. Punch requests are approved by
+		HR, not by this approver, so they're skipped."""
+		if self.get("custom_is_punch_request") or self.status != "Pending" or not self.leave_approver:
+			return
+
+		share_doc_with_approver(self, self.leave_approver)
+
+		subject = _("{0} request from {1}").format(_(self.reason), self.employee_name or self.employee)
+		message = _(
+			"{0} has requested {1} from {2} to {3} ({4} day(s)).<br>Reason: {5}<br><br>"
+			"Please review and approve or reject it."
+		).format(
+			frappe.bold(self.employee_name or self.employee),
+			_(self.reason),
+			format_date(self.from_date),
+			format_date(self.to_date),
+			self.total_days,
+			frappe.utils.escape_html(self.explanation or "-"),
+		)
+
+		try:
+			enqueue_create_notification(
+				self.leave_approver,
+				frappe._dict(
+					{
+						"type": "Alert",
+						"subject": subject,
+						"email_content": message,
+						"document_type": self.doctype,
+						"document_name": self.name,
+						"from_user": frappe.session.user,
+					}
+				),
+			)
+			frappe.sendmail(
+				recipients=[self.leave_approver],
+				subject=subject,
+				message=message,
+				reference_doctype=self.doctype,
+				reference_name=self.name,
+			)
+		except Exception:
+			# a failed notification must never block the request itself
+			frappe.log_error(title="WFH approver notification failed")
 
 	def on_update(self):
 		self.publish_update()
