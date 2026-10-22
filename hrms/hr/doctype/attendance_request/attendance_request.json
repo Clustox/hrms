@@ -155,7 +155,7 @@
    "fieldtype": "Link",
    "label": "Leave Approver",
    "options": "User",
-   "read_only": 1
+   "read_only": 0
   },
   {
    "fieldname": "leave_approver_name",

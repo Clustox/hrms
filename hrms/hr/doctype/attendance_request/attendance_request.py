@@ -66,23 +66,29 @@ class AttendanceRequest(Document):
 		self.validate_approver()
 
 	def validate_approver(self):
-		"""Like Leave Application's mandatory-approver check: a request with
-		nobody to approve it would sit Pending forever. Punch requests are
-		approved by HR, so they're exempt."""
-		if self.docstatus != 2 and not self.get("custom_is_punch_request") and not self.leave_approver:
-			frappe.throw(
-				_("No Leave Approver is set for {0}. Please ask HR to set one on the Employee or Department.").format(
-					self.employee_name or self.employee
-				)
-			)
+		"""Leave Application's mandatory-approver check, driven by the same
+		HR Settings option. Punch requests are approved by HR, so exempt."""
+		if (
+			self.docstatus != 2
+			and not self.get("custom_is_punch_request")
+			and not self.leave_approver
+			and frappe.db.get_single_value("HR Settings", "leave_approver_mandatory_in_leave_application")
+		):
+			frappe.throw(_("Leave Approver is mandatory"))
 
 	def set_total_days(self):
 		days = date_diff(self.to_date, self.from_date) + 1
 		self.total_days = days - 0.5 if self.half_day else days
 
 	def set_approvers(self):
-		self.leave_approver = get_employee_leave_approver(self.employee)
-		self.leave_approver_name = get_fullname(self.leave_approver) if self.leave_approver else None
+		# Same as Leave Application: default from the employee/department,
+		# but keep whatever approver the employee picked.
+		if not self.leave_approver:
+			self.leave_approver = get_employee_leave_approver(self.employee)
+		if not self.leave_approver:
+			self.leave_approver_name = None
+		elif not self.leave_approver_name or self.has_value_changed("leave_approver"):
+			self.leave_approver_name = get_fullname(self.leave_approver)
 		self.team_lead, self.manager = _resolve_team_lead_and_manager(self.employee)
 		# Set explicitly rather than relying on fetch_from to notice the
 		# change -- team_lead/manager are being set programmatically in this
@@ -400,6 +406,9 @@ class AttendanceRequest(Document):
 
 		share_doc_with_approver(self, self.leave_approver)
 
+		if not frappe.db.get_single_value("HR Settings", "send_leave_notification"):
+			return
+
 		subject = _("{0} request from {1}").format(_(self.reason), self.employee_name or self.employee)
 		message = _(
 			"{0} has requested {1} from {2} to {3} ({4} day(s)).<br>Reason: {5}<br><br>"
@@ -419,7 +428,11 @@ class AttendanceRequest(Document):
 		"""Tell the requesting employee their request was approved/rejected,
 		like Leave Application's approval-status notification."""
 		employee_user = frappe.db.get_value("Employee", self.employee, "user_id")
-		if self.get("custom_is_punch_request") or not employee_user:
+		if (
+			self.get("custom_is_punch_request")
+			or not employee_user
+			or not frappe.db.get_single_value("HR Settings", "send_leave_notification")
+		):
 			return
 
 		decision = _("approved") if self.status == "Approved" else _("rejected")
@@ -517,21 +530,6 @@ def _resolve_team_lead_and_manager(employee: str) -> tuple[str | None, str | Non
 
 
 @frappe.whitelist()
-def get_my_approvers() -> dict:
-	"""Who would approve a Work From Home request raised right now by the
-	current user -- for the New Request form's live preview, before the
-	document (and its own stored team_lead/manager) exists yet."""
-	employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
-	if not employee:
-		return {}
-	leave_approver = get_employee_leave_approver(employee)
-	return {
-		"leave_approver": leave_approver,
-		"leave_approver_name": get_fullname(leave_approver) if leave_approver else None,
-	}
-
-
-@frappe.whitelist()
 def has_approved_wfh_today(employee: str | None = None) -> bool:
 	"""Whether `employee` (default: the current user) has an Approved,
 	submitted Work From Home request covering today -- biometric hardware
@@ -568,12 +566,15 @@ def has_approved_wfh_today(employee: str | None = None) -> bool:
 
 
 def _is_own_request(doc) -> bool:
-	return frappe.session.user == frappe.db.get_value("Employee", doc.employee, "user_id")
+	"""Leave Application's self-approval block, driven by the same HR
+	Settings option ("Prevent self Leave Approval")."""
+	return bool(
+		frappe.db.get_single_value("HR Settings", "prevent_self_leave_approval")
+		and frappe.session.user == frappe.db.get_value("Employee", doc.employee, "user_id")
+	)
 
 
 def _can_decide(doc) -> bool:
-	# Like Leave Application's self-approval block: nobody decides their own
-	# request, HR included.
 	if _is_own_request(doc):
 		return False
 	if {"HR Manager", "HR User", "System Manager"} & set(frappe.get_roles()):
@@ -598,7 +599,7 @@ def set_wfh_decision(name: str, decision: str) -> str:
 	if doc.status != "Pending":
 		frappe.throw(_("This request has already been decided."))
 	if _is_own_request(doc):
-		frappe.throw(_("Self-approval is not allowed. Your request must be decided by someone else."))
+		frappe.throw(_("Self-approval for requests is not allowed"))
 	if not _can_decide(doc):
 		frappe.throw(_("You are not an approver for this request."), frappe.PermissionError)
 

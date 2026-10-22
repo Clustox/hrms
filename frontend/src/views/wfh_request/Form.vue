@@ -177,21 +177,50 @@ const formFields = createResource({
 		fields.sort((a, b) => WFH_FIELDS.indexOf(a.fieldname) - WFH_FIELDS.indexOf(b.fieldname))
 		return fields
 	},
-})
-
-const myApprovers = createResource({
-	url: "hrms.hr.doctype.attendance_request.attendance_request.get_my_approvers",
-	auto: false,
-	onSuccess(data) {
-		wfhRequest.value.leave_approver = data.leave_approver
-		wfhRequest.value.leave_approver_name = data.leave_approver_name
+	onSuccess() {
+		// the approver details may have arrived before the fields did
+		if (approvalDetails.data) applyApprovalDetails(approvalDetails.data)
 	},
 })
+
+// Same source as Leave Application's form: the employee's Leave Approver
+// (defaulted), the Department's approvers to choose from, and whether
+// HR Settings makes the approver mandatory.
+const approvalDetails = createResource({
+	url: "hrms.api.get_leave_approval_details",
+	auto: false,
+	onSuccess: (data) => applyApprovalDetails(data),
+})
+
+function applyApprovalDetails(data) {
+	const field = formFields.data?.find((f) => f.fieldname === "leave_approver")
+	if (field) {
+		field.reqd = data?.is_mandatory
+		field.documentList = (data?.department_approvers || []).map((approver) => ({
+			label: approver.full_name ? `${approver.name} : ${approver.full_name}` : approver.name,
+			value: approver.name,
+		}))
+	}
+	if (!wfhRequest.value.leave_approver) {
+		wfhRequest.value.leave_approver = data?.leave_approver
+		wfhRequest.value.leave_approver_name = data?.leave_approver_name
+	}
+}
+
+watch(
+	() => wfhRequest.value.leave_approver,
+	(newApprover) => {
+		if (props.id) return
+		const field = formFields.data?.find((f) => f.fieldname === "leave_approver")
+		const selected = field?.documentList?.find((opt) => opt.value === newApprover)
+		wfhRequest.value.leave_approver_name = selected?.label?.split(" : ")[1] || ""
+	}
+)
 
 onMounted(() => {
 	if (props.id) return
 	wfhRequest.value.company = employee.data.company
-	myApprovers.fetch()
+	approvalDetails.fetch({ employee: employee.data.name })
 })
 
 // Live Total Days preview, the same inclusive day-count the server itself
