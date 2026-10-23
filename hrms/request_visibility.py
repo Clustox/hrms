@@ -57,16 +57,28 @@ def expense_claim_query(user=None):
 
 
 def has_permission(doc, ptype=None, user=None, **kwargs):
-	# Scope read visibility only; allow create/write/submit (the role perms
-	# govern those -- an employee still raises their own requests, e.g. a WFH
-	# Attendance Request, and an approver still acts).
-	#
 	# A has_permission hook must return True/False, never None: Frappe treats a
 	# None return (when a doc is passed) as a DENY, which would block even an
 	# employee reading or creating their own record.
-	if ptype not in (None, "read", "select"):
+	user = user or frappe.session.user
+	if ALL_ACCESS_ROLES & set(frappe.get_roles(user)):
+		return True  # HR/admin -- full access
+
+	target = getattr(doc, "employee", None)
+
+	# Approval model: submit/cancel = the DIRECT manager approves their team's
+	# requests. Not self-approval (an employee can't submit their own), and not
+	# a skip-level manager. Role perms also gate this (only roles with submit=1
+	# reach here), so a plain employee never approves.
+	if ptype in ("submit", "cancel"):
+		own = frappe.db.get_value("Employee", {"user_id": user}, "name")
+		return bool(own and target and
+			frappe.db.get_value("Employee", target, "reports_to") == own)
+
+	# Create, and any doctype-level check (no specific doc -> target is None),
+	# must pass -- otherwise the employee can't raise their own request at all
+	# (the "need create permission on Attendance Request" regression). Per-doc
+	# read/write/delete are scoped to own record + direct reports.
+	if ptype == "create" or target is None:
 		return True
-	emps = _visible_employees(user or frappe.session.user)
-	if emps is None:
-		return True  # HR/admin -- see everything
-	return getattr(doc, "employee", None) in emps  # True in-scope, False out-of-scope
+	return target in _visible_employees(user)

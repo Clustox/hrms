@@ -293,7 +293,15 @@ doc_events = {
 	# ---- Usage telemetry: recurring feature usage (see hrms/telemetry.py) ----
 	"Leave Application": {"on_submit": "hrms.telemetry.on_leave_application_submit"},
 	"Expense Claim": {"on_submit": "hrms.telemetry.on_expense_claim_submit"},
-	"Attendance Request": {"on_submit": "hrms.telemetry.on_attendance_request_submit"},
+	"Attendance Request": {
+		# Clustox: notify the employee's manager when a request is raised, and
+		# the employee when their manager approves it (see attendance_request_notify).
+		"after_insert": "hrms.attendance_request_notify.notify_manager",
+		"on_submit": [
+			"hrms.telemetry.on_attendance_request_submit",
+			"hrms.attendance_request_notify.notify_employee",
+		],
+	},
 	"Shift Request": {"on_submit": "hrms.telemetry.on_shift_request_submit"},
 	"Employee Checkin": {"after_insert": "hrms.telemetry.on_employee_checkin"},
 	"Payroll Entry": {"on_submit": "hrms.telemetry.on_payroll_entry_submit"},
