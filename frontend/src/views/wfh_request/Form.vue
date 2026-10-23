@@ -1,12 +1,15 @@
 <template>
 	<ion-page>
 		<ion-content :fullscreen="true">
+			<!-- Rendered straight away, not gated on formFields.data: that v-if left
+			     the whole page (shell, header, form) blank white for the length of
+			     the page-slide animation, then popped the form in. The fields fill
+			     in a moment later instead. -->
 			<FormView
-				v-if="formFields.data"
 				doctype="Attendance Request"
 				v-model="wfhRequest"
 				:isSubmittable="true"
-				:fields="formFields.data"
+				:fields="formFields.data || []"
 				:id="props.id"
 				:showFormButton="false"
 				:titleOverride="__('WFH Request')"
@@ -84,6 +87,7 @@
 import { IonPage, IonContent } from "@ionic/vue"
 import { Button, Dialog, createResource, toast } from "frappe-ui"
 import { ref, computed, inject, onMounted, watch } from "vue"
+import { userResource } from "@/data/user"
 import { useRouter } from "vue-router"
 
 import FormView from "@/components/FormView.vue"
@@ -136,7 +140,7 @@ function extractErrorMessage(error, fallback) {
 // computed below -- all four are read_only in the doctype, so they render
 // as plain disabled fields. The identity fields (Employee, Department,
 // Company) and Status only make sense once the request exists.
-const APPROVAL_FIELDS = ["approval_section", "team_lead", "team_lead_name", "manager", "manager_name"]
+const APPROVAL_FIELDS = ["approval_section", "leave_approver", "leave_approver_name"]
 const CREATE_FIELDS = ["from_date", "to_date", "total_days", "explanation", ...APPROVAL_FIELDS]
 // Status itself is NOT in this list -- the header badge (FormView's own,
 // driven by formModel.status) already shows it, and rendering the native
@@ -165,8 +169,8 @@ const formFields = createResource({
 	transform(data) {
 		const relabel = {
 			explanation: __("Reason"),
-			team_lead: __("Approver"),
-			team_lead_name: __("Approver Name"),
+			leave_approver: __("Approver"),
+			leave_approver_name: __("Approver Name"),
 		}
 		const WFH_FIELDS = props.id ? DETAIL_FIELDS : CREATE_FIELDS
 		let fields = data.filter((f) => WFH_FIELDS.includes(f.fieldname))
@@ -177,23 +181,50 @@ const formFields = createResource({
 		fields.sort((a, b) => WFH_FIELDS.indexOf(a.fieldname) - WFH_FIELDS.indexOf(b.fieldname))
 		return fields
 	},
-})
-
-const myApprovers = createResource({
-	url: "hrms.hr.doctype.attendance_request.attendance_request.get_my_approvers",
-	auto: false,
-	onSuccess(data) {
-		wfhRequest.value.team_lead = data.team_lead
-		wfhRequest.value.team_lead_name = data.team_lead_name
-		wfhRequest.value.manager = data.manager
-		wfhRequest.value.manager_name = data.manager_name
+	onSuccess() {
+		// the approver details may have arrived before the fields did
+		if (approvalDetails.data) applyApprovalDetails(approvalDetails.data)
 	},
 })
+
+// Same source as Leave Application's form: the employee's Leave Approver
+// (defaulted), the Department's approvers to choose from, and whether
+// HR Settings makes the approver mandatory.
+const approvalDetails = createResource({
+	url: "hrms.api.get_leave_approval_details",
+	auto: false,
+	onSuccess: (data) => applyApprovalDetails(data),
+})
+
+function applyApprovalDetails(data) {
+	const field = formFields.data?.find((f) => f.fieldname === "leave_approver")
+	if (field) {
+		field.reqd = data?.is_mandatory
+		field.documentList = (data?.department_approvers || []).map((approver) => ({
+			label: approver.full_name ? `${approver.name} : ${approver.full_name}` : approver.name,
+			value: approver.name,
+		}))
+	}
+	if (!wfhRequest.value.leave_approver) {
+		wfhRequest.value.leave_approver = data?.leave_approver
+		wfhRequest.value.leave_approver_name = data?.leave_approver_name
+	}
+}
+
+watch(
+	() => wfhRequest.value.leave_approver,
+	(newApprover) => {
+		if (props.id) return
+		const field = formFields.data?.find((f) => f.fieldname === "leave_approver")
+		const selected = field?.documentList?.find((opt) => opt.value === newApprover)
+		wfhRequest.value.leave_approver_name = selected?.label?.split(" : ")[1] || ""
+	}
+)
 
 onMounted(() => {
 	if (props.id) return
 	wfhRequest.value.company = employee.data.company
-	myApprovers.fetch()
+	approvalDetails.fetch({ employee: employee.data.name })
 })
 
 // Live Total Days preview, the same inclusive day-count the server itself
@@ -215,7 +246,20 @@ watch(
 )
 
 const isOwner = computed(() => wfhRequest.value.employee === employee.data.name)
-const isApprover = computed(() => !isOwner.value)
+// Approve/Reject only for the request's Leave Approver (or HR), like Leave --
+// not every colleague who merely has read access to it. Mirrors the
+// server-side _can_decide.
+const HR_ROLES = ["HR Manager", "HR User", "System Manager"]
+const isApprover = computed(() => {
+	if (isOwner.value) return false
+	const user = userResource.data
+	return (
+		wfhRequest.value.leave_approver === user?.name ||
+		HR_ROLES.some((role) => user?.roles?.includes(role))
+	)
+})
+// Anyone who opened someone else's request sees it read-only
+const isViewingOthers = computed(() => !isOwner.value)
 
 // An approver reviews, not edits -- lock every field once there's a decision
 // to make or once one has already been made (mirrors Leave Application's
@@ -223,7 +267,7 @@ const isApprover = computed(() => !isOwner.value)
 watch(
 	() => wfhRequest.value.employee,
 	() => {
-		if (props.id && isApprover.value) {
+		if (props.id && isViewingOthers.value) {
 			formFields.data?.forEach((field) => (field.read_only = true))
 		}
 	}

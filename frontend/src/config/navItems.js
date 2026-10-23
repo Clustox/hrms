@@ -33,7 +33,7 @@ export function getNavItems(__) {
 		},
 		{
 			icon: WfhIcon,
-			title: __("WFH Requests"),
+			title: __("WFH"),
 			route: "/wfh-requests",
 		},
 		{

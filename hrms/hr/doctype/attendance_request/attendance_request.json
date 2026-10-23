@@ -26,6 +26,8 @@
   "column_break_4",
   "explanation",
   "approval_section",
+  "leave_approver",
+  "leave_approver_name",
   "team_lead",
   "team_lead_name",
   "manager",
@@ -147,6 +149,19 @@
    "fieldname": "approval_section",
    "fieldtype": "Section Break",
    "label": "Approval"
+  },
+  {
+   "fieldname": "leave_approver",
+   "fieldtype": "Link",
+   "label": "Leave Approver",
+   "options": "User",
+   "read_only": 0
+  },
+  {
+   "fieldname": "leave_approver_name",
+   "fieldtype": "Data",
+   "label": "Leave Approver Name",
+   "read_only": 1
   },
   {
    "description": "The employee's direct manager -- either this or the Manager below can approve a Work From Home / On Duty request.",
