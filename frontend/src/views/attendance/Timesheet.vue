@@ -30,6 +30,18 @@
 				<template v-if="!expandedEmployee">
 					<TabButtons :buttons="TAB_BUTTONS" v-model="activeTab" />
 
+					<!-- Team lead: download this month's CSV reports for direct reports -->
+					<div v-if="isTeam && !expandedEmployee" class="flex flex-wrap gap-2">
+						<Button class="flex-1" variant="subtle" :loading="downloading === 'hours'" @click="downloadReport('hours')">
+							<template #prefix><FeatherIcon name="download" class="h-4 w-4" /></template>
+							{{ __("Hours CSV") }}
+						</Button>
+						<Button class="flex-1" variant="subtle" :loading="downloading === 'leaves'" @click="downloadReport('leaves')">
+							<template #prefix><FeatherIcon name="download" class="h-4 w-4" /></template>
+							{{ __("Leaves CSV") }}
+						</Button>
+					</div>
+
 					<!-- Month change, same pattern as AttendanceCalendar -->
 					<div class="flex flex-row justify-between items-center px-1" v-if="!areFiltersApplied">
 						<Button
@@ -228,6 +240,24 @@
 					</div>
 
 					<TabButtons v-if="!expandedEmployee" class="mb-5" :buttons="TAB_BUTTONS" v-model="activeTab" />
+
+					<!-- Team lead: download this month's CSV reports for direct reports -->
+					<div
+						v-if="isTeam && !expandedEmployee"
+						class="mb-5 flex flex-wrap items-center gap-2"
+					>
+						<span class="mr-auto text-[13px] text-air-muted">
+							{{ __("Reports for") }} {{ firstOfMonth.format("MMMM YYYY") }}
+						</span>
+						<Button variant="subtle" :loading="downloading === 'hours'" @click="downloadReport('hours')">
+							<template #prefix><FeatherIcon name="download" class="h-4 w-4" /></template>
+							{{ __("Hours CSV") }}
+						</Button>
+						<Button variant="subtle" :loading="downloading === 'leaves'" @click="downloadReport('leaves')">
+							<template #prefix><FeatherIcon name="download" class="h-4 w-4" /></template>
+							{{ __("Leaves CSV") }}
+						</Button>
+					</div>
 					<div v-else class="mb-5 flex items-center gap-2">
 						<button
 							class="flex h-9 w-9 items-center justify-center rounded-full text-air-ink-2 transition hover:bg-air-surface-2"
@@ -429,7 +459,7 @@
 import { ref, reactive, inject, watch, computed } from "vue"
 import { useRouter } from "vue-router"
 import { IonPage, IonHeader, IonContent, modalController } from "@ionic/vue"
-import { Button, FeatherIcon, LoadingIndicator, createResource } from "frappe-ui"
+import { Button, FeatherIcon, LoadingIndicator, createResource, toast } from "frappe-ui"
 
 import EmptyState from "@/components/EmptyState.vue"
 import DayAttendanceCard from "@/components/DayAttendanceCard.vue"
@@ -529,6 +559,58 @@ const teamTimesheet = createResource({
 		}
 	},
 })
+
+// Team-lead CSV downloads: monthly "hours" and "leaves" reports for the lead's
+// direct reports (hrms.team_reports.team_report), built into a CSV client-side.
+const downloading = ref("")
+const reportResource = createResource({ url: "hrms.team_reports.team_report" })
+
+async function downloadReport(kind) {
+	downloading.value = kind
+	const month = firstOfMonth.value.format("YYYY-MM")
+	try {
+		await reportResource.submit({ month, kind })
+		const data = reportResource.data
+		if (!data || !data.rows || !data.rows.length) {
+			toast({
+				title: __("Nothing to download"),
+				text: __("No data for {0} this month.", [kind]),
+				icon: "info",
+				position: "bottom-center",
+			})
+			return
+		}
+		downloadCSV(data.columns, data.rows, `team-${kind}-${month}.csv`)
+	} catch (e) {
+		toast({
+			title: __("Download failed"),
+			text: e?.messages?.[0] || "",
+			icon: "alert-circle",
+			iconClasses: "text-red-500",
+			position: "bottom-center",
+		})
+	} finally {
+		downloading.value = ""
+	}
+}
+
+function downloadCSV(columns, rows, filename) {
+	const esc = (v) => {
+		const s = v === null || v === undefined ? "" : String(v)
+		return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+	}
+	const csv = [columns, ...rows].map((r) => r.map(esc).join(",")).join("\n")
+	// BOM so Excel reads UTF-8 correctly
+	const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" })
+	const url = URL.createObjectURL(blob)
+	const a = document.createElement("a")
+	a.href = url
+	a.download = filename
+	document.body.appendChild(a)
+	a.click()
+	a.remove()
+	URL.revokeObjectURL(url)
+}
 
 watch(isTeam, (nowTeam) => {
 	if (nowTeam) teamTimesheet.fetch()
