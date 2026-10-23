@@ -608,7 +608,10 @@ def set_wfh_decision(name: str, decision: str) -> str:
 		doc.flags.ignore_permissions = True
 		doc.submit()
 	else:
-		doc.db_set("status", "Rejected")
+		# notify=True so open lists update live (a bare db_set publishes
+		# nothing, leaving the My/Team lists showing the old Pending status)
+		doc.db_set("status", "Rejected", notify=True)
+		doc.publish_update()
 
 	doc.notify_employee_of_decision()
 	return doc.status
@@ -626,5 +629,6 @@ def cancel_wfh_request(name: str) -> str:
 	if doc.status != "Pending":
 		frappe.throw(_("Only a Pending request can be cancelled."))
 
-	doc.db_set("status", "Cancelled")
+	doc.db_set("status", "Cancelled", notify=True)
+	doc.publish_update()
 	return doc.status

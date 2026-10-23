@@ -1,12 +1,15 @@
 <template>
 	<ion-page>
 		<ion-content :fullscreen="true">
+			<!-- Rendered straight away, not gated on formFields.data: that v-if left
+			     the whole page (shell, header, form) blank white for the length of
+			     the page-slide animation, then popped the form in. The fields fill
+			     in a moment later instead. -->
 			<FormView
-				v-if="formFields.data"
 				doctype="Attendance Request"
 				v-model="wfhRequest"
 				:isSubmittable="true"
-				:fields="formFields.data"
+				:fields="formFields.data || []"
 				:id="props.id"
 				:showFormButton="false"
 				:titleOverride="__('WFH Request')"
