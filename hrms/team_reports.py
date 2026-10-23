@@ -31,7 +31,7 @@ def _direct_reports(emp):
 
 
 @frappe.whitelist()
-def team_report(from_date, to_date, kind):
+def team_report(from_date: str, to_date: str, kind: str):
 	"""Report over an arbitrary date range [from_date, to_date] (inclusive),
 	`kind` = 'hours' | 'leaves'. Scoped to the caller's direct reports."""
 	frm, to = getdate(from_date), getdate(to_date)
