@@ -4,33 +4,34 @@
 			{{ __("Hey, {0} 👋", [employee?.data?.first_name]) }}
 		</h2>
 
-		<template v-if="canCheckin">
-			<div class="font-medium text-sm text-gray-500 mt-1.5" v-if="lastLog">
-				<span>{{ __("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)]) }}</span>
-				<span class="whitespace-pre"> &middot; </span>
-				<router-link :to="{ name: 'EmployeeCheckinListView' }" v-slot="{ navigate }">
-					<span @click="navigate" class="underline">View List</span>
-				</router-link>
-			</div>
-			<Button
-				class="mt-4 mb-1 drop-shadow-sm py-5 text-base"
-				id="open-checkin-modal"
-				:loading="checkins.list.loading"
-				@click="handleEmployeeCheckin"
-			>
-				<template #prefix>
-					<FeatherIcon
-						:name="nextAction.action === 'IN' ? 'arrow-right-circle' : 'arrow-left-circle'"
-						class="w-4"
-					/>
-				</template>
-				{{ nextAction.label }}
-			</Button>
-		</template>
-
+		<!-- Last-check-in info shows for everyone (biometric staff included); only
+			the Check In/Out button + modal below stay gated by `canCheckin`. -->
+		<div class="font-medium text-sm text-gray-500 mt-1.5" v-if="lastLog?.time">
+			<span>{{ __("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)]) }}</span>
+			<span class="whitespace-pre"> &middot; </span>
+			<router-link :to="{ name: 'EmployeeCheckinListView' }" v-slot="{ navigate }">
+				<span @click="navigate" class="underline">View List</span>
+			</router-link>
+		</div>
 		<div v-else class="font-medium text-sm text-gray-500 mt-1.5">
 			{{ dayjs().format("ddd, D MMMM, YYYY") }}
 		</div>
+
+		<Button
+			v-if="canCheckin"
+			class="mt-4 mb-1 drop-shadow-sm py-5 text-base"
+			id="open-checkin-modal"
+			:loading="checkins.list.loading"
+			@click="handleEmployeeCheckin"
+		>
+			<template #prefix>
+				<FeatherIcon
+					:name="nextAction.action === 'IN' ? 'arrow-right-circle' : 'arrow-left-circle'"
+					class="w-4"
+				/>
+			</template>
+			{{ nextAction.label }}
+		</Button>
 	</div>
 
 	<ion-modal

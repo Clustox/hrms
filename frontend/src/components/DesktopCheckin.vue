@@ -14,39 +14,40 @@
 						{{ __("Attendance") }}
 					</div>
 
-					<template v-if="canCheckin">
-						<div v-if="lastLog?.time" class="mt-2 text-[15px] text-air-ink-2">
-							<span>{{
-								__("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)])
-							}}</span>
-							<span class="whitespace-pre text-air-muted"> &middot; </span>
-							<router-link
-								:to="{ name: 'EmployeeCheckinListView' }"
-								class="text-air-blue underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue"
-							>
-								{{ __("View List") }}
-							</router-link>
-						</div>
-						<div v-else class="mt-2 text-[15px] text-air-muted">
-							{{ dayjs().format("ddd, D MMMM, YYYY") }}
-						</div>
-
-						<!-- Live "logged in for" indicator when currently checked in -->
-						<div v-if="isCheckedIn && elapsedLabel" class="mt-2.5 flex items-center gap-2">
-							<span class="relative flex h-2 w-2">
-								<span
-									class="absolute inline-flex h-full w-full animate-ping rounded-full bg-air-good opacity-60 motion-reduce:hidden"
-								></span>
-								<span class="relative inline-flex h-2 w-2 rounded-full bg-air-good"></span>
-							</span>
-							<span class="font-display text-[15px] font-semibold text-air-good tabular-nums">
-								{{ elapsedLabel }}
-							</span>
-							<span class="text-[13.5px] text-air-muted">{{ __("since check-in") }}</span>
-						</div>
-					</template>
+					<!--
+						The last-check-in info is shown to EVERYONE (lastLog is fetched
+						regardless of WFH/portal permission), so biometric-only office
+						staff see their latest punch on Home too. Only the Check In/Out
+						button and its dialog below stay gated by `canCheckin`.
+					-->
+					<div v-if="lastLog?.time" class="mt-2 text-[15px] text-air-ink-2">
+						<span>{{
+							__("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)])
+						}}</span>
+						<span class="whitespace-pre text-air-muted"> &middot; </span>
+						<router-link
+							:to="{ name: 'EmployeeCheckinListView' }"
+							class="text-air-blue underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue"
+						>
+							{{ __("View List") }}
+						</router-link>
+					</div>
 					<div v-else class="mt-2 text-[15px] text-air-muted">
 						{{ dayjs().format("ddd, D MMMM, YYYY") }}
+					</div>
+
+					<!-- Live "logged in for" indicator when currently checked in -->
+					<div v-if="isCheckedIn && elapsedLabel" class="mt-2.5 flex items-center gap-2">
+						<span class="relative flex h-2 w-2">
+							<span
+								class="absolute inline-flex h-full w-full animate-ping rounded-full bg-air-good opacity-60 motion-reduce:hidden"
+							></span>
+							<span class="relative inline-flex h-2 w-2 rounded-full bg-air-good"></span>
+						</span>
+						<span class="font-display text-[15px] font-semibold text-air-good tabular-nums">
+							{{ elapsedLabel }}
+						</span>
+						<span class="text-[13.5px] text-air-muted">{{ __("since check-in") }}</span>
 					</div>
 				</div>
 
