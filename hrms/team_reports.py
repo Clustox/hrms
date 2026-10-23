@@ -14,7 +14,7 @@ leak -- a lead only ever gets their own direct reports.
 
 import frappe
 from frappe import _
-from frappe.utils import flt, get_first_day, get_last_day, getdate
+from frappe.utils import flt, getdate
 
 
 def _caller_employee():
@@ -30,23 +30,20 @@ def _direct_reports(emp):
 	)
 
 
-def _month_range(month):
-	# month = "YYYY-MM"
-	first = get_first_day(getdate(month + "-01"))
-	return str(first), str(get_last_day(first))
-
-
 @frappe.whitelist()
-def team_report(month, kind):
-	"""`month` = 'YYYY-MM', `kind` = 'hours' | 'leaves'. Scoped to the caller's
-	direct reports."""
+def team_report(from_date, to_date, kind):
+	"""Report over an arbitrary date range [from_date, to_date] (inclusive),
+	`kind` = 'hours' | 'leaves'. Scoped to the caller's direct reports."""
+	frm, to = getdate(from_date), getdate(to_date)
+	if to < frm:
+		frappe.throw(_("The end date can't be before the start date."))
 	emp = _caller_employee()
 	if not emp:
 		frappe.throw(_("No employee record is linked to your account."))
 	reports = _direct_reports(emp)
 	if not reports:
 		return {"columns": [], "rows": [], "empty": True}
-	frm, to = _month_range(month)
+	frm, to = str(frm), str(to)
 	if kind == "hours":
 		return _hours_report(reports, frm, to)
 	if kind == "leaves":

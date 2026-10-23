@@ -247,7 +247,8 @@
 						class="mb-5 flex flex-wrap items-center gap-2"
 					>
 						<span class="mr-auto text-[13px] text-air-muted">
-							{{ __("Reports for") }} {{ firstOfMonth.format("MMMM YYYY") }}
+							{{ __("Reports for") }} {{ rangeLabel }}
+							<span class="text-air-muted/70">· {{ __("use the month arrows or Filter to change") }}</span>
 						</span>
 						<Button variant="subtle" :loading="downloading === 'hours'" @click="downloadReport('hours')">
 							<template #prefix><FeatherIcon name="download" class="h-4 w-4" /></template>
@@ -565,22 +566,31 @@ const teamTimesheet = createResource({
 const downloading = ref("")
 const reportResource = createResource({ url: "hrms.team_reports.team_report" })
 
+// Reports follow the same period as the view: the applied From/To filter if
+// set, otherwise the month in the navigator (see effectiveRange).
+const rangeLabel = computed(() => {
+	if (areFiltersApplied.value) {
+		return `${dayjs(effectiveRange.value.from).format("D MMM")} – ${dayjs(effectiveRange.value.to).format("D MMM YYYY")}`
+	}
+	return firstOfMonth.value.format("MMMM YYYY")
+})
+
 async function downloadReport(kind) {
 	downloading.value = kind
-	const month = firstOfMonth.value.format("YYYY-MM")
+	const { from, to } = effectiveRange.value
 	try {
-		await reportResource.submit({ month, kind })
+		await reportResource.submit({ from_date: from, to_date: to, kind })
 		const data = reportResource.data
 		if (!data || !data.rows || !data.rows.length) {
 			toast({
 				title: __("Nothing to download"),
-				text: __("No data for {0} this month.", [kind]),
+				text: __("No {0} data for this period.", [kind]),
 				icon: "info",
 				position: "bottom-center",
 			})
 			return
 		}
-		downloadCSV(data.columns, data.rows, `team-${kind}-${month}.csv`)
+		downloadCSV(data.columns, data.rows, `team-${kind}-${from}_to_${to}.csv`)
 	} catch (e) {
 		toast({
 			title: __("Download failed"),
