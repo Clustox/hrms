@@ -43,10 +43,19 @@ const hasApprovedWfh = createResource({
 // with a much less clear "Latitude and longitude values are required" error.
 const isLocating = ref(false)
 
+// A forgotten check-out shouldn't keep offering "Check Out" indefinitely: a
+// check-in older than this is treated as a MISSED check-out, so the dashboard
+// stops offering the check-out and lets the employee check in for the new day.
+// `checkinClock` ticks every minute so the switch also happens on a page left
+// open across the 24h boundary, not only on reload.
+const STALE_CHECKIN_HOURS = 24
+const checkinClock = ref(Date.now())
+
 let initialized = false
 let checkins = null
 let lastLog = null
 let lastLogType = null
+let isCheckedIn = null
 let nextAction = null
 let employee = null
 let dayjs = null
@@ -104,8 +113,18 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 			return lastLog?.value?.log_type === "IN" ? "check-in" : "check-out"
 		})
 
+		// Currently checked in = last log is an IN still within the 24h window.
+		// An older IN is a forgotten check-out, so treat the employee as checked
+		// out (missed check-out) -- they can start the new day's check-in.
+		isCheckedIn = computed(() => {
+			const log = lastLog?.value
+			if (log?.log_type !== "IN" || !log?.time) return false
+			void checkinClock.value // reactive tick so this re-evaluates over time
+			return dayjs().diff(dayjs(log.time), "hour") < STALE_CHECKIN_HOURS
+		})
+
 		nextAction = computed(() => {
-			return lastLog?.value?.log_type === "IN"
+			return isCheckedIn.value
 				? { action: "OUT", label: __("Check Out") }
 				: { action: "IN", label: __("Check In") }
 		})
@@ -117,6 +136,9 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 	checkins.reload()
 	hasApprovedWfh.fetch()
 	attachSocket(socket)
+	// App-lifetime tick (like the socket handler) so the 24h stale-check-in
+	// switch happens live, not only on reload.
+	setInterval(() => (checkinClock.value = Date.now()), 60000)
 }
 
 function handleLocationSuccess(position) {
@@ -227,6 +249,7 @@ export function useCheckin() {
 		checkins,
 		lastLog,
 		lastLogType,
+		isCheckedIn,
 		nextAction,
 		checkinTimestamp,
 		latitude,

@@ -136,6 +136,7 @@ const {
 	checkins,
 	lastLog,
 	lastLogType,
+	isCheckedIn,
 	nextAction,
 	checkinTimestamp,
 	latitude,
@@ -166,7 +167,6 @@ onMounted(() => {
 })
 onBeforeUnmount(() => ticker && clearInterval(ticker))
 
-const isCheckedIn = computed(() => lastLog?.value?.log_type === "IN")
 const elapsedLabel = computed(() => {
 	if (!isCheckedIn.value || !lastLog?.value?.time) return ""
 	const mins = now.value.diff(dayjs(lastLog.value.time), "minute")
