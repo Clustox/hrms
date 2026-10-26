@@ -66,11 +66,11 @@ def has_permission(doc, ptype=None, user=None, **kwargs):
 
 	target = getattr(doc, "employee", None)
 
-	# Approval model: submit/cancel = the DIRECT manager approves their team's
-	# requests. Not self-approval (an employee can't submit their own), and not
-	# a skip-level manager. Role perms also gate this (only roles with submit=1
-	# reach here), so a plain employee never approves.
-	if ptype in ("submit", "cancel"):
+	# Approval model: the DIRECT manager approves (submit), rejects (delete the
+	# draft) or undoes (cancel) their team's requests -- never self (an employee
+	# can't approve/reject/remove their own, so a raised request can't vanish on
+	# the approver). Role perms also gate these, so a plain employee never acts.
+	if ptype in ("submit", "cancel", "delete"):
 		own = frappe.db.get_value("Employee", {"user_id": user}, "name")
 		return bool(own and target and
 			frappe.db.get_value("Employee", target, "reports_to") == own)
@@ -78,7 +78,7 @@ def has_permission(doc, ptype=None, user=None, **kwargs):
 	# Create, and any doctype-level check (no specific doc -> target is None),
 	# must pass -- otherwise the employee can't raise their own request at all
 	# (the "need create permission on Attendance Request" regression). Per-doc
-	# read/write/delete are scoped to own record + direct reports.
+	# read/write are scoped to own record + direct reports.
 	if ptype == "create" or target is None:
 		return True
 	return target in _visible_employees(user)
