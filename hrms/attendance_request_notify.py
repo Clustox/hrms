@@ -17,6 +17,13 @@ from frappe.utils import format_date
 PORTAL = "https://frappe.theclustox.com/hrms"
 
 
+def _request_url(doc):
+	# Deep-link straight to the request's detail page so the approver lands on
+	# it (not the generic home). All Attendance Request reasons -- WFH / Missed
+	# Punch / On Duty -- open in this view.
+	return f"{PORTAL}/attendance-requests/{doc.name}"
+
+
 def _range(doc):
     if doc.to_date and str(doc.to_date) != str(doc.from_date):
         return f"{format_date(doc.from_date)} to {format_date(doc.to_date)}"
@@ -45,7 +52,7 @@ def notify_manager(doc, method=None):
 <p><b>{frappe.utils.escape_html(emp_name)}</b> has submitted a <b>{frappe.utils.escape_html(doc.reason)}</b>
 request for <b>{_range(doc)}</b> and it is awaiting your approval.</p>
 <p>Please review and approve it here:
-<a href="{PORTAL}">Open HR portal</a></p>
+<a href="{_request_url(doc)}">Open the request</a></p>
 <p>Thanks,<br>Clustox HR</p></div>""",
             now=False,
         )
@@ -66,7 +73,7 @@ def notify_employee(doc, method=None):
 <p>Hi,</p>
 <p>Your <b>{frappe.utils.escape_html(doc.reason)}</b> request for <b>{_range(doc)}</b> has been
 <b>approved</b>.</p>
-<p>You can view it here: <a href="{PORTAL}">Open HR portal</a></p>
+<p>You can view it here: <a href="{_request_url(doc)}">Open the request</a></p>
 <p>Thanks,<br>Clustox HR</p></div>""",
             now=False,
         )
