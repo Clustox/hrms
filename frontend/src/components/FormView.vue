@@ -376,6 +376,7 @@ import { FileAttachment, guessStatusColor } from "@/composables"
 import useWorkflow from "@/composables/workflow"
 import { getCompanyCurrency } from "@/data/currencies"
 import { formatCurrency } from "@/utils/formatters"
+import { userResource } from "@/data/user"
 import { useDownloadPDF } from "@/utils/commonUtils"
 
 const props = defineProps({
@@ -679,13 +680,21 @@ const permittedWriteFields = createResource({
 	params: { doctype: props.doctype },
 })
 
+// Reversing a leave's approval (cancelling an approved leave, deleting an
+// approved/cancelled one) is HR-only -- enforced server-side in
+// request_visibility.has_permission; hidden here so nobody else is offered it.
+const isHR = computed(() =>
+	["HR Manager", "HR User", "System Manager"].some((role) => userResource.data?.roles?.includes(role))
+)
+const canReverseApproval = computed(() => props.doctype !== "Leave Application" || isHR.value)
+
 const formButton = computed(() => {
 	if (!props.showFormButton) return
 
 	if (props.id && props.isSubmittable && !isFormDirty.value) {
 		if (formModel.value.docstatus === 0 && hasPermission("submit")) {
 			return "Submit"
-		} else if (formModel.value.docstatus === 1 && hasPermission("cancel")) {
+		} else if (formModel.value.docstatus === 1 && hasPermission("cancel") && canReverseApproval.value) {
 			return "Cancel"
 		}
 	} else if (formModel.value.docstatus !== 2) {
@@ -695,6 +704,7 @@ const formButton = computed(() => {
 
 function showDeleteButton() {
 	if (!props.id || !hasPermission("delete")) return false
+	if (formModel.value.docstatus >= 1 && !canReverseApproval.value) return false
 	return formModel.value.docstatus !== 1 || (props.canDeleteSubmitted && props.deleteMethod)
 }
 

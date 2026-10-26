@@ -128,7 +128,7 @@
 		</div>
 
 		<div
-			v-else-if="document?.doc?.docstatus === 1 && hasPermission('cancel')"
+			v-else-if="document?.doc?.docstatus === 1 && hasPermission('cancel') && canCancelApproved"
 			class="flex w-full flex-row items-center justify-between gap-3 sticky bottom-0 border-t z-[100] p-4"
 		>
 			<Button
@@ -173,6 +173,7 @@ import WorkflowActionSheet from "@/components/WorkflowActionSheet.vue"
 import { getCompanyCurrency } from "@/data/currencies"
 import { settings } from "@/data/settings"
 import { formatCurrency } from "@/utils/formatters"
+import { userResource } from "@/data/user"
 
 import useWorkflow from "@/composables/workflow"
 
@@ -233,6 +234,14 @@ const permittedWriteFields = createResource({
 })
 
 const sessionEmployee = inject("$employee")
+
+// Cancelling an approved leave is HR-only (also enforced server-side in
+// request_visibility.has_permission).
+const canCancelApproved = computed(
+	() =>
+		props.modelValue.doctype !== "Leave Application" ||
+		["HR Manager", "HR User", "System Manager"].some((role) => userResource.data?.roles?.includes(role))
+)
 
 function hasPermission(action) {
 	if (action === "approval" && props.modelValue.doctype === "Leave Application"){

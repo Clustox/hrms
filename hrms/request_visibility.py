@@ -64,6 +64,17 @@ def has_permission(doc, ptype=None, user=None, **kwargs):
 	if ALL_ACCESS_ROLES & set(frappe.get_roles(user)):
 		return True  # HR/admin -- full access
 
+	# Reversing an approval is an HR action: cancelling or deleting an approved
+	# (submitted) or already-cancelled leave is limited to the HR roles above
+	# (returned True just before). Approvers and team leads keep approving and
+	# rejecting, and can still delete a leave that was never approved.
+	if (
+		getattr(doc, "doctype", None) == "Leave Application"
+		and ptype in ("cancel", "delete")
+		and getattr(doc, "docstatus", 0) in (1, 2)
+	):
+		return False
+
 	target = getattr(doc, "employee", None)
 
 	# Approval model: submit/cancel = the DIRECT manager approves their team's
