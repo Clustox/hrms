@@ -220,3 +220,42 @@ def submit_approved_drafts():
         except Exception:
             frappe.db.rollback()
             frappe.log_error(title=f"auto-submit approved leave {name} failed", message=frappe.get_traceback())
+
+
+HR_ROLES = {"HR Manager", "HR User", "System Manager"}
+
+
+def delete_cancelled_attendance(doc, method=None):
+    """on_trash of a *cancelled* Leave Application: remove its cancelled
+    "On Leave" Attendance records first.
+
+    Cancelling a leave cancels (docstatus 2) the Attendance it created, but
+    those rows still link back to the leave, and Frappe's link check then
+    refuses to delete the leave ("linked with Attendance ..."). They are
+    already cancelled -- no balance or attendance effect left -- so clearing
+    them is what lets HR delete a cancelled leave. Runs before the link check
+    (on_trash fires first); a leave that is still submitted is never deleted
+    (Frappe requires cancelling it first), so only docstatus 2 is handled."""
+    if doc.docstatus != 2:
+        return
+    for name in frappe.get_all(
+        "Attendance", {"leave_application": doc.name, "docstatus": 2}, pluck="name"
+    ):
+        frappe.delete_doc("Attendance", name, ignore_permissions=True, force=True)
+
+
+@frappe.whitelist()
+def delete_leave_application(name: str) -> str:
+    """HR-only: delete a Leave Application in one step, including an Approved
+    (submitted) one -- cancel it first (reversing its balance deduction and its
+    "On Leave" attendance), then delete it. Frappe itself only allows deleting
+    cancelled/draft documents, so this is the portal's single "Delete" action."""
+    if not HR_ROLES & set(frappe.get_roles()):
+        frappe.throw(_("Only HR can delete an approved leave."), frappe.PermissionError)
+
+    doc = frappe.get_doc("Leave Application", name)
+    if doc.docstatus == 1:
+        doc.cancel()
+    frappe.delete_doc("Leave Application", name)
+    return name
+

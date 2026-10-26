@@ -9,6 +9,8 @@
 				:fields="formFields.data"
 				:id="props.id"
 				:showAttachmentView="true"
+				:canDeleteSubmitted="isHR"
+				deleteMethod="hrms.leave_rules.delete_leave_application"
 				:attachmentRequired="medicalDocRequired"
 				:attachmentRequiredHint="
 					__('Sick Leave for more than 2 days requires a medical document. Please attach it before submitting.')
@@ -25,8 +27,13 @@ import { createResource } from "frappe-ui"
 import { ref, watch, inject, nextTick, computed } from "vue"
 
 import FormView from "@/components/FormView.vue"
+import { userResource } from "@/data/user"
 
 const dayjs = inject("$dayjs")
+
+// HR can delete an approved (submitted) leave outright -- cancel + delete in one step
+const HR_ROLES = ["HR Manager", "HR User", "System Manager"]
+const isHR = computed(() => HR_ROLES.some((role) => userResource.data?.roles?.includes(role)))
 const __ = inject("$translate")
 const today = dayjs().format("YYYY-MM-DD")
 

@@ -444,6 +444,17 @@ const props = defineProps({
 		type: String,
 		required: false,
 	},
+	// Show "Delete" even on a submitted document and run `deleteMethod`
+	// (a whitelisted method taking `name`) instead of the plain delete, which
+	// Frappe refuses for submitted docs. Used to let HR remove an approved leave.
+	canDeleteSubmitted: {
+		type: Boolean,
+		default: false,
+	},
+	deleteMethod: {
+		type: String,
+		required: false,
+	},
 	newTitleOverride: {
 		type: String,
 		required: false,
@@ -612,6 +623,28 @@ const docList = createListResource({
 	},
 })
 
+function onDeleteSuccess() {
+	router.back()
+	toast({
+		title: __("Success"),
+		text: __("{0} deleted successfully!", [__(props.doctype)]),
+		icon: "check-circle",
+		position: "bottom-center",
+		iconClasses: "text-green-500",
+	})
+}
+
+function onDeleteError() {
+	toast({
+		title: __("Error"),
+		text: __("Error deleting {0}", [__(props.doctype)]),
+		icon: "alert-circle",
+		position: "bottom-center",
+		iconClasses: "text-red-500",
+	})
+	console.log(`Error deleting ${props.doctype}`)
+}
+
 const documentResource = createDocumentResource({
 	doctype: props.doctype,
 	name: props.id,
@@ -631,26 +664,8 @@ const documentResource = createDocumentResource({
 		},
 	},
 	delete: {
-		onSuccess() {
-			router.back()
-			toast({
-				title: __("Success"),
-				text: __("{0} deleted successfully!", [__(props.doctype)]),
-				icon: "check-circle",
-				position: "bottom-center",
-				iconClasses: "text-green-500",
-			})
-		},
-		onError() {
-			toast({
-				title: __("Error"),
-				text: __("Error deleting {0}", [__(props.doctype)]),
-				icon: "alert-circle",
-				position: "bottom-center",
-				iconClasses: "text-red-500",
-			})
-			console.log(`Error deleting ${props.doctype}`)
-		},
+		onSuccess: () => onDeleteSuccess(),
+		onError: () => onDeleteError(),
 	},
 })
 
@@ -679,7 +694,8 @@ const formButton = computed(() => {
 })
 
 function showDeleteButton() {
-	return props.id && formModel.value.docstatus !== 1 && hasPermission("delete")
+	if (!props.id || !hasPermission("delete")) return false
+	return formModel.value.docstatus !== 1 || (props.canDeleteSubmitted && props.deleteMethod)
 }
 
 function hasPermission(action) {
@@ -813,8 +829,18 @@ function submitOrCancelForm() {
 	}
 }
 
+const deleteViaMethod = createResource({
+	url: props.deleteMethod || "frappe.client.delete",
+	onSuccess: () => onDeleteSuccess(),
+	onError: () => onDeleteError(),
+})
+
 function handleDocDelete() {
-	documentResource.delete.submit()
+	if (props.deleteMethod && formModel.value.docstatus === 1) {
+		deleteViaMethod.submit({ name: props.id })
+	} else {
+		documentResource.delete.submit()
+	}
 	showDeleteDialog.value = false
 }
 
