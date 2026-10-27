@@ -306,6 +306,9 @@ doc_events = {
 	"Employee Checkin": {"after_insert": "hrms.telemetry.on_employee_checkin"},
 	"Payroll Entry": {"on_submit": "hrms.telemetry.on_payroll_entry_submit"},
 	"Job Offer": {"on_submit": "hrms.telemetry.on_job_offer_submit"},
+	# Clustox: on an on-behalf ticket, point raised_by at the contact's email so
+	# the acknowledgement + agent replies reach the employee (see helpdesk_router).
+	"HD Ticket": {"before_validate": "hrms.helpdesk_router.set_requester_from_contact"},
 	"Appraisal": {"on_submit": "hrms.telemetry.on_appraisal_submit"},
 	"Interview": {"on_submit": "hrms.telemetry.on_interview_submit"},
 	# ---- Activation telemetry: post-install setup funnel (first-time milestones) ----
