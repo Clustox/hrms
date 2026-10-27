@@ -24,10 +24,12 @@ except Annual Leave, which must always be planned and always requires the
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, date_diff, getdate, today
+from frappe.utils import add_days, date_diff, formatdate, getdate, today
 
 OVERRIDE_ROLES = {"HR Manager", "HR User", "System Manager", "Administrator"}
 PROBATION_DAYS = 90
+# Employees may record leave starting at most this many calendar days in the past.
+BACKDATE_LIMIT_DAYS = 7
 
 ANNUAL = "Annual Leave"
 SICK = "Sick Leave"
@@ -183,6 +185,33 @@ def validate_leave_application_on_submit(doc, method=None):
         if not has_file:
             frappe.throw(_("Sick Leave over 2 days requires a medical document "
                            "to be attached."))
+
+
+def validate_backdate_limit(doc, method=None):
+    """Employees may apply for leave starting up to BACKDATE_LIMIT_DAYS (7)
+    calendar days in the past -- so a missed/emergency leave can be recorded
+    after the fact -- but no further back. Start dates older than the window are
+    hard-blocked.
+
+    HR / System Manager / Administrator are exempt and may backdate any number
+    of days (corrections on anyone's behalf). This is a fixed-window replacement
+    for Frappe's all-or-nothing `restrict_backdated_leave_application` setting,
+    which is therefore turned OFF for this site -- if that setting is ever turned
+    back on it would block employees before this rule runs.
+
+    Annual Leave is separately blocked from ANY backdating by the advance-notice
+    rule in validate_leave_application; this window applies to the other types."""
+    if not doc.get("from_date"):
+        return
+    if set(frappe.get_roles()) & OVERRIDE_ROLES:
+        return
+    days_back = date_diff(getdate(today()), getdate(doc.from_date))
+    if days_back > BACKDATE_LIMIT_DAYS:
+        earliest = add_days(getdate(today()), -BACKDATE_LIMIT_DAYS)
+        frappe.throw(
+            _("Leave can be backdated by at most {0} days. The earliest start "
+              "date you can apply for is {1}.").format(BACKDATE_LIMIT_DAYS, formatdate(earliest))
+        )
 
 
 def cap_compensatory_off_expiry(doc, method=None):

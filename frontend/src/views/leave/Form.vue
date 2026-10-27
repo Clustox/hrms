@@ -36,6 +36,12 @@ const HR_ROLES = ["HR Manager", "HR User", "System Manager"]
 const isHR = computed(() => HR_ROLES.some((role) => userResource.data?.roles?.includes(role)))
 const __ = inject("$translate")
 const today = dayjs().format("YYYY-MM-DD")
+// Policy: employees may backdate leave by at most 7 calendar days. The backend
+// (hrms.leave_rules.validate_backdate_limit) is the source of truth; this caps
+// the date picker so an out-of-window date can't be picked in the first place.
+// Keep this number in sync with BACKDATE_LIMIT_DAYS in hrms/leave_rules.py.
+const BACKDATE_LIMIT_DAYS = 7
+const earliestBackdate = dayjs().subtract(BACKDATE_LIMIT_DAYS, "day").format("YYYY-MM-DD")
 
 const props = defineProps({
 	id: {
@@ -101,6 +107,16 @@ const formFields = createResource({
 			// what it actually is: whose application this is, not a field
 			// anyone -- applicant or approver -- should be reassigning.
 			if (field.fieldname === "employee") field.read_only = true
+
+			// Cap backdating to the 7-day window on new applications. HR is
+			// exempt (they record older corrections from the desk), and existing
+			// records keep their stored dates.
+			if (
+				!props.id &&
+				!isHR.value &&
+				(field.fieldname === "from_date" || field.fieldname === "to_date")
+			)
+				field.minDate = earliestBackdate
 
 			return field
 		})

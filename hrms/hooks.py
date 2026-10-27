@@ -219,10 +219,20 @@ override_doctype_class = {
 # Hook on document methods and events
 
 doc_events = {
-	# Clustox: Leave Policy v1.3 rule enforcement (see hrms/leave_rules.py)
+	# Clustox: Leave Policy v1.3 rule enforcement (see hrms/leave_rules.py).
+	# NOTE: keep every Leave Application event in THIS single dict -- a second
+	# "Leave Application" key anywhere in doc_events silently overrides this one
+	# (Python dict literal: last key wins), which previously dropped these
+	# validations entirely.
 	"Leave Application": {
-		"validate": "hrms.leave_rules.validate_leave_application",
+		"validate": [
+			"hrms.leave_rules.validate_leave_application",
+			"hrms.leave_rules.validate_backdate_limit",
+		],
 		"before_submit": "hrms.leave_rules.validate_leave_application_on_submit",
+		"on_submit": "hrms.telemetry.on_leave_application_submit",
+		# Clustox: let HR delete a cancelled leave (clears its cancelled Attendance links)
+		"on_trash": "hrms.leave_rules.delete_cancelled_attendance",
 	},
 	"Leave Allocation": {
 		"validate": "hrms.leave_rules.cap_compensatory_off_expiry",
@@ -291,11 +301,8 @@ doc_events = {
 	"Project": {"validate": "hrms.controllers.employee_boarding_controller.update_employee_boarding_status"},
 	"Task": {"on_update": "hrms.controllers.employee_boarding_controller.update_task"},
 	# ---- Usage telemetry: recurring feature usage (see hrms/telemetry.py) ----
-	"Leave Application": {
-		"on_submit": "hrms.telemetry.on_leave_application_submit",
-		# Clustox: let HR delete a cancelled leave (clears its cancelled Attendance links)
-		"on_trash": "hrms.leave_rules.delete_cancelled_attendance",
-	},
+	# NB: Leave Application telemetry (on_submit) is registered in the single
+	# "Leave Application" entry above -- do NOT re-add a key for it here.
 	"Expense Claim": {"on_submit": "hrms.telemetry.on_expense_claim_submit"},
 	"Attendance Request": {
 		# Clustox: notify the employee's manager when a request is raised, and
