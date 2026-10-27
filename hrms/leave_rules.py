@@ -65,6 +65,20 @@ def _is_holiday(hl, d) -> bool:
     )
 
 
+def _is_public_holiday(hl, d) -> bool:
+    """A NAMED public holiday only (weekly_off=0), excluding ordinary weekends.
+    Used for the Casual-leave adjacency rule: the Clustox holiday list stores
+    every weekend as a weekly_off Holiday row, so treating those as "holidays"
+    would block almost every Monday/Friday Casual leave. Weekends still count
+    for the sandwich rule (via _is_holiday) -- bridging a weekend is the point
+    of a sandwich -- but not for plain Casual adjacency."""
+    return bool(hl) and bool(
+        frappe.db.exists(
+            "Holiday", {"parent": hl, "holiday_date": getdate(d), "weekly_off": 0}
+        )
+    )
+
+
 def _other_leave_on(doc, d) -> bool:
     """True if the employee has another (non-cancelled) leave covering day d."""
     return bool(frappe.db.exists("Leave Application", {
@@ -156,11 +170,14 @@ def validate_leave_application(doc, method=None):
     if rel and getdate(today()) <= frm <= rel:
         frappe.throw(_("Leave cannot be availed during the notice / resignation period."))
 
-    # 6) casual cannot combine with another leave or an adjacent holiday
+    # 6) casual cannot combine with another leave or an adjacent PUBLIC holiday.
+    #    Ordinary weekends are intentionally NOT counted here (that would block
+    #    every Monday/Friday casual); the sandwich rule below still guards the
+    #    bridge-a-weekend case.
     hl = _holiday_list(doc.employee)
     if lt == CASUAL:
-        if _is_holiday(hl, add_days(frm, -1)) or _is_holiday(hl, add_days(to, 1)):
-            frappe.throw(_("Casual Leave cannot be combined with a holiday or weekend."))
+        if _is_public_holiday(hl, add_days(frm, -1)) or _is_public_holiday(hl, add_days(to, 1)):
+            frappe.throw(_("Casual Leave cannot be combined with a public holiday."))
         if _other_leave_on(doc, add_days(frm, -1)) or _other_leave_on(doc, add_days(to, 1)):
             frappe.throw(_("Casual Leave cannot be combined with another leave."))
 
