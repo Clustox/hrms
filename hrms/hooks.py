@@ -291,7 +291,11 @@ doc_events = {
 	"Project": {"validate": "hrms.controllers.employee_boarding_controller.update_employee_boarding_status"},
 	"Task": {"on_update": "hrms.controllers.employee_boarding_controller.update_task"},
 	# ---- Usage telemetry: recurring feature usage (see hrms/telemetry.py) ----
-	"Leave Application": {"on_submit": "hrms.telemetry.on_leave_application_submit"},
+	"Leave Application": {
+		"on_submit": "hrms.telemetry.on_leave_application_submit",
+		# Clustox: let HR delete a cancelled leave (clears its cancelled Attendance links)
+		"on_trash": "hrms.leave_rules.delete_cancelled_attendance",
+	},
 	"Expense Claim": {"on_submit": "hrms.telemetry.on_expense_claim_submit"},
 	"Attendance Request": {
 		# Clustox: notify the employee's manager when a request is raised, and
