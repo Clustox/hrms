@@ -28,7 +28,7 @@ def get_columns():
         {"label": _("Period"), "fieldname": "period", "fieldtype": "Data", "width": 110},
         {"label": _("Employee"), "fieldname": "employee", "fieldtype": "Link", "options": "Employee", "width": 110},
         {"label": _("Name"), "fieldname": "employee_name", "fieldtype": "Data", "width": 160},
-        {"label": _("Department"), "fieldname": "department", "fieldtype": "Link", "options": "Department", "width": 130},
+        {"label": _("Department"), "fieldname": "department", "fieldtype": "Data", "width": 130},
         {"label": _("Project"), "fieldname": "project", "fieldtype": "Link", "options": "Project", "width": 150},
         {"label": _("Cost Category"), "fieldname": "cost_category", "fieldtype": "Data", "width": 130},
         {"label": _("Utilization"), "fieldname": "utilization", "fieldtype": "Data", "width": 120},
