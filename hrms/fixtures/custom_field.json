@@ -988,7 +988,7 @@
   "depends_on": null,
   "description": "If ticked, this employee can Check-in/out from the /hrms dashboard without an approved Work From Home request (e.g. fully remote or field staff).",
   "docstatus": 0,
-  "doctype": "",
+  "doctype": "Custom Field",
   "dt": "Employee",
   "fetch_from": null,
   "fetch_if_empty": 0,
