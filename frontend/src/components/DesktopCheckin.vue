@@ -36,6 +36,14 @@
 						{{ dayjs().format("ddd, D MMMM, YYYY") }}
 					</div>
 
+					<div v-if="staleCheckin" class="mt-2.5 text-[13.5px] font-medium text-amber-700">
+						{{
+							__("Your check-in at {0} had no check-out, so that session was reset. You can start a new one.", [
+								formatTimestamp(staleCheckin.time),
+							])
+						}}
+					</div>
+
 					<!-- Live "logged in for" indicator when currently checked in -->
 					<div v-if="isCheckedIn && elapsedLabel" class="mt-2.5 flex items-center gap-2">
 						<span class="relative flex h-2 w-2">
@@ -137,6 +145,7 @@ const {
 	lastLog,
 	lastLogType,
 	isCheckedIn,
+	staleCheckin,
 	nextAction,
 	checkinTimestamp,
 	latitude,
@@ -170,10 +179,10 @@ onBeforeUnmount(() => ticker && clearInterval(ticker))
 const elapsedLabel = computed(() => {
 	if (!isCheckedIn.value || !lastLog?.value?.time) return ""
 	const mins = now.value.diff(dayjs(lastLog.value.time), "minute")
-	// Only show a live counter for the current session (< 24h). A check-in older
-	// than that is a forgotten check-out, not "hours worked so far" — showing a
-	// multi-day counter would be misleading, so leave it to the Check Out button.
-	if (mins < 0 || mins >= 1440) return ""
+	// Only show a live counter for the current session (< 18h, same window as
+	// useCheckin's STALE_CHECKIN_HOURS). A check-in older than that is a
+	// forgotten check-out, not "hours worked so far" -- the session was reset.
+	if (mins < 0 || mins >= 18 * 60) return ""
 	const h = Math.floor(mins / 60)
 	const m = mins % 60
 	return h ? `${h}h ${m}m` : `${m}m`

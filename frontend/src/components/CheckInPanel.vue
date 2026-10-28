@@ -17,6 +17,14 @@
 			{{ dayjs().format("ddd, D MMMM, YYYY") }}
 		</div>
 
+		<div v-if="staleCheckin" class="mt-2 text-sm font-medium text-amber-700">
+			{{
+				__("Your check-in at {0} had no check-out, so that session was reset. You can start a new one.", [
+					formatTimestamp(staleCheckin.time),
+				])
+			}}
+		</div>
+
 		<Button
 			v-if="canCheckin"
 			class="mt-4 mb-1 drop-shadow-sm py-5 text-base"
@@ -103,6 +111,7 @@ const {
 	checkins,
 	lastLog,
 	lastLogType,
+	staleCheckin,
 	nextAction,
 	checkinTimestamp,
 	latitude,

@@ -44,11 +44,12 @@ const hasApprovedWfh = createResource({
 const isLocating = ref(false)
 
 // A forgotten check-out shouldn't keep offering "Check Out" indefinitely: a
-// check-in older than this is treated as a MISSED check-out, so the dashboard
-// stops offering the check-out and lets the employee check in for the new day.
-// `checkinClock` ticks every minute so the switch also happens on a page left
-// open across the 24h boundary, not only on reload.
-const STALE_CHECKIN_HOURS = 24
+// check-in older than this is treated as a MISSED check-out and its session is
+// reset, so the dashboard stops offering the check-out and lets the employee
+// start a new session. `checkinClock` ticks every minute so the switch also
+// happens on a page left open across the boundary, not only on reload.
+// Keep in sync with STALE_CHECKIN_HOURS in hrms/checkin_session.py.
+const STALE_CHECKIN_HOURS = 18
 const checkinClock = ref(Date.now())
 
 let initialized = false
@@ -56,6 +57,7 @@ let checkins = null
 let lastLog = null
 let lastLogType = null
 let isCheckedIn = null
+let staleCheckin = null
 let nextAction = null
 let employee = null
 let dayjs = null
@@ -113,7 +115,7 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 			return lastLog?.value?.log_type === "IN" ? "check-in" : "check-out"
 		})
 
-		// Currently checked in = last log is an IN still within the 24h window.
+		// Currently checked in = last log is an IN still within the 18h window.
 		// An older IN is a forgotten check-out, so treat the employee as checked
 		// out (missed check-out) -- they can start the new day's check-in.
 		isCheckedIn = computed(() => {
@@ -121,6 +123,15 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 			if (log?.log_type !== "IN" || !log?.time) return false
 			void checkinClock.value // reactive tick so this re-evaluates over time
 			return dayjs().diff(dayjs(log.time), "hour") < STALE_CHECKIN_HOURS
+		})
+
+		// The last log, when it is an IN with no check-out that has outlived the
+		// window -- i.e. the previous session that was reset. Drives the notice.
+		staleCheckin = computed(() => {
+			const log = lastLog?.value
+			if (log?.log_type !== "IN" || !log?.time) return null
+			void checkinClock.value
+			return dayjs().diff(dayjs(log.time), "hour") >= STALE_CHECKIN_HOURS ? log : null
 		})
 
 		nextAction = computed(() => {
@@ -136,7 +147,7 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 	checkins.reload()
 	hasApprovedWfh.fetch()
 	attachSocket(socket)
-	// App-lifetime tick (like the socket handler) so the 24h stale-check-in
+	// App-lifetime tick (like the socket handler) so the 18h stale-check-in
 	// switch happens live, not only on reload.
 	setInterval(() => (checkinClock.value = Date.now()), 60000)
 }
@@ -250,6 +261,7 @@ export function useCheckin() {
 		lastLog,
 		lastLogType,
 		isCheckedIn,
+		staleCheckin,
 		nextAction,
 		checkinTimestamp,
 		latitude,
