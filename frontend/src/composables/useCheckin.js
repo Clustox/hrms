@@ -44,12 +44,17 @@ const hasApprovedWfh = createResource({
 const isLocating = ref(false)
 
 // A forgotten check-out shouldn't keep offering "Check Out" indefinitely: a
-// check-in older than this is treated as a MISSED check-out and its session is
-// reset, so the dashboard stops offering the check-out and lets the employee
-// start a new session. `checkinClock` ticks every minute so the switch also
-// happens on a page left open across the boundary, not only on reload.
+// check-in still open this many hours after its SHIFT START (e.g. a 12pm shift
+// -> 6am next day) is treated as a MISSED check-out and its session is reset,
+// so the dashboard stops offering the check-out and lets the employee start a
+// new session. A check-in with no shift counts from its own time instead.
+// `checkinClock` ticks every minute so the switch also happens on a page left
+// open across the boundary, not only on reload.
 // Keep in sync with STALE_CHECKIN_HOURS in hrms/checkin_session.py.
 const STALE_CHECKIN_HOURS = 18
+
+// Where the 18h window starts: the shift's start, else the check-in itself.
+const sessionStart = (log) => log.shift_start || log.time
 const checkinClock = ref(Date.now())
 
 let initialized = false
@@ -99,7 +104,7 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 	scope.run(() => {
 		checkins = createListResource({
 			doctype: DOCTYPE,
-			fields: ["name", "employee", "employee_name", "log_type", "time", "device_id"],
+			fields: ["name", "employee", "employee_name", "log_type", "time", "shift_start", "device_id"],
 			filters: {
 				employee: employee.data.name,
 			},
@@ -115,14 +120,14 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 			return lastLog?.value?.log_type === "IN" ? "check-in" : "check-out"
 		})
 
-		// Currently checked in = last log is an IN still within the 18h window.
+		// Currently checked in = last log is an IN still within 18h of its shift start.
 		// An older IN is a forgotten check-out, so treat the employee as checked
 		// out (missed check-out) -- they can start the new day's check-in.
 		isCheckedIn = computed(() => {
 			const log = lastLog?.value
 			if (log?.log_type !== "IN" || !log?.time) return false
 			void checkinClock.value // reactive tick so this re-evaluates over time
-			return dayjs().diff(dayjs(log.time), "hour") < STALE_CHECKIN_HOURS
+			return dayjs().diff(dayjs(sessionStart(log)), "hour") < STALE_CHECKIN_HOURS
 		})
 
 		// The last log, when it is an IN with no check-out that has outlived the
@@ -131,7 +136,7 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 			const log = lastLog?.value
 			if (log?.log_type !== "IN" || !log?.time) return null
 			void checkinClock.value
-			return dayjs().diff(dayjs(log.time), "hour") >= STALE_CHECKIN_HOURS ? log : null
+			return dayjs().diff(dayjs(sessionStart(log)), "hour") >= STALE_CHECKIN_HOURS ? log : null
 		})
 
 		nextAction = computed(() => {

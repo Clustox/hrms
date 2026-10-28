@@ -179,10 +179,9 @@ onBeforeUnmount(() => ticker && clearInterval(ticker))
 const elapsedLabel = computed(() => {
 	if (!isCheckedIn.value || !lastLog?.value?.time) return ""
 	const mins = now.value.diff(dayjs(lastLog.value.time), "minute")
-	// Only show a live counter for the current session (< 18h, same window as
-	// useCheckin's STALE_CHECKIN_HOURS). A check-in older than that is a
-	// forgotten check-out, not "hours worked so far" -- the session was reset.
-	if (mins < 0 || mins >= 18 * 60) return ""
+	// isCheckedIn (above) already drops a session that outlived the 18h window
+	// from its shift start (a forgotten check-out, so no "hours worked so far").
+	if (mins < 0) return ""
 	const h = Math.floor(mins / 60)
 	const m = mins % 60
 	return h ? `${h}h ${m}m` : `${m}m`
