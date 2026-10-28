@@ -326,6 +326,12 @@ class LeaveApplication(Document, PWANotificationsMixin):
 					docstatus=("!=", 2),
 				),
 			)
+			# weekends are never leave days (see get_number_of_leave_days), so no
+			# "On Leave" attendance is created for them; any existing attendance
+			# on a weekend is left as it is
+			if is_weekend(date):
+				continue
+
 			# don't mark attendance for holidays
 			# if leave type does not include holidays within leaves as leaves
 			if date in holiday_dates:
@@ -1045,22 +1051,37 @@ def get_number_of_leave_days(
 	holiday_list: str | None = None,
 ) -> float:
 	"""Returns number of leave days between 2 dates after considering half day and holidays
-	(Based on the include_holiday setting in Leave Type)"""
+	(Based on the include_holiday setting in Leave Type).
+
+	Clustox: Saturdays and Sundays are never counted as leave days, for any
+	leave type -- independent of the Holiday List (which may not cover the year,
+	or may only list Sundays) and of the Leave Type's include_holiday setting."""
 	validate_leave_access(employee)
-	number_of_days = date_diff(to_date, from_date) + 1
+	from_date, to_date = getdate(from_date), getdate(to_date)
+	total_days = date_diff(to_date, from_date) + 1
+	number_of_days = total_days
 
 	if cint(half_day) == 1:
 		is_valid_half_day = (
 			half_day_date
-			and getdate(from_date) <= getdate(half_day_date) <= getdate(to_date)
+			and from_date <= getdate(half_day_date) <= to_date
+			and not is_weekend(half_day_date)
 			and not is_holiday(employee=employee, date=half_day_date)
 		)
 		if is_valid_half_day:
 			number_of_days -= 0.5
 
+	not_counted = {add_days(from_date, i) for i in range(total_days) if is_weekend(add_days(from_date, i))}
 	if not frappe.db.get_value("Leave Type", leave_type, "include_holiday"):
-		number_of_days = flt(number_of_days) - flt(get_holidays(employee, from_date, to_date))
-	return number_of_days
+		# union, so a holiday that is also a weekend is only taken off once
+		not_counted |= {getdate(d) for d in get_holiday_dates_between_range(employee, from_date, to_date)}
+
+	return flt(number_of_days) - len(not_counted)
+
+
+def is_weekend(date) -> bool:
+	"""Saturday or Sunday."""
+	return getdate(date).weekday() >= 5
 
 
 @frappe.whitelist()
