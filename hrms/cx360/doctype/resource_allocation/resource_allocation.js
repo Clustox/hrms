@@ -1,10 +1,11 @@
-// Live-fill the billing and cost rates from Activity Cost / the project's Sales Order
-// when Employee, Project or Activity Type changes. Only fills a rate that is still
-// blank, so a value typed by hand is never overwritten (mirrors the server on save).
+// Live-fill the billing and cost rates when Employee, Project or Start Date changes.
+// Cost comes from the employee's Rate Card (as of the allocation start date); billing
+// from the project's Sales Order. Only a blank rate is filled, so a value typed by hand
+// is never overwritten (mirrors the server on save).
 frappe.ui.form.on("Resource Allocation", {
 	employee: (frm) => suggest_rates(frm),
 	project: (frm) => suggest_rates(frm),
-	activity_type: (frm) => suggest_rates(frm),
+	start_date: (frm) => suggest_rates(frm),
 });
 
 function suggest_rates(frm) {
@@ -16,7 +17,7 @@ function suggest_rates(frm) {
 		args: {
 			employee: frm.doc.employee,
 			project: frm.doc.project,
-			activity_type: frm.doc.activity_type,
+			on_date: frm.doc.start_date,
 		},
 		callback: (r) => {
 			if (!r.message) {

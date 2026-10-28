@@ -18,7 +18,7 @@ class ResourceAllocation(Document):
     def _populate_rates(self):
         """Fill blank rates from the authoritative sources (see get_suggested_rates).
         A rate typed by hand is left untouched."""
-        rates = get_suggested_rates(self.employee, self.project, self.activity_type)
+        rates = get_suggested_rates(self.employee, self.project, self.start_date)
         if not flt(self.project_cost_rate):
             self.project_cost_rate = rates["cost_rate"]
         if not flt(self.project_billing_rate):
@@ -57,22 +57,18 @@ class ResourceAllocation(Document):
 
 @frappe.whitelist()
 def get_suggested_rates(
-    employee: str | None = None, project: str | None = None, activity_type: str | None = None
+    employee: str | None = None, project: str | None = None, on_date: str | None = None
 ) -> dict:
-    """Suggested allocation rates: cost from the employee's Activity Cost, billing from
-    the project's Sales Order (falling back to Activity Cost). Shared by the form (live
-    prefill) and the controller (fill-if-blank on save)."""
+    """Suggested allocation rates: cost from the employee's Rate Card (hourly), billing
+    from the project's Sales Order. Shared by the form (live prefill) and the controller
+    (fill-if-blank on save)."""
+    from hrms.cx360 import cost_sheet
+
+    on_date = on_date or frappe.utils.today()
     return {
-        "cost_rate": _activity_cost_rate(employee, activity_type, "costing_rate"),
-        "billing_rate": _sales_order_rate(project) or _activity_cost_rate(employee, activity_type, "billing_rate"),
+        "cost_rate": cost_sheet.employee_hourly_cost(employee, on_date) if employee else 0,
+        "billing_rate": _sales_order_rate(project),
     }
-
-
-def _activity_cost_rate(employee, activity_type, field):
-    if not (employee and activity_type):
-        return 0
-    return flt(frappe.db.get_value(
-        "Activity Cost", {"employee": employee, "activity_type": activity_type}, field))
 
 
 def _sales_order_rate(project):
