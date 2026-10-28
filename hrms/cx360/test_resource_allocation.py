@@ -72,23 +72,14 @@ class TestResourceAllocationParity(FrappeTestCase):
 
 
 class TestResourceAllocationRates(FrappeTestCase):
-    """Phase 1 — allocation rates auto-fill from Activity Cost (cost) and the
-    project's Sales Order (billing), only when left blank."""
+    """Allocation rates auto-fill: cost from the employee's Rate Card, billing from the
+    project's Sales Order, only when left blank."""
 
     def setUp(self):
         self.emp = frappe.get_all("Employee", filters={"status": "Active"}, limit=1)[0].name
-        self.activity = frappe.db.get_value("Activity Type", {}, "name")
-        if not self.activity:
-            self.activity = frappe.get_doc(
-                {"doctype": "Activity Type", "activity_type": "CX360 Test Activity"}).insert().name
-        ac = frappe.db.get_value(
-            "Activity Cost", {"employee": self.emp, "activity_type": self.activity})
-        if ac:
-            frappe.db.set_value("Activity Cost", ac, {"costing_rate": 40, "billing_rate": 100})
-        else:
-            frappe.get_doc({
-                "doctype": "Activity Cost", "employee": self.emp, "activity_type": self.activity,
-                "costing_rate": 40, "billing_rate": 100}).insert()
+        frappe.db.delete("Employee Rate Card", {"employee": self.emp})
+        frappe.get_doc({"doctype": "Employee Rate Card", "employee": self.emp,
+                        "effective_from": "2099-01-01", "monthly_cost": 3200}).insert()  # hourly 20
         self.project = frappe.db.get_value("Project", {"project_name": "RA Rate Test"}, "name")
         if not self.project:
             self.project = frappe.get_doc(
@@ -100,20 +91,20 @@ class TestResourceAllocationRates(FrappeTestCase):
         doc = {
             "doctype": "Resource Allocation", "employee": self.emp, "project": self.project,
             "allocation_percent": 50, "start_date": "2099-01-01", "end_date": "2099-03-31",
-            "status": "Active", "activity_type": self.activity,
+            "status": "Active",
         }
         doc.update(kw)
         return frappe.get_doc(doc)
 
-    def test_cost_rate_from_activity_cost(self):
+    def test_cost_rate_from_rate_card(self):
         ra = self._ra().insert()
-        self.assertEqual(flt(ra.project_cost_rate), 40.0)
+        self.assertEqual(flt(ra.project_cost_rate), 20.0)  # 3200 / 160
 
-    def test_billing_rate_falls_back_to_activity_cost_without_so(self):
+    def test_no_billing_without_sales_order(self):
         ra = self._ra().insert()  # project has no Sales Order
-        self.assertEqual(flt(ra.project_billing_rate), 100.0)
+        self.assertEqual(flt(ra.project_billing_rate), 0.0)
 
-    def test_billing_rate_prefers_sales_order(self):
+    def test_billing_rate_from_sales_order(self):
         so = frappe.get_all("Sales Order", limit=1)
         if not so:
             self.skipTest("no Sales Order on this bench")
@@ -133,6 +124,6 @@ class TestResourceAllocationRates(FrappeTestCase):
     def test_get_suggested_rates_endpoint(self):
         # the whitelisted method the form calls for live prefill
         from hrms.cx360.doctype.resource_allocation.resource_allocation import get_suggested_rates
-        res = get_suggested_rates(self.emp, self.project, self.activity)
-        self.assertEqual(flt(res["cost_rate"]), 40.0)
-        self.assertEqual(flt(res["billing_rate"]), 100.0)  # no SO -> Activity Cost billing
+        res = get_suggested_rates(self.emp, self.project, "2099-01-01")
+        self.assertEqual(flt(res["cost_rate"]), 20.0)  # rate card hourly
+        self.assertEqual(flt(res["billing_rate"]), 0.0)  # no SO

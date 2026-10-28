@@ -1,0 +1,35 @@
+{
+ "actions": [],
+ "autoname": "ERC-.#####",
+ "creation": "2026-10-28 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["employee", "employee_name", "cb1", "effective_from", "sec_rates", "monthly_cost", "hourly_cost", "cb2", "currency"],
+ "fields": [
+  {"fieldname": "employee", "fieldtype": "Link", "label": "Employee", "options": "Employee", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "employee_name", "fieldtype": "Data", "label": "Name", "fetch_from": "employee.employee_name", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "cb1", "fieldtype": "Column Break"},
+  {"fieldname": "effective_from", "fieldtype": "Date", "label": "Effective From", "reqd": 1, "default": "Today", "in_list_view": 1},
+  {"fieldname": "sec_rates", "fieldtype": "Section Break", "label": "Cost"},
+  {"fieldname": "monthly_cost", "fieldtype": "Currency", "label": "Monthly Cost", "options": "currency", "reqd": 1, "in_list_view": 1, "description": "Fully-loaded monthly cost of this employee. Daily cost = monthly ÷ working days in the month."},
+  {"fieldname": "hourly_cost", "fieldtype": "Currency", "label": "Hourly Cost", "options": "currency", "read_only": 1, "description": "Derived: monthly cost ÷ 160."},
+  {"fieldname": "cb2", "fieldtype": "Column Break"},
+  {"fieldname": "currency", "fieldtype": "Data", "label": "Currency", "default": "USD", "read_only": 1, "hidden": 1}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-28 00:00:00",
+ "modified_by": "Administrator",
+ "module": "CX360",
+ "name": "Employee Rate Card",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "HR Manager", "share": 1, "write": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name"
+}
