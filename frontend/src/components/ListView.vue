@@ -175,6 +175,7 @@ import {
 	IonModal,
 	IonRefresher,
 	IonRefresherContent,
+	onIonViewWillEnter,
 } from "@ionic/vue"
 
 import { FeatherIcon, createResource, LoadingIndicator, debounce } from "frappe-ui"
@@ -417,7 +418,7 @@ function fetchDocumentList(start = 0) {
 
 	if (appliedFilters.value) filters.push(...appliedFilters.value)
 
-	if (workflowStateField.value) {
+	if (workflowStateField.value && !listOptions.value.fields.includes(workflowStateField.value)) {
 		listOptions.value.fields.push(workflowStateField.value)
 	}
 
@@ -453,6 +454,17 @@ watch(
 		fetchDocumentList()
 	}
 )
+
+// Ionic keeps this page alive when you navigate away and back, so nothing
+// re-runs on return -- a request approved/cancelled in the meantime (e.g. from
+// the form, or by someone else) kept showing its old status, because the only
+// refresh was the realtime socket event, which can be missed. Refetch every
+// time the page is entered again; the first entry is covered by onMounted.
+let hasEnteredOnce = false
+onIonViewWillEnter(() => {
+	if (hasEnteredOnce) fetchDocumentList()
+	hasEnteredOnce = true
+})
 
 onMounted(async () => {
 	const workflow = useWorkflow(props.doctype)
