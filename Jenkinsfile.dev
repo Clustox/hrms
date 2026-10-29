@@ -34,9 +34,28 @@ pipeline {
                 '''
             }
         }
-        stage('Redeploy dev stack') {
+        stage('Redeploy & migrate') {
+            // Bring the stack down, start ONLY the data services, then run
+            // migrate / build / clear-cache in a throwaway container while the
+            // app and its workers are still down -- otherwise migrate's
+            // ALTER TABLE deadlocks on metadata locks held by the running
+            // workers/scheduler (Lock wait timeout exceeded). Only once the DB
+            // is migrated and assets are rebuilt do we start the app, so a push
+            // is a complete, hands-off deploy with no manual migrate/build/cache.
             steps {
                 sh 'docker compose -f $COMPOSE_FILE -p $PROJECT down'
+                sh 'docker compose -f $COMPOSE_FILE -p $PROJECT up -d mariadb redis'
+                sh '''
+                  for i in $(seq 1 40); do
+                    docker compose -f $COMPOSE_FILE -p $PROJECT exec -T mariadb \
+                      mariadb -uroot -p123 -e "SELECT 1" >/dev/null 2>&1 && break
+                    sleep 3
+                  done
+                  RUN="docker compose -f $COMPOSE_FILE -p $PROJECT run --rm --no-deps -w /home/frappe/frappe-bench frappe"
+                  $RUN bench --site hrms.localhost migrate
+                  $RUN bench build --app hrms
+                  $RUN bench --site hrms.localhost clear-cache
+                '''
                 sh 'docker compose -f $COMPOSE_FILE -p $PROJECT up -d'
             }
         }
@@ -50,27 +69,6 @@ pipeline {
                     sleep 15
                   done
                   echo "hrms-dev did not become healthy in time"; exit 1
-                '''
-            }
-        }
-        stage('Migrate, build & clear cache') {
-            // The Redeploy stage restarts the stack but does NOT apply schema
-            // migrations, rebuild the frontend assets, or clear caches -- so new
-            // code used to land on an old DB schema, a stale JS bundle and a stale
-            // cache, and all three had to be run by hand after every deploy. Run
-            // them here, inside the running container (the site is confirmed up by
-            // the Health check above), so a push is a complete deploy with no
-            // manual follow-up.
-            steps {
-                sh '''
-                  set -e
-                  # bench must run from the bench directory; the container's
-                  # working_dir is /home/frappe, so pass -w explicitly.
-                  BENCH="docker compose -f $COMPOSE_FILE -p $PROJECT exec -T -w /home/frappe/frappe-bench frappe"
-                  $BENCH bench --site hrms.localhost migrate
-                  $BENCH bench build --app hrms
-                  $BENCH bench --site hrms.localhost clear-cache
-                  echo "migrate + build + clear-cache complete"
                 '''
             }
         }
