@@ -47,7 +47,14 @@ import LeaveRequestItem from "@/components/LeaveRequestItem.vue"
 import Holidays from "@/components/Holidays.vue"
 import DesktopLeaveDashboard from "@/components/DesktopLeaveDashboard.vue"
 
-import { myLeaves } from "@/data/leaves"
+import { myLeaves, leaveBalance } from "@/data/leaves"
+import { useRefreshOnReturn } from "@/composables/useRefreshOnReturn"
+
+// Come back to this dashboard (e.g. after approving a leave) -> show fresh data
+useRefreshOnReturn(() => {
+	myLeaves.reload()
+	leaveBalance.reload()
+})
 
 // Mirror Tailwind's `lg` breakpoint so the desktop dashboard is only mounted on wide viewports.
 const desktopQuery = window.matchMedia("(min-width: 1024px)")

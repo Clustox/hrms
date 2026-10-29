@@ -175,7 +175,6 @@ import {
 	IonModal,
 	IonRefresher,
 	IonRefresherContent,
-	onIonViewWillEnter,
 } from "@ionic/vue"
 
 import { FeatherIcon, createResource, LoadingIndicator, debounce } from "frappe-ui"
@@ -196,6 +195,7 @@ import { EMPLOYEE_CHECKIN_FIELDS } from "@/data/config/requestSummaryFields"
 
 import useWorkflow from "@/composables/workflow"
 import { useListUpdate } from "@/composables/realtime"
+import { useRefreshOnReturn } from "@/composables/useRefreshOnReturn"
 
 const __ = inject("$translate")
 const props = defineProps({
@@ -455,16 +455,8 @@ watch(
 	}
 )
 
-// Ionic keeps this page alive when you navigate away and back, so nothing
-// re-runs on return -- a request approved/cancelled in the meantime (e.g. from
-// the form, or by someone else) kept showing its old status, because the only
-// refresh was the realtime socket event, which can be missed. Refetch every
-// time the page is entered again; the first entry is covered by onMounted.
-let hasEnteredOnce = false
-onIonViewWillEnter(() => {
-	if (hasEnteredOnce) fetchDocumentList()
-	hasEnteredOnce = true
-})
+// Refetch whenever the user comes back to this list (see the composable for why)
+useRefreshOnReturn(() => fetchDocumentList())
 
 onMounted(async () => {
 	const workflow = useWorkflow(props.doctype)

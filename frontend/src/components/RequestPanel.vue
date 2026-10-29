@@ -29,6 +29,7 @@ import LeaveRequestItem from "@/components/LeaveRequestItem.vue"
 import ShiftRequestItem from "@/components/ShiftRequestItem.vue"
 
 import { useListUpdate } from "@/composables/realtime"
+import { useRefreshOnReturn } from "@/composables/useRefreshOnReturn"
 
 const activeTab = ref("My Requests")
 const socket = inject("$socket")
@@ -70,6 +71,14 @@ function getSortedRequests(list) {
 		})
 		.splice(0, 10)
 }
+
+// Home's My/Team request lists: reload them all when the user comes back to Home
+useRefreshOnReturn(() => {
+	;[
+		myLeaves, myClaims, myShiftRequests, myAttendanceRequests,
+		teamLeaves, teamClaims, teamShiftRequests, teamAttendanceRequests,
+	].forEach((resource) => resource.reload())
+})
 
 onMounted(() => {
 	useListUpdate(socket, "Leave Application", () => teamLeaves.reload())
