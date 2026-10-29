@@ -171,5 +171,24 @@ pipeline {
                 '''
             }
         }
+        stage('Migrate, build & clear cache') {
+            // The Redeploy stage restarts the stack but does NOT apply schema
+            // migrations, rebuild the frontend assets, or clear caches -- so new
+            // code used to land on an old DB schema, a stale JS bundle and a stale
+            // cache, and all three had to be run by hand after every deploy. Run
+            // them here, inside the running container (the site is confirmed up by
+            // the Health check above), so a merge to develop is a complete deploy
+            // with no manual follow-up.
+            steps {
+                sh '''
+                  set -e
+                  COMPOSE="docker compose -f $COMPOSE_FILE -p $PROJECT"
+                  $COMPOSE exec -T frappe bench --site hrms.localhost migrate
+                  $COMPOSE exec -T frappe bench build --app hrms
+                  $COMPOSE exec -T frappe bench --site hrms.localhost clear-cache
+                  echo "migrate + build + clear-cache complete"
+                '''
+            }
+        }
     }
 }
