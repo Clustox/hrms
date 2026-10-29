@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import frappe
 from frappe import _
 from frappe.model import get_permitted_fields
@@ -6,6 +8,8 @@ from frappe.query_builder import Order
 from frappe.utils import add_days, cint, date_diff, getdate, strip_html
 
 from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
+
+from hrms.hr.utils import get_checkin_location_labels
 
 SUPPORTED_FIELD_TYPES = [
 	"Link",
@@ -172,10 +176,30 @@ def get_attendance_for_calendar(employee: str, from_date: str, to_date: str) -> 
 
 @frappe.whitelist()
 def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
-	"""Per-day check-in/check-out/worked-hours for the current employee --
-	the "basic" timesheet view (Date, Check-in, Check-out, Worked Hours),
-	built primarily from Attendance's own in_time/out_time/working_hours
-	rather than re-deriving them from raw Employee Checkin rows.
+	"""Per-day check-in/check-out/worked-hours for the current employee -- see
+	_get_employee_attendance_timesheet for the shared implementation."""
+	return _get_employee_attendance_timesheet(get_current_employee(), from_date, to_date)
+
+
+@frappe.whitelist()
+def get_team_member_attendance_timesheet(employee: str, from_date: str, to_date: str) -> list[dict]:
+	"""Same per-day rows as get_attendance_timesheet, for a direct report's
+	drill-down from the Team Timesheet view -- only their own manager (or HR)
+	may look up someone else's log this way."""
+	manager = get_current_employee()
+	hr_roles = {"HR Manager", "HR User", "System Manager"}
+	if not hr_roles & set(frappe.get_roles()):
+		if frappe.db.get_value("Employee", employee, "reports_to") != manager:
+			frappe.throw(_("Not permitted to view this employee's timesheet"), frappe.PermissionError)
+
+	return _get_employee_attendance_timesheet(employee, from_date, to_date)
+
+
+def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: str) -> list[dict]:
+	"""Per-day check-in/check-out/worked-hours for one employee -- the "basic"
+	timesheet view (Date, Check-in, Check-out, Worked Hours), built primarily
+	from Attendance's own in_time/out_time/working_hours rather than
+	re-deriving them from raw Employee Checkin rows.
 
 	A day can have checkins but no Attendance record at all -- nothing on
 	this site auto-creates one from a checkin (that needs a Shift Type with
@@ -183,14 +207,14 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 	check out just means no Attendance record ever gets made for that day.
 	Those days are merged in from get_employee_checkin_history's grouping so
 	they still show up here, just with `status: None` (no badge) instead of
-	silently vanishing from the timesheet.
+	silently vanishing from the timesheet. A day fully covered by an approved
+	leave and nothing else gets `status: "On Leave"` the same way.
 	"""
-	employee = get_current_employee()
-
-	# In / out / worked-hours (and shift_start for the early/late flag) come from
-	# the day's check-ins, paired and capped in _group_checkins_by_day -- NOT from
-	# Attendance's own working_hours, which can carry bad values (e.g. multi-day
-	# spans) from the machine sync. Attendance supplies only the day's status.
+	# In / out / worked-hours (and shift/shift_start/shift_end, used below for the
+	# late-entry/early-exit flags) come from the day's check-ins, paired and capped
+	# in _group_checkins_by_day -- NOT from Attendance's own working_hours, which
+	# can carry bad values (e.g. multi-day spans) from the machine sync. Attendance
+	# supplies only the day's status.
 	checkin_by_date = {
 		d["attendance_date"]: d for d in _group_checkins_by_day(employee, from_date, to_date)
 	}
@@ -208,21 +232,124 @@ def get_attendance_timesheet(from_date: str, to_date: str) -> list[dict]:
 		)
 	}
 
+	# Nothing on this site auto-creates an Attendance record from an approved
+	# leave either, so a leave day otherwise has no row at all (no checkin, no
+	# Attendance) and silently vanishes from the timesheet. Falls back to the
+	# Leave Application itself for just those dates; an Attendance record's
+	# own status (set e.g. by the shift auto-attendance job) always wins.
+	leave_dates = _get_approved_leave_dates(employee, from_date, to_date)
+
+	shift_names = {day["shift"] for day in checkin_by_date.values() if day.get("shift")}
+	grace_periods = _get_shift_grace_periods(shift_names)
+
+	dates = sorted(set(checkin_by_date) | set(status_by_date) | leave_dates)
+	days = [checkin_by_date.get(date_str, {}) for date_str in dates]
+	in_locations = get_checkin_location_labels(
+		[
+			{"employee": employee, "shift": d.get("shift"), "date": date_str, "latitude": d.get("in_latitude"), "longitude": d.get("in_longitude"), "device_id": d.get("in_device_id")}
+			for date_str, d in zip(dates, days)
+		]
+	)
+	out_locations = get_checkin_location_labels(
+		[
+			{"employee": employee, "shift": d.get("shift"), "date": date_str, "latitude": d.get("out_latitude"), "longitude": d.get("out_longitude"), "device_id": d.get("out_device_id")}
+			for date_str, d in zip(dates, days)
+		]
+	)
+
 	rows = []
-	for date_str in set(checkin_by_date) | set(status_by_date):
-		day = checkin_by_date.get(date_str, {})
+	for date_str, day, in_location, out_location in zip(dates, days, in_locations, out_locations):
+		late_entry, early_exit = _late_early_flags(day, grace_periods.get(day.get("shift")))
+		status = status_by_date.get(date_str)
+		if not status and date_str in leave_dates:
+			status = "On Leave"
 		rows.append(
 			{
 				"attendance_date": date_str,
 				"in_time": day.get("in_time"),
 				"out_time": day.get("out_time"),
 				"working_hours": day.get("working_hours"),
-				"shift_start": day.get("shift_start"),
-				"status": status_by_date.get(date_str),
+				"status": status,
+				"late_entry": late_entry,
+				"early_exit": early_exit,
+				"in_location": in_location,
+				"out_location": out_location,
 			}
 		)
 
 	return sorted(rows, key=lambda r: str(r["attendance_date"]), reverse=True)
+
+
+def _get_approved_leave_dates(employee: str, from_date: str, to_date: str) -> set[str]:
+	"""Every date within [from_date, to_date] covered by an approved, submitted
+	Leave Application for this employee (clipped to the requested range)."""
+	leaves = frappe.get_all(
+		"Leave Application",
+		filters={
+			"employee": employee,
+			"status": "Approved",
+			"docstatus": 1,
+			"from_date": ["<=", to_date],
+			"to_date": [">=", from_date],
+		},
+		fields=["from_date", "to_date"],
+	)
+
+	range_start, range_end = getdate(from_date), getdate(to_date)
+	dates = set()
+	for leave in leaves:
+		day = max(getdate(leave.from_date), range_start)
+		leave_end = min(getdate(leave.to_date), range_end)
+		while day <= leave_end:
+			dates.add(day.isoformat())
+			day = add_days(day, 1)
+
+	return dates
+
+
+def _get_shift_grace_periods(shift_names: set[str]) -> dict[str, dict]:
+	"""Each named Shift Type's late-entry/early-exit marking config, keyed by
+	shift name -- batched so the per-day loop doesn't re-fetch per row."""
+	if not shift_names:
+		return {}
+	return {
+		st.name: st
+		for st in frappe.get_all(
+			"Shift Type",
+			filters={"name": ["in", list(shift_names)]},
+			fields=[
+				"name",
+				"enable_late_entry_marking",
+				"late_entry_grace_period",
+				"enable_early_exit_marking",
+				"early_exit_grace_period",
+			],
+		)
+	}
+
+
+def _late_early_flags(day: dict, shift_grace: dict | None) -> tuple[bool, bool]:
+	"""late_entry/early_exit for one timesheet day, using that day's Shift
+	Type's own grace-period config -- the same rule Shift Type.process_auto_attendance
+	uses, so the personal timesheet's badges agree with the Attendance record
+	the shift's auto-attendance (if any) would produce. No shift assigned, or
+	marking disabled on it, means no badge rather than a guessed buffer."""
+	if not shift_grace:
+		return False, False
+
+	late_entry = bool(
+		shift_grace.get("enable_late_entry_marking")
+		and day.get("in_time")
+		and day.get("shift_start")
+		and day["in_time"] > day["shift_start"] + timedelta(minutes=cint(shift_grace.get("late_entry_grace_period")))
+	)
+	early_exit = bool(
+		shift_grace.get("enable_early_exit_marking")
+		and day.get("out_time")
+		and day.get("shift_end")
+		and day["out_time"] < day["shift_end"] - timedelta(minutes=cint(shift_grace.get("early_exit_grace_period")))
+	)
+	return late_entry, early_exit
 
 
 TIMESHEET_SHIFT_BUFFER_MIN = 10
@@ -436,7 +563,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 	logs = frappe.get_all(
 		"Employee Checkin",
 		filters={"employee": employee, "time": ["between", [from_date, f"{to_date} 23:59:59"]]},
-		fields=["log_type", "time", "shift_start"],
+		fields=["log_type", "time", "shift", "shift_start", "shift_end", "latitude", "longitude", "device_id"],
 		order_by="time asc",
 	)
 
@@ -448,7 +575,15 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 				"in_time": None,
 				"out_time": None,
 				"working_hours": None,
+				"shift": None,
 				"shift_start": None,
+				"shift_end": None,
+				"in_latitude": None,
+				"in_longitude": None,
+				"in_device_id": None,
+				"out_latitude": None,
+				"out_longitude": None,
+				"out_device_id": None,
 			},
 		)
 
@@ -468,7 +603,11 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 		row = _row(getdate(log.time).isoformat())
 		if row["in_time"] is None:
 			row["in_time"] = log.time
+			row["shift"] = log.shift
 			row["shift_start"] = log.shift_start
+			row["in_latitude"] = log.latitude
+			row["in_longitude"] = log.longitude
+			row["in_device_id"] = log.device_id
 
 	days = {}
 	pending_in = None  # an open IN awaiting its OUT
@@ -483,11 +622,19 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 			if hours is not None and 0 <= hours <= MAX_SHIFT_HOURS:
 				row = _row(getdate(pending_in.time).isoformat())
 				row["out_time"] = log.time
+				row["shift_end"] = log.shift_end
+				row["out_latitude"] = log.latitude
+				row["out_longitude"] = log.longitude
+				row["out_device_id"] = log.device_id
 				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
 			else:
 				# no open IN, or the span is implausibly long (missed punch):
 				# record the OUT on its own day, unpaired.
-				_row(getdate(log.time).isoformat())["out_time"] = log.time
+				out_row = _row(getdate(log.time).isoformat())
+				out_row["out_time"] = log.time
+				out_row["out_latitude"] = log.latitude
+				out_row["out_longitude"] = log.longitude
+				out_row["out_device_id"] = log.device_id
 			pending_in = None
 
 	rows = list(days.values())

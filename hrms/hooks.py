@@ -30,7 +30,10 @@ fixtures = [
 					"Employee-custom_onboarding_documents",
 					"Employee Education-custom_certificate",
 					"Employee External Work History-custom_experience_letter",
-					"Project-custom_sow",
+					"Project-custom_engagement_type",
+					"Project-custom_billing_model",
+					"Project-custom_sales_order",
+					"Project-custom_team",
 				],
 			]
 		],
@@ -134,7 +137,10 @@ jinja = {
 
 # before_install = "hrms.install.before_install"
 after_install = "hrms.install.after_install"
-after_migrate = "hrms.setup.update_select_perm_after_install"
+after_migrate = [
+	"hrms.setup.update_select_perm_after_install",
+	"hrms.cx360.setup.place_cx360_workspace",
+]
 
 setup_wizard_complete = "hrms.subscription_utils.update_erpnext_access"
 
@@ -176,13 +182,21 @@ before_app_uninstall = "hrms.setup.before_app_uninstall"
 # -----------
 # Permissions evaluated in scripted ways
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+# Team-lead visibility: employee request doctypes are scoped to the owning
+# employee + their direct reports (HR/admin see all). See request_visibility.py.
+permission_query_conditions = {
+	"Leave Application": "hrms.request_visibility.leave_application_query",
+	"Attendance Request": "hrms.request_visibility.attendance_request_query",
+	"Shift Request": "hrms.request_visibility.shift_request_query",
+	"Expense Claim": "hrms.request_visibility.expense_claim_query",
+}
+
+has_permission = {
+	"Leave Application": "hrms.request_visibility.has_permission",
+	"Attendance Request": "hrms.request_visibility.has_permission",
+	"Shift Request": "hrms.request_visibility.has_permission",
+	"Expense Claim": "hrms.request_visibility.has_permission",
+}
 
 has_upload_permission = {"Employee": "erpnext.setup.doctype.employee.employee.has_upload_permission"}
 
@@ -205,10 +219,20 @@ override_doctype_class = {
 # Hook on document methods and events
 
 doc_events = {
-	# Clustox: Leave Policy v1.3 rule enforcement (see hrms/leave_rules.py)
+	# Clustox: Leave Policy v1.3 rule enforcement (see hrms/leave_rules.py).
+	# NOTE: keep every Leave Application event in THIS single dict -- a second
+	# "Leave Application" key anywhere in doc_events silently overrides this one
+	# (Python dict literal: last key wins), which previously dropped these
+	# validations entirely.
 	"Leave Application": {
-		"validate": "hrms.leave_rules.validate_leave_application",
+		"validate": [
+			"hrms.leave_rules.validate_leave_application",
+			"hrms.leave_rules.validate_backdate_limit",
+		],
 		"before_submit": "hrms.leave_rules.validate_leave_application_on_submit",
+		"on_submit": "hrms.telemetry.on_leave_application_submit",
+		# Clustox: let HR delete a cancelled leave (clears its cancelled Attendance links)
+		"on_trash": "hrms.leave_rules.delete_cancelled_attendance",
 	},
 	"Leave Allocation": {
 		"validate": "hrms.leave_rules.cap_compensatory_off_expiry",
@@ -277,13 +301,25 @@ doc_events = {
 	"Project": {"validate": "hrms.controllers.employee_boarding_controller.update_employee_boarding_status"},
 	"Task": {"on_update": "hrms.controllers.employee_boarding_controller.update_task"},
 	# ---- Usage telemetry: recurring feature usage (see hrms/telemetry.py) ----
-	"Leave Application": {"on_submit": "hrms.telemetry.on_leave_application_submit"},
+	# NB: Leave Application telemetry (on_submit) is registered in the single
+	# "Leave Application" entry above -- do NOT re-add a key for it here.
 	"Expense Claim": {"on_submit": "hrms.telemetry.on_expense_claim_submit"},
-	"Attendance Request": {"on_submit": "hrms.telemetry.on_attendance_request_submit"},
+	"Attendance Request": {
+		# Clustox: notify the employee's manager when a request is raised, and
+		# the employee when their manager approves it (see attendance_request_notify).
+		"after_insert": "hrms.attendance_request_notify.notify_manager",
+		"on_submit": [
+			"hrms.telemetry.on_attendance_request_submit",
+			"hrms.attendance_request_notify.notify_employee",
+		],
+	},
 	"Shift Request": {"on_submit": "hrms.telemetry.on_shift_request_submit"},
 	"Employee Checkin": {"after_insert": "hrms.telemetry.on_employee_checkin"},
 	"Payroll Entry": {"on_submit": "hrms.telemetry.on_payroll_entry_submit"},
 	"Job Offer": {"on_submit": "hrms.telemetry.on_job_offer_submit"},
+	# Clustox: on an on-behalf ticket, point raised_by at the contact's email so
+	# the acknowledgement + agent replies reach the employee (see helpdesk_router).
+	"HD Ticket": {"before_validate": "hrms.helpdesk_router.set_requester_from_contact"},
 	"Appraisal": {"on_submit": "hrms.telemetry.on_appraisal_submit"},
 	"Interview": {"on_submit": "hrms.telemetry.on_interview_submit"},
 	# ---- Activation telemetry: post-install setup funnel (first-time milestones) ----
@@ -303,6 +339,8 @@ scheduler_events = {
 	"all": [
 		"hrms.hr.doctype.interview.interview.send_interview_reminder",
 		"hrms.helpdesk_router.route_tickets",
+		# Clustox: finalise any leave left as Approved-but-draft (approval = submit).
+		"hrms.leave_rules.submit_approved_drafts",
 	],
 	"hourly": [
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.trigger_emails",

@@ -1025,6 +1025,65 @@ def get_distance_between_coordinates(lat1, long1, lat2, long2):
 	return 2 * r * asin(sqrt(a)) * 1000
 
 
+def get_checkin_location_labels(punches: list[dict]) -> list[dict | None]:
+	"""Resolve a display-only location label for a batch of checkin punches.
+
+	This NEVER blocks a checkin -- it only labels already-saved ones for the
+	timesheet. Office vs Remote is decided purely by distance to a configured
+	office Shift Location (coordinates + checkin_radius), independent of any
+	Shift Assignment, so a remote punch is labelled "Remote" rather than
+	rejected.
+
+	Each item in `punches` needs "employee", "shift", "date", "latitude",
+	"longitude" and "device_id" for one punch. Returns one result per input
+	item, same order:
+	  - {"verified": True, "location_name": str, "latitude", "longitude"} when a
+	    GPS punch is within an office's radius, OR a biometric punch (device_id
+	    set, no coordinates) -- the device is physically at the office, so it is
+	    labelled "office" at the office's own coordinates.
+	  - {"verified": False, "latitude", "longitude"} when a GPS punch is outside
+	    every office radius ("Remote").
+	  - None when there are neither coordinates nor a device (e.g. a browser
+	    check-in with location permission denied) -- nothing to show.
+	"""
+	offices = frappe.get_all(
+		"Shift Location",
+		filters={"latitude": ["is", "set"], "longitude": ["is", "set"], "checkin_radius": [">", 0]},
+		fields=["name", "location_name", "latitude", "longitude", "checkin_radius"],
+	)
+	# A biometric punch has no coordinates, so it can't be matched by distance;
+	# it is simply "at the office". With a single configured office that is
+	# unambiguous. (Map device_id -> a specific office here if offices multiply.)
+	default_office = offices[0] if offices else None
+
+	def _nearest(lat, lng):
+		best, best_dist = None, None
+		for o in offices:
+			dist = get_distance_between_coordinates(lat, lng, o.latitude, o.longitude)
+			if best_dist is None or dist < best_dist:
+				best, best_dist = o, dist
+		return best, best_dist
+
+	def _resolve(punch):
+		lat, lng = punch.get("latitude"), punch.get("longitude")
+		if lat and lng:
+			office, dist = _nearest(lat, lng)
+			if office and dist is not None and dist <= (office.checkin_radius or 0):
+				return {"verified": True, "location_name": office.location_name, "latitude": lat, "longitude": lng}
+			return {"verified": False, "latitude": lat, "longitude": lng}
+		# No coordinates: a device (biometric) punch is physically at the office.
+		if punch.get("device_id") and default_office:
+			return {
+				"verified": True,
+				"location_name": default_office.location_name,
+				"latitude": default_office.latitude,
+				"longitude": default_office.longitude,
+			}
+		return None
+
+	return [_resolve(p) for p in punches]
+
+
 def check_app_permission():
 	"""Check if user has permission to access the app (for showing the app on app screen)"""
 	if frappe.session.user == "Administrator":

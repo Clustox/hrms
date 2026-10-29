@@ -61,6 +61,7 @@ const statusMap = {
 	"Approved & Unpaid": "orange",
 	"Approved & Submitted": "blue",
 	Rejected: "red",
+	"Pending Request": "orange",
 }
 
 const status = computed(() => {
@@ -100,6 +101,6 @@ const claimDates = computed(() => {
 
 
 const approvalStatus = computed(() => {
-	return props.doc.approval_status === "Draft" ? "Pending" : props.doc.approval_status
+	return props.doc.approval_status === "Draft" ? "Pending Request" : props.doc.approval_status
 })
 </script>

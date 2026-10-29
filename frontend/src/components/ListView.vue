@@ -222,6 +222,27 @@ const props = defineProps({
 		type: String,
 		required: true,
 	},
+	// Extra [doctype, fieldname, operator, value] filters always applied on
+	// top of the My/Team + user-chosen ones -- e.g. scoping this same list
+	// view to just reason = "Work From Home" for a dedicated WFH page.
+	fixedFilters: {
+		type: Array,
+		required: false,
+		default: () => [],
+	},
+	// Override the New/row-click destinations, which otherwise default to
+	// `${doctype}FormView`/`${doctype}DetailView` -- needed when a second,
+	// differently-scoped list (e.g. WFH Requests) shares a doctype with an
+	// existing generic list (Attendance Requests) but must route to its own
+	// dedicated form instead of that one's.
+	formViewRouteName: {
+		type: String,
+		required: false,
+	},
+	detailViewRouteName: {
+		type: String,
+		required: false,
+	},
 })
 
 const getButtonKey = (tab) => tab?.key ?? tab
@@ -266,11 +287,11 @@ const isTeamRequest = computed(() => {
 })
 
 const formViewRoute = computed(() => {
-	return `${props.doctype.replace(/\s+/g, "")}FormView`
+	return props.formViewRouteName || `${props.doctype.replace(/\s+/g, "")}FormView`
 })
 
 const detailViewRoute = computed(() => {
-	return `${props.doctype.replace(/\s+/g, "")}DetailView`
+	return props.detailViewRouteName || `${props.doctype.replace(/\s+/g, "")}DetailView`
 })
 
 const defaultFilters = computed(() => {
@@ -331,7 +352,7 @@ const openRequestModal = async (request) => {
 	selectedRequest.value = request
 	selectedRequest.value.doctype = "Employee Checkin"
 	selectedRequest.value.date = request.time
-	selectedRequest.value.formatted_time = dayjs(request.time).format("HH:mm a")
+	selectedRequest.value.formatted_time = dayjs(request.time).format("h:mm A")
 	selectedRequest.value.formatted_latitude = `${Number(request.latitude).toFixed(5)}°`
 	selectedRequest.value.formatted_longitude = `${Number(request.longitude).toFixed(5)}°`
 	isRequestModalOpen.value = true
@@ -391,6 +412,7 @@ function fetchDocumentList(start = 0) {
 	}
 
 	const filters = [[props.doctype, "docstatus", "!=", "2"]]
+	filters.push(...props.fixedFilters)
 	filters.push(...defaultFilters.value)
 
 	if (appliedFilters.value) filters.push(...appliedFilters.value)

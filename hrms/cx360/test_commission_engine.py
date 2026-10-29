@@ -20,6 +20,13 @@ class TestComputeCommission(FrappeTestCase):
                                scale_by_allocation=0, min_amount=0, max_amount=300)
         self.assertEqual(ce.compute_commission(1000, rule, 100), 300.0)
 
+    def test_per_person_override_rate(self):
+        rule = SimpleNamespace(rate_type="Percent", rate_value=5,
+                               scale_by_allocation=0, min_amount=0, max_amount=0)
+        # default 5% of 8000 = 400; override to 3% -> 240
+        self.assertEqual(ce.compute_commission(8000, rule, 50), 400.0)
+        self.assertEqual(ce.compute_commission(8000, rule, 50, override_rate=3), 240.0)
+
 
 class TestScopeMatches(FrappeTestCase):
     def test_any_matches_all(self):

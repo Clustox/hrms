@@ -9,6 +9,8 @@
 				:fields="formFields.data"
 				:id="props.id"
 				:showAttachmentView="true"
+				:canDeleteSubmitted="isHR"
+				deleteMethod="hrms.leave_rules.delete_leave_application"
 				:attachmentRequired="medicalDocRequired"
 				:attachmentRequiredHint="
 					__('Sick Leave for more than 2 days requires a medical document. Please attach it before submitting.')
@@ -25,10 +27,21 @@ import { createResource } from "frappe-ui"
 import { ref, watch, inject, nextTick, computed } from "vue"
 
 import FormView from "@/components/FormView.vue"
+import { userResource } from "@/data/user"
 
 const dayjs = inject("$dayjs")
+
+// HR can delete an approved (submitted) leave outright -- cancel + delete in one step
+const HR_ROLES = ["HR Manager", "HR User", "System Manager"]
+const isHR = computed(() => HR_ROLES.some((role) => userResource.data?.roles?.includes(role)))
 const __ = inject("$translate")
 const today = dayjs().format("YYYY-MM-DD")
+// Policy: employees may backdate leave by at most 7 calendar days. The backend
+// (hrms.leave_rules.validate_backdate_limit) is the source of truth; this caps
+// the date picker so an out-of-window date can't be picked in the first place.
+// Keep this number in sync with BACKDATE_LIMIT_DAYS in hrms/leave_rules.py.
+const BACKDATE_LIMIT_DAYS = 7
+const earliestBackdate = dayjs().subtract(BACKDATE_LIMIT_DAYS, "day").format("YYYY-MM-DD")
 
 const props = defineProps({
 	id: {
@@ -79,6 +92,10 @@ const formFields = createResource({
 		return fields.map((field) => {
 			if (field.fieldname === "half_day_date") field.hidden = true
 
+			// Half-day is only allowed for Casual Leave (policy). Hidden by
+			// default; shown only when the leave type is Casual.
+			if (field.fieldname === "half_day") field.hidden = true
+
 			if (field.fieldname === "posting_date") field.default = today
 
 			// This field only ever renders for an *existing* application (new
@@ -90,6 +107,16 @@ const formFields = createResource({
 			// what it actually is: whose application this is, not a field
 			// anyone -- applicant or approver -- should be reassigning.
 			if (field.fieldname === "employee") field.read_only = true
+
+			// Cap backdating to the 7-day window on new applications. HR is
+			// exempt (they record older corrections from the desk), and existing
+			// records keep their stored dates.
+			if (
+				!props.id &&
+				!isHR.value &&
+				(field.fieldname === "from_date" || field.fieldname === "to_date")
+			)
+				field.minDate = earliestBackdate
 
 			return field
 		})
@@ -127,15 +154,22 @@ watch(
 		if (props.id && employee_id !== currEmployee.value) {
 			// if employee is not the current user, set form as read only
 			setFormReadOnly()
+		} else if (props.id && employee_id === sessionEmployee.data.name) {
+			// the applicant viewing their own application can only cancel it --
+			// approving/rejecting is the approver's call, not theirs
+			restrictStatusToCancelOnly()
 		}
 		currEmployee.value = employee_id
 		leaveTypes.fetch({ employee: currEmployee.value, date: today })
-		leaveApprovalDetails.fetch({ employee: currEmployee.value })		
+		leaveApprovalDetails.fetch({ employee: currEmployee.value })
 	}
 )
 watch(
 	() => leaveApplication.value.leave_type,
-	(leave_type) => setLeaveBalance(leave_type)
+	(leave_type) => {
+		setLeaveBalance(leave_type)
+		setHalfDayVisibility(leave_type)
+	}
 )
 
 watch(
@@ -212,6 +246,11 @@ function setFormReadOnly() {
 	formFields.data.map((field) => (field.read_only = true))
 }
 
+function restrictStatusToCancelOnly() {
+	const status_field = formFields.data?.find((field) => field.fieldname === "status")
+	if (status_field) status_field.options = "Cancelled"
+}
+
 function validateDates(from_date, to_date) {
 	if (!(from_date && to_date)) return
 
@@ -263,6 +302,19 @@ function setLeaveBalance() {
 		},
 	})
 	leaveBalance.reload()
+}
+
+function setHalfDayVisibility(leave_type) {
+	// Half-day leave is only permitted for Casual Leave (policy). Show the
+	// toggle only for Casual; for any other type hide it and clear any value.
+	const half_day = formFields.data?.find((field) => field.fieldname === "half_day")
+	if (!half_day) return
+	const isCasual = leave_type === "Casual Leave"
+	half_day.hidden = !isCasual
+	if (!isCasual && leaveApplication.value.half_day) {
+		leaveApplication.value.half_day = 0
+		leaveApplication.value.half_day_date = null
+	}
 }
 
 function setHalfDayDate(half_day) {

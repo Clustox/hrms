@@ -15,14 +15,21 @@
   "column_break_5",
   "from_date",
   "to_date",
+  "total_days",
   "half_day",
   "half_day_date",
   "include_holidays",
   "shift",
   "reason_section",
   "reason",
+  "status",
   "column_break_4",
   "explanation",
+  "approval_section",
+  "team_lead",
+  "team_lead_name",
+  "manager",
+  "manager_name",
   "amended_from"
  ],
  "fields": [
@@ -77,6 +84,13 @@
    "reqd": 1
   },
   {
+   "fieldname": "total_days",
+   "fieldtype": "Float",
+   "label": "Total Days",
+   "precision": "1",
+   "read_only": 1
+  },
+  {
    "default": "0",
    "fieldname": "half_day",
    "fieldtype": "Check",
@@ -103,6 +117,15 @@
    "reqd": 1
   },
   {
+   "default": "Pending",
+   "description": "Left blank for a punch request (fixing a missed check-in/out) -- only Work From Home / On Duty requests go through this approval status. Approved/Rejected is set by the employee's Team Lead or Manager (either of their reports_to chain, two levels up) rather than needing a submit-level role; submitting the request itself only happens once it's Approved.",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "\nPending\nApproved\nRejected\nCancelled"
+  },
+  {
    "fieldname": "column_break_4",
    "fieldtype": "Column Break"
   },
@@ -118,6 +141,40 @@
    "no_copy": 1,
    "options": "Attendance Request",
    "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "Approval"
+  },
+  {
+   "description": "The employee's direct manager -- either this or the Manager below can approve a Work From Home / On Duty request.",
+   "fieldname": "team_lead",
+   "fieldtype": "Link",
+   "label": "Team Lead",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "team_lead.employee_name",
+   "fieldname": "team_lead_name",
+   "fieldtype": "Data",
+   "label": "Team Lead Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "manager",
+   "fieldtype": "Link",
+   "label": "Manager",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "manager.employee_name",
+   "fieldname": "manager_name",
+   "fieldtype": "Data",
+   "label": "Manager Name",
    "read_only": 1
   },
   {

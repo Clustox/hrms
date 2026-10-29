@@ -46,10 +46,10 @@
 
 			<Dialog v-model="showDialog">
 				<template #body-title>
-					<h2 class="text-lg font-bold">{{ __("Delete Attachment") }} </h2>
+					<h2 class="text-lg font-bold text-gray-900">{{ __("Delete Attachment") }} </h2>
 				</template>
 				<template #body-content>
-					<p>
+					<p class="text-gray-700">
 						{{ __("Are you sure you want to delete the attachment") }}
 						<span class="font-bold">{{ selectedFile.file_name }}</span>
 						?

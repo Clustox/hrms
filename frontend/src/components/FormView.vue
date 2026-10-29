@@ -28,7 +28,7 @@
 					<h2
 						class="text-xl font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis lg:font-display lg:tracking-tight"
 					>
-						{{ __(props.doctype) }}
+						{{ props.titleOverride || __(props.doctype) }}
 					</h2>
 					<Badge
 						:label="id"
@@ -68,7 +68,7 @@
 					v-else
 					class="text-2xl font-semibold text-gray-900 lg:font-display lg:tracking-tight"
 				>
-					{{ __('New {0}', [__(doctype)], props.doctype) }}
+					{{ props.newTitleOverride || __('New {0}', [__(doctype)], props.doctype) }}
 				</h2>
 			</header>
 
@@ -236,10 +236,10 @@
 	<!-- Confirmation Dialogs -->
 	<Dialog v-model="showDeleteDialog">
 		<template #body-title>
-			<h2 class="text-xl font-bold">{{ __("Delete {0}", [__(props.doctype)]) }}</h2>
+			<h2 class="text-xl font-bold text-gray-900">{{ __("Delete {0}", [__(props.doctype)]) }}</h2>
 		</template>
 		<template #body-content>
-			<p>
+			<p class="text-gray-700">
 				{{ __("Are you sure you want to delete the {0}", [__(props.doctype)])  }}
 				<span class="font-bold">{{ formModel.name }}</span>
 				?
@@ -268,10 +268,10 @@
 
 	<Dialog v-model="showSubmitDialog">
 		<template #body-title>
-			<h2 class="text-xl font-bold">{{ __("Confirm") }} </h2>
+			<h2 class="text-xl font-bold text-gray-900">{{ __("Confirm") }} </h2>
 		</template>
 		<template #body-content>
-			<p>
+			<p class="text-gray-700">
 				{{ __("Permanently submit {0}", [__(props.doctype)]) }}
 				<span class="font-bold">{{ formModel.name }}</span>
 				?
@@ -299,10 +299,10 @@
 
 	<Dialog v-model="showCancelDialog">
 		<template #body-title>
-			<h2 class="text-xl font-bold">{{ __("Confirm") }} </h2>
+			<h2 class="text-xl font-bold text-gray-900">{{ __("Confirm") }} </h2>
 		</template>
 		<template #body-content>
-			<p>
+			<p class="text-gray-700">
 				{{ __("Permanently cancel {0}", [__(props.doctype)]) }}
 				<span class="font-bold">{{ formModel.name }}</span
 				>?
@@ -376,6 +376,7 @@ import { FileAttachment, guessStatusColor } from "@/composables"
 import useWorkflow from "@/composables/workflow"
 import { getCompanyCurrency } from "@/data/currencies"
 import { formatCurrency } from "@/utils/formatters"
+import { userResource } from "@/data/user"
 import { useDownloadPDF } from "@/utils/commonUtils"
 
 const props = defineProps({
@@ -436,6 +437,28 @@ const props = defineProps({
 		type: String,
 		required: false,
 		default: "",
+	},
+	// Replace the header's otherwise doctype-derived title (e.g. "Attendance
+	// Request" / "New Attendance Request") -- for a dedicated, narrower-purpose
+	// page built on a shared doctype, like WFH Requests on Attendance Request.
+	titleOverride: {
+		type: String,
+		required: false,
+	},
+	// Show "Delete" even on a submitted document and run `deleteMethod`
+	// (a whitelisted method taking `name`) instead of the plain delete, which
+	// Frappe refuses for submitted docs. Used to let HR remove an approved leave.
+	canDeleteSubmitted: {
+		type: Boolean,
+		default: false,
+	},
+	deleteMethod: {
+		type: String,
+		required: false,
+	},
+	newTitleOverride: {
+		type: String,
+		required: false,
 	},
 })
 const emit = defineEmits(["validateForm", "update:modelValue", "formReloaded"])
@@ -601,6 +624,28 @@ const docList = createListResource({
 	},
 })
 
+function onDeleteSuccess() {
+	router.back()
+	toast({
+		title: __("Success"),
+		text: __("{0} deleted successfully!", [__(props.doctype)]),
+		icon: "check-circle",
+		position: "bottom-center",
+		iconClasses: "text-green-500",
+	})
+}
+
+function onDeleteError() {
+	toast({
+		title: __("Error"),
+		text: __("Error deleting {0}", [__(props.doctype)]),
+		icon: "alert-circle",
+		position: "bottom-center",
+		iconClasses: "text-red-500",
+	})
+	console.log(`Error deleting ${props.doctype}`)
+}
+
 const documentResource = createDocumentResource({
 	doctype: props.doctype,
 	name: props.id,
@@ -620,26 +665,8 @@ const documentResource = createDocumentResource({
 		},
 	},
 	delete: {
-		onSuccess() {
-			router.back()
-			toast({
-				title: __("Success"),
-				text: __("{0} deleted successfully!", [__(props.doctype)]),
-				icon: "check-circle",
-				position: "bottom-center",
-				iconClasses: "text-green-500",
-			})
-		},
-		onError() {
-			toast({
-				title: __("Error"),
-				text: __("Error deleting {0}", [__(props.doctype)]),
-				icon: "alert-circle",
-				position: "bottom-center",
-				iconClasses: "text-red-500",
-			})
-			console.log(`Error deleting ${props.doctype}`)
-		},
+		onSuccess: () => onDeleteSuccess(),
+		onError: () => onDeleteError(),
 	},
 })
 
@@ -653,13 +680,21 @@ const permittedWriteFields = createResource({
 	params: { doctype: props.doctype },
 })
 
+// Reversing a leave's approval (cancelling an approved leave, deleting an
+// approved/cancelled one) is HR-only -- enforced server-side in
+// request_visibility.has_permission; hidden here so nobody else is offered it.
+const isHR = computed(() =>
+	["HR Manager", "HR User", "System Manager"].some((role) => userResource.data?.roles?.includes(role))
+)
+const canReverseApproval = computed(() => props.doctype !== "Leave Application" || isHR.value)
+
 const formButton = computed(() => {
 	if (!props.showFormButton) return
 
 	if (props.id && props.isSubmittable && !isFormDirty.value) {
 		if (formModel.value.docstatus === 0 && hasPermission("submit")) {
 			return "Submit"
-		} else if (formModel.value.docstatus === 1 && hasPermission("cancel")) {
+		} else if (formModel.value.docstatus === 1 && hasPermission("cancel") && canReverseApproval.value) {
 			return "Cancel"
 		}
 	} else if (formModel.value.docstatus !== 2) {
@@ -668,7 +703,9 @@ const formButton = computed(() => {
 })
 
 function showDeleteButton() {
-	return props.id && formModel.value.docstatus !== 1 && hasPermission("delete")
+	if (!props.id || !hasPermission("delete")) return false
+	if (formModel.value.docstatus >= 1 && !canReverseApproval.value) return false
+	return formModel.value.docstatus !== 1 || (props.canDeleteSubmitted && props.deleteMethod)
 }
 
 function hasPermission(action) {
@@ -802,8 +839,18 @@ function submitOrCancelForm() {
 	}
 }
 
+const deleteViaMethod = createResource({
+	url: props.deleteMethod || "frappe.client.delete",
+	onSuccess: () => onDeleteSuccess(),
+	onError: () => onDeleteError(),
+})
+
 function handleDocDelete() {
-	documentResource.delete.submit()
+	if (props.deleteMethod && formModel.value.docstatus === 1) {
+		deleteViaMethod.submit({ name: props.id })
+	} else {
+		documentResource.delete.submit()
+	}
 	showDeleteDialog.value = false
 }
 

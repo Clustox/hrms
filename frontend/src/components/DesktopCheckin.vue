@@ -14,44 +14,45 @@
 						{{ __("Attendance") }}
 					</div>
 
-					<template v-if="settings.data?.allow_employee_checkin_from_mobile_app">
-						<div v-if="lastLog?.time" class="mt-2 text-[15px] text-air-ink-2">
-							<span>{{
-								__("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)])
-							}}</span>
-							<span class="whitespace-pre text-air-muted"> &middot; </span>
-							<router-link
-								:to="{ name: 'EmployeeCheckinListView' }"
-								class="text-air-blue underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue"
-							>
-								{{ __("View List") }}
-							</router-link>
-						</div>
-						<div v-else class="mt-2 text-[15px] text-air-muted">
-							{{ dayjs().format("ddd, D MMMM, YYYY") }}
-						</div>
-
-						<!-- Live "logged in for" indicator when currently checked in -->
-						<div v-if="isCheckedIn && elapsedLabel" class="mt-2.5 flex items-center gap-2">
-							<span class="relative flex h-2 w-2">
-								<span
-									class="absolute inline-flex h-full w-full animate-ping rounded-full bg-air-good opacity-60 motion-reduce:hidden"
-								></span>
-								<span class="relative inline-flex h-2 w-2 rounded-full bg-air-good"></span>
-							</span>
-							<span class="font-display text-[15px] font-semibold text-air-good tabular-nums">
-								{{ elapsedLabel }}
-							</span>
-							<span class="text-[13.5px] text-air-muted">{{ __("since check-in") }}</span>
-						</div>
-					</template>
+					<!--
+						The last-check-in info is shown to EVERYONE (lastLog is fetched
+						regardless of WFH/portal permission), so biometric-only office
+						staff see their latest punch on Home too. Only the Check In/Out
+						button and its dialog below stay gated by `canCheckin`.
+					-->
+					<div v-if="lastLog?.time" class="mt-2 text-[15px] text-air-ink-2">
+						<span>{{
+							__("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)])
+						}}</span>
+						<span class="whitespace-pre text-air-muted"> &middot; </span>
+						<router-link
+							:to="{ name: 'EmployeeCheckinListView' }"
+							class="text-air-blue underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue"
+						>
+							{{ __("View List") }}
+						</router-link>
+					</div>
 					<div v-else class="mt-2 text-[15px] text-air-muted">
 						{{ dayjs().format("ddd, D MMMM, YYYY") }}
+					</div>
+
+					<!-- Live "logged in for" indicator when currently checked in -->
+					<div v-if="isCheckedIn && elapsedLabel" class="mt-2.5 flex items-center gap-2">
+						<span class="relative flex h-2 w-2">
+							<span
+								class="absolute inline-flex h-full w-full animate-ping rounded-full bg-air-good opacity-60 motion-reduce:hidden"
+							></span>
+							<span class="relative inline-flex h-2 w-2 rounded-full bg-air-good"></span>
+						</span>
+						<span class="font-display text-[15px] font-semibold text-air-good tabular-nums">
+							{{ elapsedLabel }}
+						</span>
+						<span class="text-[13.5px] text-air-muted">{{ __("since check-in") }}</span>
 					</div>
 				</div>
 
 				<button
-					v-if="settings.data?.allow_employee_checkin_from_mobile_app"
+					v-if="canCheckin"
 					type="button"
 					:disabled="checkins.list.loading"
 					class="inline-flex shrink-0 items-center gap-2 rounded-full bg-air-btn px-5 py-2.5 text-[14px] font-semibold text-air-btn-ink transition ease-air hover:bg-air-blue hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
@@ -67,7 +68,7 @@
 		</div>
 
 		<Dialog
-			v-if="settings.data?.allow_employee_checkin_from_mobile_app"
+			v-if="canCheckin"
 			v-model="showDialog"
 			:options="{ title: nextAction.label, size: 'md' }"
 		>
@@ -108,11 +109,11 @@
 
 					<button
 						type="button"
-						:disabled="checkins.insert.loading"
+						:disabled="checkins.insert.loading || locationNotReady"
 						class="w-full rounded-full bg-air-btn px-5 py-2.5 text-[14px] font-semibold text-air-btn-ink transition ease-air hover:bg-air-blue hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-air-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
 						@click="confirm"
 					>
-						{{ __("Confirm {0}", [nextAction.label]) }}
+						{{ locationNotReady ? __("Fetching location...") : __("Confirm {0}", [nextAction.label]) }}
 					</button>
 				</div>
 			</template>
@@ -135,14 +136,24 @@ const {
 	checkins,
 	lastLog,
 	lastLogType,
+	isCheckedIn,
 	nextAction,
 	checkinTimestamp,
 	latitude,
 	longitude,
 	locationStatus,
+	hasApprovedWfh,
+	locationNotReady,
 	handleEmployeeCheckin,
 	submitLog,
 } = useCheckin()
+
+// Biometric hardware handles normal office attendance now -- this manual
+// button only makes sense on a day the employee has an Approved WFH
+// request for.
+const canCheckin = computed(
+	() => Boolean(settings.data?.allow_employee_checkin_from_mobile_app) && Boolean(hasApprovedWfh.data)
+)
 
 const showDialog = ref(false)
 
@@ -156,7 +167,6 @@ onMounted(() => {
 })
 onBeforeUnmount(() => ticker && clearInterval(ticker))
 
-const isCheckedIn = computed(() => lastLog?.value?.log_type === "IN")
 const elapsedLabel = computed(() => {
 	if (!isCheckedIn.value || !lastLog?.value?.time) return ""
 	const mins = now.value.diff(dayjs(lastLog.value.time), "minute")

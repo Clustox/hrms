@@ -32,7 +32,14 @@ frappe.query_reports["Employee logs"] = {
 	formatter: (value, row, column, data, default_formatter) => {
 		value = default_formatter(value, row, column, data);
 		if (["check_in_status", "check_out_status"].includes(column.fieldname)) {
-			const color = value.includes(__("Missing")) ? "red" : "green";
+			const isProblem = [__("Missing"), __("Late"), __("Early")].some((label) =>
+				value.includes(label),
+			);
+			const color = value.includes(__("On Leave")) ? "blue" : isProblem ? "red" : "green";
+			return `<span class="indicator-pill ${color}">${value}</span>`;
+		}
+		if (column.fieldname === "location" && value) {
+			const color = value.includes(__("Remote")) ? "orange" : "blue";
 			return `<span class="indicator-pill ${color}">${value}</span>`;
 		}
 		return value;

@@ -57,3 +57,26 @@ def route_tickets():
         except Exception:
             frappe.db.rollback()
             frappe.log_error(title="helpdesk_router", message=frappe.get_traceback())
+
+
+def set_requester_from_contact(doc, method=None):
+    """On-behalf tickets: when an agent picks a `contact`, point `raised_by` at
+    that contact's email so the customer-facing emails -- the acknowledgement on
+    creation and every agent reply -- reach the EMPLOYEE, not the agent who
+    created the ticket (otherwise raised_by stays as the creating agent and the
+    employee is never emailed). Also stamp the internal "Clustox" customer for
+    @clustox.com requesters. Only sets fields on the doc being saved (no nested
+    save), so it is safe inside the ticket transaction -- unlike routing."""
+    contact = doc.get("contact")
+    if not contact:
+        return
+    email = frappe.db.get_value("Contact", contact, "email_id")
+    if not email:
+        email = (frappe.db.get_value("Contact Email", {"parent": contact, "is_primary": 1}, "email_id")
+                 or frappe.db.get_value("Contact Email", {"parent": contact}, "email_id"))
+    if not email:
+        return
+    doc.raised_by = email
+    if not doc.get("customer") and email.lower().endswith("@clustox.com") \
+            and frappe.db.exists("HD Customer", "Clustox"):
+        doc.customer = "Clustox"

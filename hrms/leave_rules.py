@@ -24,10 +24,12 @@ except Annual Leave, which must always be planned and always requires the
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, date_diff, getdate, today
+from frappe.utils import add_days, date_diff, formatdate, getdate, today
 
 OVERRIDE_ROLES = {"HR Manager", "HR User", "System Manager", "Administrator"}
 PROBATION_DAYS = 90
+# Employees may record leave starting at most this many calendar days in the past.
+BACKDATE_LIMIT_DAYS = 7
 
 ANNUAL = "Annual Leave"
 SICK = "Sick Leave"
@@ -60,6 +62,20 @@ def _holiday_list(employee: str):
 def _is_holiday(hl, d) -> bool:
     return bool(hl) and bool(
         frappe.db.exists("Holiday", {"parent": hl, "holiday_date": getdate(d)})
+    )
+
+
+def _is_public_holiday(hl, d) -> bool:
+    """A NAMED public holiday only (weekly_off=0), excluding ordinary weekends.
+    Used for the Casual-leave adjacency rule: the Clustox holiday list stores
+    every weekend as a weekly_off Holiday row, so treating those as "holidays"
+    would block almost every Monday/Friday Casual leave. Weekends still count
+    for the sandwich rule (via _is_holiday) -- bridging a weekend is the point
+    of a sandwich -- but not for plain Casual adjacency."""
+    return bool(hl) and bool(
+        frappe.db.exists(
+            "Holiday", {"parent": hl, "holiday_date": getdate(d), "weekly_off": 0}
+        )
     )
 
 
@@ -111,6 +127,10 @@ def validate_leave_application(doc, method=None):
     days = doc.total_leave_days or (date_diff(to, frm) + 1)
     emp = frappe.get_doc("Employee", doc.employee)
 
+    # 0) half-day only for Casual Leave (policy: half-day = 0.5 of a Casual day)
+    if doc.half_day and lt != CASUAL:
+        frappe.throw(_("Half-day leave is only available for Casual Leave."))
+
     # 1) gender
     req_gender = GENDER_REQUIRED.get(lt)
     if req_gender and (emp.get("gender") or "") != req_gender:
@@ -150,11 +170,14 @@ def validate_leave_application(doc, method=None):
     if rel and getdate(today()) <= frm <= rel:
         frappe.throw(_("Leave cannot be availed during the notice / resignation period."))
 
-    # 6) casual cannot combine with another leave or an adjacent holiday
+    # 6) casual cannot combine with another leave or an adjacent PUBLIC holiday.
+    #    Ordinary weekends are intentionally NOT counted here (that would block
+    #    every Monday/Friday casual); the sandwich rule below still guards the
+    #    bridge-a-weekend case.
     hl = _holiday_list(doc.employee)
     if lt == CASUAL:
-        if _is_holiday(hl, add_days(frm, -1)) or _is_holiday(hl, add_days(to, 1)):
-            frappe.throw(_("Casual Leave cannot be combined with a holiday or weekend."))
+        if _is_public_holiday(hl, add_days(frm, -1)) or _is_public_holiday(hl, add_days(to, 1)):
+            frappe.throw(_("Casual Leave cannot be combined with a public holiday."))
         if _other_leave_on(doc, add_days(frm, -1)) or _other_leave_on(doc, add_days(to, 1)):
             frappe.throw(_("Casual Leave cannot be combined with another leave."))
 
@@ -181,6 +204,33 @@ def validate_leave_application_on_submit(doc, method=None):
                            "to be attached."))
 
 
+def validate_backdate_limit(doc, method=None):
+    """Employees may apply for leave starting up to BACKDATE_LIMIT_DAYS (7)
+    calendar days in the past -- so a missed/emergency leave can be recorded
+    after the fact -- but no further back. Start dates older than the window are
+    hard-blocked.
+
+    HR / System Manager / Administrator are exempt and may backdate any number
+    of days (corrections on anyone's behalf). This is a fixed-window replacement
+    for Frappe's all-or-nothing `restrict_backdated_leave_application` setting,
+    which is therefore turned OFF for this site -- if that setting is ever turned
+    back on it would block employees before this rule runs.
+
+    Annual Leave is separately blocked from ANY backdating by the advance-notice
+    rule in validate_leave_application; this window applies to the other types."""
+    if not doc.get("from_date"):
+        return
+    if set(frappe.get_roles()) & OVERRIDE_ROLES:
+        return
+    days_back = date_diff(getdate(today()), getdate(doc.from_date))
+    if days_back > BACKDATE_LIMIT_DAYS:
+        earliest = add_days(getdate(today()), -BACKDATE_LIMIT_DAYS)
+        frappe.throw(
+            _("Leave can be backdated by at most {0} days. The earliest start "
+              "date you can apply for is {1}.").format(BACKDATE_LIMIT_DAYS, formatdate(earliest))
+        )
+
+
 def cap_compensatory_off_expiry(doc, method=None):
     """Compensatory Off must be availed within 1 month of being earned."""
     if doc.leave_type != COMP_OFF or not doc.get("from_date"):
@@ -188,3 +238,70 @@ def cap_compensatory_off_expiry(doc, method=None):
     limit = add_days(getdate(doc.from_date), 30)
     if doc.get("to_date") and getdate(doc.to_date) > limit:
         doc.to_date = limit
+
+
+def submit_approved_leave(leave):
+    """Submit a single Approved-but-draft Leave Application."""
+    doc = frappe.get_doc("Leave Application", leave)
+    if doc.docstatus == 0 and doc.status == "Approved":
+        doc.flags.ignore_permissions = True
+        doc.submit()
+
+
+def submit_approved_drafts():
+    """Scheduler ("all" event): finalise any leave left as Approved-but-draft.
+
+    Approval IS the finalisation -- a leave saved as "Approved" without being
+    submitted looks approved but doesn't deduct the balance or create the
+    "On Leave" attendance, so the employee wrongly shows Absent on those days.
+    This submits such leaves automatically (a few minutes after approval; the
+    "all" event runs on every scheduler tick). Only approvers can reach the
+    Approved status (the applicant's status options are restricted), so
+    finalising here is safe. Each leave is committed/rolled back on its own so
+    one bad leave (e.g. insufficient balance) can't block the rest."""
+    for name in frappe.get_all("Leave Application", {"status": "Approved", "docstatus": 0}, pluck="name"):
+        try:
+            submit_approved_leave(name)
+            frappe.db.commit()
+        except Exception:
+            frappe.db.rollback()
+            frappe.log_error(title=f"auto-submit approved leave {name} failed", message=frappe.get_traceback())
+
+
+HR_ROLES = {"HR Manager", "HR User", "System Manager"}
+
+
+def delete_cancelled_attendance(doc, method=None):
+    """on_trash of a *cancelled* Leave Application: remove its cancelled
+    "On Leave" Attendance records first.
+
+    Cancelling a leave cancels (docstatus 2) the Attendance it created, but
+    those rows still link back to the leave, and Frappe's link check then
+    refuses to delete the leave ("linked with Attendance ..."). They are
+    already cancelled -- no balance or attendance effect left -- so clearing
+    them is what lets HR delete a cancelled leave. Runs before the link check
+    (on_trash fires first); a leave that is still submitted is never deleted
+    (Frappe requires cancelling it first), so only docstatus 2 is handled."""
+    if doc.docstatus != 2:
+        return
+    for name in frappe.get_all(
+        "Attendance", {"leave_application": doc.name, "docstatus": 2}, pluck="name"
+    ):
+        frappe.delete_doc("Attendance", name, ignore_permissions=True, force=True)
+
+
+@frappe.whitelist()
+def delete_leave_application(name: str) -> str:
+    """HR-only: delete a Leave Application in one step, including an Approved
+    (submitted) one -- cancel it first (reversing its balance deduction and its
+    "On Leave" attendance), then delete it. Frappe itself only allows deleting
+    cancelled/draft documents, so this is the portal's single "Delete" action."""
+    if not HR_ROLES & set(frappe.get_roles()):
+        frappe.throw(_("Only HR can delete an approved leave."), frappe.PermissionError)
+
+    doc = frappe.get_doc("Leave Application", name)
+    if doc.docstatus == 1:
+        doc.cancel()
+    frappe.delete_doc("Leave Application", name)
+    return name
+

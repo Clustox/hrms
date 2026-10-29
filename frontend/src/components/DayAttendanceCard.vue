@@ -18,14 +18,22 @@
 		<div class="grid grid-cols-2 gap-3">
 			<div class="flex flex-col gap-1">
 				<div class="text-xs text-gray-500">{{ __("Check-in") }}</div>
-				<div class="text-base font-medium text-gray-900">
-					{{ props.inTime ? dayjs(props.inTime).format("h:mm A") : "--" }}
+				<div class="flex items-center gap-1.5">
+					<span class="text-base font-medium text-gray-900">
+						{{ props.inTime ? dayjs(props.inTime).format("h:mm A") : "--" }}
+					</span>
+					<Badge v-if="props.lateEntry" variant="outline" theme="orange" :label="__('Late')" size="sm" />
+					<CheckinLocationPin :location="props.inLocation" :label="__('View check-in location')" />
 				</div>
 			</div>
 			<div class="flex flex-col gap-1">
 				<div class="text-xs text-gray-500">{{ __("Check-out") }}</div>
-				<div class="text-base font-medium text-gray-900">
-					{{ props.outTime ? dayjs(props.outTime).format("h:mm A") : "--" }}
+				<div class="flex items-center gap-1.5">
+					<span class="text-base font-medium text-gray-900">
+						{{ props.outTime ? dayjs(props.outTime).format("h:mm A") : "--" }}
+					</span>
+					<Badge v-if="props.earlyExit" variant="outline" theme="blue" :label="__('Early')" size="sm" />
+					<CheckinLocationPin :location="props.outLocation" :label="__('View check-out location')" />
 				</div>
 			</div>
 		</div>
@@ -47,6 +55,7 @@
 <script setup>
 import { inject } from "vue"
 import { Badge } from "frappe-ui"
+import CheckinLocationPin from "@/components/CheckinLocationPin.vue"
 
 const dayjs = inject("$dayjs")
 const __ = inject("$translate")
@@ -57,6 +66,10 @@ const props = defineProps({
 	outTime: { type: [String, Date], default: null },
 	workingHours: { type: Number, default: null },
 	status: { type: String, default: null },
+	lateEntry: { type: Boolean, default: false },
+	earlyExit: { type: Boolean, default: false },
+	inLocation: { type: Object, default: null },
+	outLocation: { type: Object, default: null },
 })
 
 // Same status set as AttendanceCalendar's colorMap, kept in sync manually --

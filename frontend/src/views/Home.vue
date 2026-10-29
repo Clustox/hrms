@@ -16,6 +16,16 @@
 
 <script setup>
 import { inject, markRaw, ref, onMounted, onBeforeUnmount } from "vue"
+import { onIonViewWillEnter } from "@ionic/vue"
+
+import { myLeaves, teamLeaves, leaveBalance } from "@/data/leaves"
+import { myClaims, teamClaims } from "@/data/claims"
+import {
+	myShiftRequests,
+	teamShiftRequests,
+	myAttendanceRequests,
+	teamAttendanceRequests,
+} from "@/data/attendance"
 
 import CheckInPanel from "@/components/CheckInPanel.vue"
 import QuickLinks from "@/components/QuickLinks.vue"
@@ -38,6 +48,26 @@ const isDesktop = ref(desktopQuery.matches)
 const onQueryChange = (e) => (isDesktop.value = e.matches)
 onMounted(() => desktopQuery.addEventListener("change", onQueryChange))
 onBeforeUnmount(() => desktopQuery.removeEventListener("change", onQueryChange))
+
+// Refresh the request lists every time the dashboard is entered, so a status
+// change made elsewhere (e.g. an approval on the Desk, or on a detail screen)
+// is reflected without a manual page refresh. The resources are cached +
+// auto:true, so without this they keep showing the stale cached rows until a
+// live socket event happens to arrive. Covers both the mobile RequestPanel and
+// the desktop dashboard, which read these same shared resources.
+onIonViewWillEnter(() => {
+	;[
+		myLeaves,
+		teamLeaves,
+		leaveBalance,
+		myClaims,
+		teamClaims,
+		myShiftRequests,
+		teamShiftRequests,
+		myAttendanceRequests,
+		teamAttendanceRequests,
+	].forEach((resource) => resource?.reload?.())
+})
 
 const quickLinks = [
 	{
