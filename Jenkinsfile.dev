@@ -64,10 +64,12 @@ pipeline {
             steps {
                 sh '''
                   set -e
-                  COMPOSE="docker compose -f $COMPOSE_FILE -p $PROJECT"
-                  $COMPOSE exec -T frappe bench --site hrms.localhost migrate
-                  $COMPOSE exec -T frappe bench build --app hrms
-                  $COMPOSE exec -T frappe bench --site hrms.localhost clear-cache
+                  # bench must run from the bench directory; the container's
+                  # working_dir is /home/frappe, so pass -w explicitly.
+                  BENCH="docker compose -f $COMPOSE_FILE -p $PROJECT exec -T -w /home/frappe/frappe-bench frappe"
+                  $BENCH bench --site hrms.localhost migrate
+                  $BENCH bench build --app hrms
+                  $BENCH bench --site hrms.localhost clear-cache
                   echo "migrate + build + clear-cache complete"
                 '''
             }
