@@ -175,6 +175,7 @@ import {
 	IonModal,
 	IonRefresher,
 	IonRefresherContent,
+	onIonViewWillEnter,
 } from "@ionic/vue"
 
 import { FeatherIcon, createResource, LoadingIndicator, debounce } from "frappe-ui"
@@ -462,4 +463,11 @@ onMounted(async () => {
 
 	useListUpdate(socket, props.doctype, () => fetchDocumentList())
 })
+
+// Ionic keeps a page alive in the nav stack, so navigating back to a list
+// (e.g. after approving a request on its detail screen, which redirects here)
+// does NOT re-run onMounted -- the list would keep showing the pre-action
+// rows until a manual refresh. Re-fetch on every view-enter so a status change
+// made on another screen is reflected immediately.
+onIonViewWillEnter(() => fetchDocumentList())
 </script>
