@@ -16,6 +16,13 @@
 
 				<div class="flex flex-row gap-2">
 					<Button
+						v-if="canBulk"
+						variant="subtle"
+						@click="selectionMode ? exitSelection() : (selectionMode = true)"
+					>
+						{{ selectionMode ? __("Cancel") : __("Select") }}
+					</Button>
+					<Button
 						id="show-filter-modal"
 						icon="filter"
 						variant="subtle"
@@ -60,6 +67,18 @@
 					</h1>
 					<div class="flex items-center gap-2.5">
 						<button
+							v-if="canBulk"
+							@click="selectionMode ? exitSelection() : (selectionMode = true)"
+							class="flex items-center gap-2 rounded-full border px-4 py-2 text-[13.5px] font-medium transition ease-air"
+							:class="
+								selectionMode
+									? 'border-air-ink bg-air-surface text-air-ink'
+									: 'border-air-line bg-air-surface text-air-ink-2 hover:border-air-ink'
+							"
+						>
+							{{ selectionMode ? __("Cancel") : __("Select") }}
+						</button>
+						<button
 							@click="showFilterModal = true"
 							class="flex items-center gap-2 rounded-full border px-4 py-2 text-[13.5px] font-medium transition ease-air"
 							:class="
@@ -90,6 +109,16 @@
 				/>
 
 				<div
+					v-if="selectionMode"
+					class="flex items-center justify-between w-full mt-4 px-1 text-sm"
+				>
+					<button class="font-medium text-air-blue" @click="toggleSelectAll">
+						{{ allSelected ? __("Deselect all") : __("Select all") }}
+					</button>
+					<span class="text-air-ink-2">{{ __("{0} selected", [selected.size]) }}</span>
+				</div>
+
+				<div
 					class="flex flex-col bg-white rounded mt-5 lg:rounded-air lg:border lg:border-air-line lg:shadow-air lg:overflow-hidden"
 					v-if="!documents.loading && documents.data?.length"
 				>
@@ -98,27 +127,53 @@
 						v-for="link in documents.data"
 						:key="link.name"
 					>
-						<component
-							v-if="props.doctype === 'Employee Checkin'"
-							:is="listItemComponent[doctype]"
-							:doc="link"
-							:isTeamRequest="isTeamRequest"
-							:workflowStateField="workflowStateField"
-							@click="openRequestModal(link)"
-						/>
-						<router-link
-							v-else
-							:to="{ name: detailViewRoute, params: { id: link.name } }"
-							v-slot="{ navigate }"
+						<!-- selection mode: tapping a row toggles it instead of opening it -->
+						<div
+							v-if="selectionMode"
+							class="flex items-center gap-3 cursor-pointer"
+							@click="toggleSelect(link.name)"
 						>
+							<span
+								class="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition"
+								:class="
+									selected.has(link.name)
+										? 'bg-air-blue border-air-blue text-white'
+										: 'border-air-line bg-white'
+								"
+							>
+								<FeatherIcon v-if="selected.has(link.name)" name="check" class="h-3.5 w-3.5" />
+							</span>
 							<component
 								:is="listItemComponent[doctype]"
 								:doc="link"
 								:isTeamRequest="isTeamRequest"
 								:workflowStateField="workflowStateField"
-								@click="navigate"
+								class="flex-1 pointer-events-none"
 							/>
-						</router-link>
+						</div>
+						<template v-else>
+							<component
+								v-if="props.doctype === 'Employee Checkin'"
+								:is="listItemComponent[doctype]"
+								:doc="link"
+								:isTeamRequest="isTeamRequest"
+								:workflowStateField="workflowStateField"
+								@click="openRequestModal(link)"
+							/>
+							<router-link
+								v-else
+								:to="{ name: detailViewRoute, params: { id: link.name } }"
+								v-slot="{ navigate }"
+							>
+								<component
+									:is="listItemComponent[doctype]"
+									:doc="link"
+									:isTeamRequest="isTeamRequest"
+									:workflowStateField="workflowStateField"
+									@click="navigate"
+								/>
+							</router-link>
+						</template>
 					</div>
 				</div>
 				<EmptyState
@@ -148,6 +203,19 @@
 				/>
 			</template>
 		</CustomIonModal>
+
+		<!-- Bulk Approve/Reject bar (Team Requests selection mode) -->
+		<div
+			v-if="selectionMode && selected.size"
+			class="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-air-line bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-air lg:left-[250px]"
+		>
+			<Button class="flex-1" variant="subtle" @click="bulkDecide('Rejected')">
+				{{ __("Reject ({0})", [selected.size]) }}
+			</Button>
+			<Button class="flex-1" variant="solid" @click="bulkDecide('Approved')">
+				{{ __("Approve ({0})", [selected.size]) }}
+			</Button>
+		</div>
 	</ion-content>
 
 	<ion-modal
@@ -178,7 +246,7 @@ import {
 	onIonViewWillEnter,
 } from "@ionic/vue"
 
-import { FeatherIcon, createResource, LoadingIndicator, debounce } from "frappe-ui"
+import { FeatherIcon, createResource, LoadingIndicator, debounce, toast } from "frappe-ui"
 
 import TabButtons from "@/components/TabButtons.vue"
 import EmployeeCheckinItem from "@/components/EmployeeCheckinItem.vue"
@@ -244,6 +312,15 @@ const props = defineProps({
 		type: String,
 		required: false,
 	},
+	// When set, the Team Requests tab gains a multi-select mode with bulk
+	// Approve/Reject that calls `bulkAction.method(names, decision)` server-side
+	// (names = JSON array). Only the WFH list passes this today; without it the
+	// list behaves exactly as before.
+	bulkAction: {
+		type: Object, // { method: string }
+		required: false,
+		default: null,
+	},
 })
 
 const getButtonKey = (tab) => tab?.key ?? tab
@@ -286,6 +363,65 @@ const listOptions = ref({
 const isTeamRequest = computed(() => {
 	return props.tabButtons && activeTab.value === getButtonKey(props.tabButtons[1])
 })
+
+// ---- bulk Approve/Reject (Team Requests tab, only when bulkAction is set) ----
+const selectionMode = ref(false)
+const selected = ref(new Set())
+const canBulk = computed(() => !!props.bulkAction && isTeamRequest.value)
+const allSelected = computed(
+	() => !!documents.data?.length && selected.value.size === documents.data.length
+)
+
+function exitSelection() {
+	selectionMode.value = false
+	selected.value = new Set()
+}
+
+function toggleSelect(name) {
+	const next = new Set(selected.value)
+	next.has(name) ? next.delete(name) : next.add(name)
+	selected.value = next
+}
+
+function toggleSelectAll() {
+	selected.value = allSelected.value
+		? new Set()
+		: new Set((documents.data || []).map((d) => d.name))
+}
+
+function bulkDecide(decision) {
+	if (!props.bulkAction?.method || !selected.value.size) return
+	createResource({ url: props.bulkAction.method }).submit(
+		{ names: JSON.stringify([...selected.value]), decision },
+		{
+			onSuccess(r) {
+				const done = r?.done?.length || 0
+				const failed = r?.failed?.length || 0
+				const verb = decision === "Approved" ? __("approved") : __("rejected")
+				toast({
+					title: failed ? __("Partially done") : __("Success"),
+					text: failed
+						? __("{0} {1}, {2} skipped", [done, verb, failed])
+						: __("{0} request(s) {1}", [done, verb]),
+					icon: failed ? "alert-circle" : "check-circle",
+					position: "bottom-center",
+					iconClasses: failed ? "text-amber-500" : "text-green-500",
+				})
+				exitSelection()
+				fetchDocumentList()
+			},
+			onError() {
+				toast({
+					title: __("Error"),
+					text: __("Could not update the selected requests."),
+					icon: "alert-circle",
+					position: "bottom-center",
+					iconClasses: "text-red-500",
+				})
+			},
+		}
+	)
+}
 
 const formViewRoute = computed(() => {
 	return props.formViewRouteName || `${props.doctype.replace(/\s+/g, "")}FormView`
@@ -451,6 +587,7 @@ const handleRefresh = (event) => {
 watch(
 	() => activeTab.value,
 	(_value) => {
+		exitSelection()
 		fetchDocumentList()
 	}
 )

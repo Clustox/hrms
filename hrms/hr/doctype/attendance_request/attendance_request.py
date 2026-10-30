@@ -514,6 +514,33 @@ def set_wfh_decision(name: str, decision: str) -> str:
 
 
 @frappe.whitelist()
+def bulk_wfh_decision(names: str, decision: str) -> dict:
+	"""Approve or reject several WFH / On Duty Attendance Requests at once.
+
+	Each request is decided independently, with the same rules and approver
+	permission checks as set_wfh_decision. One failure (not an approver, already
+	decided, etc.) is recorded and skipped rather than aborting the whole batch,
+	and each success is committed so a later failure cannot undo it. Returns
+	{"done": [names], "failed": [{"name", "error"}]} so the UI can report
+	partial results.
+	"""
+	name_list = frappe.parse_json(names) if isinstance(names, str) else names
+	if not isinstance(name_list, (list, tuple)):
+		frappe.throw(_("Invalid request list"))
+
+	done, failed = [], []
+	for name in name_list:
+		try:
+			set_wfh_decision(name, decision)
+			frappe.db.commit()  # noqa: keep each decision independent of later failures
+			done.append(name)
+		except Exception as e:
+			frappe.db.rollback()
+			failed.append({"name": name, "error": str(e)})
+	return {"done": done, "failed": failed}
+
+
+@frappe.whitelist()
 def cancel_wfh_request(name: str) -> str:
 	"""The requesting employee cancels their own still-Pending request --
 	before any decision, there's nothing submitted yet to run the doctype's

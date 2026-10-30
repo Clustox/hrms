@@ -9,6 +9,7 @@
 			:fixedFilters="FIXED_FILTERS"
 			formViewRouteName="WfhRequestFormView"
 			detailViewRouteName="WfhRequestDetailView"
+			:bulkAction="BULK_ACTION"
 		/>
 	</ion-page>
 </template>
@@ -25,6 +26,10 @@ const __ = inject("$translate")
 // to this doctype); whether a given viewer can actually Approve/Reject one
 // is enforced server-side (set_wfh_decision), not by what this list shows.
 const TAB_BUTTONS = ["My Requests", "Team Requests"] // __("My Requests"), __("Team Requests")
+// Enables multi-select + bulk Approve/Reject on the Team Requests tab.
+const BULK_ACTION = {
+	method: "hrms.hr.doctype.attendance_request.attendance_request.bulk_wfh_decision",
+}
 const WFH_REQUEST_FIELDS = ["name", "employee_name", "from_date", "to_date", "half_day", "status"]
 const FIXED_FILTERS = [["Attendance Request", "reason", "=", "Work From Home"]]
 // ListFiltersActionSheet.vue does `v-for="option in filter.options"` directly
