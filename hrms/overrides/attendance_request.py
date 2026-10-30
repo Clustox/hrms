@@ -21,6 +21,24 @@ from hrms.hr.doctype.attendance_request.attendance_request import AttendanceRequ
 LOG_TYPE_MAP = {"Check-in": "IN", "Check-out": "OUT"}
 
 
+def _office_coordinates():
+	"""Coordinates to stamp on a system-created punch checkin when
+	HR Settings.allow_geolocation_tracking makes lat/long mandatory on every
+	Employee Checkin. A punch request is a manager-approved office punch with no
+	captured GPS, so we use the office's Shift Location coordinates (the same
+	approach the biometric sync takes). That Shift Location is unassigned, so no
+	geofence radius check fires -- the coordinates only satisfy the mandatory
+	rule. Returns (lat, lon), or (None, None) if no office location is set.
+	"""
+	loc = frappe.get_all(
+		"Shift Location",
+		filters={"latitude": ["!=", 0], "longitude": ["!=", 0]},
+		fields=["latitude", "longitude"],
+		limit=1,
+	)
+	return (loc[0].latitude, loc[0].longitude) if loc else (None, None)
+
+
 class PunchAttendanceRequest(AttendanceRequest):
 	def validate(self):
 		if self.get("custom_is_punch_request"):
@@ -64,6 +82,16 @@ class PunchAttendanceRequest(AttendanceRequest):
 		checkin.employee = self.employee
 		checkin.log_type = log_type
 		checkin.time = punch_dt
+		# HR Settings.allow_geolocation_tracking makes lat/long mandatory on every
+		# Employee Checkin; a punch request carries no GPS, so stamp the office
+		# coordinates to satisfy that rule (see _office_coordinates). Without this,
+		# approving a missed-punch request throws "Latitude and longitude values
+		# are required for checking in."
+		if frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking"):
+			lat, lon = _office_coordinates()
+			if lat is not None and lon is not None:
+				checkin.latitude = lat
+				checkin.longitude = lon
 		# Approval of the request is the authority to log the punch; the
 		# requesting employee cannot create checkins directly.
 		checkin.insert(ignore_permissions=True)
