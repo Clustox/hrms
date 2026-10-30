@@ -27,6 +27,7 @@ import datetime
 import json
 import os
 import sys
+from collections import defaultdict
 
 import requests
 from zk import ZK
@@ -36,6 +37,11 @@ CONFIG_FILE = os.path.join(HERE, "config.json")
 STATE_FILE = os.path.join(HERE, "sync_state.json")
 LOG_FILE = os.path.join(HERE, "sync.log")
 
+# Fallback only: the uFace800 reports an unreliable punch 0/1 flag (the same
+# person's two punches often both come back as 0 or both as 1), which made the
+# PWA render a day as "missing punch in/out". We no longer trust it for 0/1
+# punches -- see normalize_logtypes(). This map is still used for any non-0/1
+# punch code (breaks etc.), which keep their original meaning.
 PUNCH_TO_LOGTYPE = {0: "IN", 1: "OUT"}  # ZK: 0=check-in, 1=check-out
 CHECKPOINT_EVERY = 200
 
@@ -88,6 +94,30 @@ def migrate_flat_state(state, devices):
     return state
 
 
+def normalize_logtypes(logs):
+    """Decide IN/OUT per punch by position within its (user, day), not by the
+    device's unreliable punch flag: the first check punch of a day is IN, then
+    strictly alternate (IN, OUT, IN, ...). This matches Frappe's "Alternating
+    entries" semantics and fixes the device's frequent two-IN / two-OUT days.
+
+    Computed over the device's FULL returned history (not just the new punches)
+    so the parity for a day is stable across runs -- a punch pushed in a later
+    run still gets the type consistent with that day's earlier punches. Only
+    real check punches (ZK punch 0/1) take part; other codes (breaks) are left
+    to PUNCH_TO_LOGTYPE. Returns {id(punch): "IN"|"OUT"}.
+    """
+    groups = defaultdict(list)
+    for a in logs:
+        if a.punch in (0, 1):
+            groups[(a.user_id, a.timestamp.date())].append(a)
+    logtypes = {}
+    for items in groups.values():
+        items.sort(key=lambda a: a.timestamp)
+        for i, a in enumerate(items):
+            logtypes[id(a)] = "IN" if i % 2 == 0 else "OUT"
+    return logtypes
+
+
 def pull_logs(dev, default_timeout):
     zk = ZK(dev["device_ip"], port=dev["device_port"], password=dev.get("comm_key", 0),
             timeout=dev.get("timeout", default_timeout), ommit_ping=True)
@@ -113,6 +143,9 @@ def sync_device(dev, cfg, state, url, headers):
         log(f"[{label}] CONNECT/PULL FAILED: {e} -- skipping this device, others continue")
         return
 
+    # Normalise IN/OUT from each day's full punch sequence (ignores the device's
+    # unreliable punch flag); keyed by punch object identity.
+    logtypes = normalize_logtypes(logs)
     new = sorted((a for a in logs if a.timestamp > cursor), key=lambda a: a.timestamp)
     log(f"[{label}] device returned {len(logs)} logs; {len(new)} new since cursor")
     if not new:
@@ -147,7 +180,7 @@ def sync_device(dev, cfg, state, url, headers):
             "employee_field_value": str(a.user_id),
             "timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "device_id": label,
-            "log_type": PUNCH_TO_LOGTYPE.get(a.punch, ""),
+            "log_type": logtypes.get(id(a), PUNCH_TO_LOGTYPE.get(a.punch, "")),
         }
         if lat is not None and lon is not None:
             payload["latitude"] = lat
