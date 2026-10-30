@@ -45,13 +45,44 @@ def _ensure_user(employee_doc) -> str:
 	return email
 
 
+# Personal/transactional doctypes an employee should see only their OWN of.
+# Mirrors setup/permissions/scope_employees.py. Scoped PER-DOCTYPE (never
+# apply_to_all_doctypes, never the Employee doctype itself) so the employee
+# directory stays visible AND the hook-governed request doctypes (Attendance
+# Request / Shift Request via request_visibility; Leave Application / Expense
+# Claim also carry an ignore_user_permissions employee field) are NOT restricted.
+# A blanket apply_to_all_doctypes permission here breaks request visibility -- it
+# overrides the request_visibility query and trips the Attendance Request
+# team_lead/manager links -- which is why we scope per-doctype instead.
+SCOPED_DOCTYPES = [
+	"Leave Application", "Leave Allocation", "Attendance", "Employee Checkin",
+	"Salary Slip", "Salary Structure Assignment", "Expense Claim",
+	"Employee Advance", "Additional Salary", "Employee Incentive",
+	"Appraisal", "Employee Performance Feedback", "Goal", "Employee Separation",
+]
+
+
 def _self_scope(email: str, employee: str):
-	if not frappe.db.exists("User Permission",
-	                        {"user": email, "allow": "Employee", "for_value": employee}):
+	# Remove any legacy blanket (apply-to-all) Employee permission that would
+	# override the per-doctype scoping and hide the user's own requests.
+	for name in frappe.get_all(
+		"User Permission",
+		filters={"user": email, "allow": "Employee", "apply_to_all_doctypes": 1},
+		pluck="name",
+	):
+		frappe.delete_doc("User Permission", name, ignore_permissions=True, force=True)
+
+	for dt in SCOPED_DOCTYPES:
+		if not frappe.db.exists("DocType", dt):
+			continue
+		if frappe.db.exists("User Permission", {
+			"user": email, "allow": "Employee", "for_value": employee, "applicable_for": dt,
+		}):
+			continue
 		frappe.get_doc({
 			"doctype": "User Permission", "user": email,
 			"allow": "Employee", "for_value": employee,
-			"apply_to_all_doctypes": 1,
+			"applicable_for": dt, "apply_to_all_doctypes": 0,
 		}).insert(ignore_permissions=True)
 
 
@@ -59,6 +90,13 @@ def _self_scope(email: str, employee: str):
 def onboard_employee(employee: str, send_invite: int = 1) -> dict:
 	_require_hr()
 	emp = frappe.get_doc("Employee", employee)
+	# Frappe's Employee.create_user_permission auto-feature (defaults ON for a new
+	# Employee) recreates a blanket apply_to_all_doctypes User Permission on every
+	# save, which overrides the per-doctype request scoping and hides the hire's
+	# own leave/attendance/WFH requests. Turn it off; _self_scope does the correct
+	# per-doctype scoping instead.
+	if emp.create_user_permission:
+		emp.db_set("create_user_permission", 0)
 	email = _ensure_user(emp)
 	_self_scope(email, employee)
 	if not emp.custom_onboarding_status:
