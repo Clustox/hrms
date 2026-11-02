@@ -4,7 +4,7 @@ Application / Leave Allocation, applied everywhere (/hrms PWA, desk, API).
 Registered via hooks.py `doc_events`. Rules that the policy states but Frappe
 does not enforce natively are implemented here:
 
-  * advance-notice periods (Religious 15, Marriage 45)
+  * advance-notice period (Marriage 45)
   * gender restriction (Maternity = Female, Paternity = Male)
   * "once in employment" (Hajj/Umrah)
   * probation (first 90 days): Casual blocked, Sick capped at 2
@@ -37,7 +37,7 @@ CASUAL = "Casual Leave"
 COMP_OFF = "Compensatory Off"
 
 GENDER_REQUIRED = {"Maternity Leave": "Female", "Paternity Leave": "Male"}
-FIXED_NOTICE_DAYS = {"Religious Leave": 15, "Marriage Leave": 45}
+FIXED_NOTICE_DAYS = {"Marriage Leave": 45}
 ONCE_TYPES = {"Hajj Umrah Leave"}
 
 
@@ -143,9 +143,9 @@ def validate_leave_application(doc, method=None):
     }):
         frappe.throw(_("{0} can be availed only once during employment.").format(lt))
 
-    # 3) advance notice. Religious / Marriage need their notice period only for a
-    #    FUTURE start (same-day / backdated stays exempt for emergencies). Annual
-    #    Leave and Hajj/Umrah have NO advance-notice requirement (removed per HR).
+    # 3) advance notice. Only Marriage Leave keeps a notice period, and only for a
+    #    FUTURE start (same-day / backdated stays exempt for emergencies). Annual,
+    #    Hajj/Umrah and Religious have NO advance-notice requirement (removed per HR).
     needed = FIXED_NOTICE_DAYS.get(lt)
     if needed and frm > getdate(today()):
         earliest = add_days(getdate(today()), needed)
