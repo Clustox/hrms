@@ -90,7 +90,7 @@ def send_birthday_greetings():
 		to = _emp_email(emp)
 		if not to:
 			continue
-		first = emp.first_name or emp.employee_name
+		first = emp.employee_name or emp.first_name
 		msg = _wish(
 			f"<p>Dear {frappe.utils.escape_html(first)},</p>"
 			f"<p>Wishing you a very <b>Happy Birthday</b>! 🎉</p>"
@@ -111,7 +111,7 @@ def send_work_anniversary_greetings():
 			continue
 		years = today.year - getdate(emp.date_of_joining).year
 		label = _("year") if years == 1 else _("years")
-		first = emp.first_name or emp.employee_name
+		first = emp.employee_name or emp.first_name
 		recipients = [to]
 		mgr = _manager_email(emp)
 		if mgr:
