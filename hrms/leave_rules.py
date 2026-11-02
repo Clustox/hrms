@@ -4,7 +4,7 @@ Application / Leave Allocation, applied everywhere (/hrms PWA, desk, API).
 Registered via hooks.py `doc_events`. Rules that the policy states but Frappe
 does not enforce natively are implemented here:
 
-  * advance-notice periods (Annual 3/30, Religious 15, Marriage 45, Hajj 60)
+  * advance-notice periods (Religious 15, Marriage 45)
   * gender restriction (Maternity = Female, Paternity = Male)
   * "once in employment" (Hajj/Umrah)
   * probation (first 90 days): Casual blocked, Sick capped at 2
@@ -17,9 +17,9 @@ does not enforce natively are implemented here:
 Enforcement = HARD BLOCK. Users holding an HR/override role bypass the rules
 only when applying on ANOTHER employee's behalf (approved exceptions /
 emergencies); their OWN leave always follows the policy. Emergencies applied
-on/for the same day or a past date are exempt from the advance-notice rule —
-except Annual Leave, which must always be planned and always requires the
-3/30-day notice.
+on/for the same day or a past date are exempt from the advance-notice rule.
+(Annual Leave and Hajj/Umrah have NO advance-notice requirement — removed
+per HR; Hajj still keeps its once-in-employment rule.)
 """
 
 import frappe
@@ -37,7 +37,7 @@ CASUAL = "Casual Leave"
 COMP_OFF = "Compensatory Off"
 
 GENDER_REQUIRED = {"Maternity Leave": "Female", "Paternity Leave": "Male"}
-FIXED_NOTICE_DAYS = {"Religious Leave": 15, "Marriage Leave": 45, "Hajj Umrah Leave": 60}
+FIXED_NOTICE_DAYS = {"Religious Leave": 15, "Marriage Leave": 45}
 ONCE_TYPES = {"Hajj Umrah Leave"}
 
 
@@ -143,11 +143,11 @@ def validate_leave_application(doc, method=None):
     }):
         frappe.throw(_("{0} can be availed only once during employment.").format(lt))
 
-    # 3) advance notice. Annual Leave must always be planned — no same-day/backdated
-    #    exemption (applying for today, a past date, or inside the notice window is
-    #    blocked). Other notice-based types stay exempt for same-day/backdated (emergency).
-    needed = (3 if days <= 2 else 30) if lt == ANNUAL else FIXED_NOTICE_DAYS.get(lt)
-    if needed and (lt == ANNUAL or frm > getdate(today())):
+    # 3) advance notice. Religious / Marriage need their notice period only for a
+    #    FUTURE start (same-day / backdated stays exempt for emergencies). Annual
+    #    Leave and Hajj/Umrah have NO advance-notice requirement (removed per HR).
+    needed = FIXED_NOTICE_DAYS.get(lt)
+    if needed and frm > getdate(today()):
         earliest = add_days(getdate(today()), needed)
         if frm < earliest:
             frappe.throw(_("{0} requires at least {1} days notice. "
