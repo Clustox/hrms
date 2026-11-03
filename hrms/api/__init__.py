@@ -395,6 +395,7 @@ def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
 	shift_start, shift_end}, ... ]}."""
 	by_key = {}
 	pending = {}  # employee -> open IN log
+	closed = {}  # employee -> (IN log, hours) of the span its latest OUT closed
 
 	def row_for(emp, when):
 		key = (emp, getdate(when).isoformat())
@@ -414,6 +415,7 @@ def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
 		emp = log["employee"]
 		if log["log_type"] == "IN":
 			pending[emp] = log
+			closed.pop(emp, None)
 			row = row_for(emp, log["time"])
 			if row["in_time"] is None:
 				row["in_time"] = log["time"]
@@ -421,12 +423,21 @@ def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
 				row["shift_end"] = log.get("shift_end")
 		elif log["log_type"] == "OUT":
 			open_in = pending.pop(emp, None)
+			prev_in, prev_hours = closed.get(emp, (None, 0))
+			if open_in is None and prev_in is not None:
+				# Further OUT after a closed span (device days are IN, OUT, OUT, ...):
+				# the last OUT wins, so extend that span instead of starting a new one.
+				open_in = prev_in
+			else:
+				prev_hours = 0
 			hours = (log["time"] - open_in["time"]).total_seconds() / 3600 if open_in else None
 			if hours is not None and 0 <= hours <= TIMESHEET_MAX_SHIFT_HOURS:
 				row = row_for(open_in["employee"], open_in["time"])
 				row["out_time"] = log["time"]
-				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
+				row["working_hours"] = round((row["working_hours"] or 0) - prev_hours + hours, 2)
+				closed[emp] = (open_in, hours)
 			else:
+				closed.pop(emp, None)
 				row_for(emp, log["time"])["out_time"] = log["time"]
 
 	out = {}
@@ -611,23 +622,32 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 
 	days = {}
 	pending_in = None  # an open IN awaiting its OUT
+	closed_in = None  # (IN log, hours) of the span the latest OUT closed
 	for log in logs:
 		if log.log_type == "IN":
 			pending_in = log  # supersedes any earlier unclosed IN
+			closed_in = None
 			_record_in(log)
 		elif log.log_type == "OUT":
 			hours = None
+			prev_hours = 0
+			if pending_in is None and closed_in is not None:
+				# Further OUT after a closed span (biometric days are IN, OUT, OUT,
+				# ...): the last OUT wins, so extend that span to this OUT.
+				pending_in, prev_hours = closed_in
 			if pending_in is not None:
 				hours = (log.time - pending_in.time).total_seconds() / 3600
 			if hours is not None and 0 <= hours <= MAX_SHIFT_HOURS:
+				closed_in = (pending_in, hours)
 				row = _row(getdate(pending_in.time).isoformat())
 				row["out_time"] = log.time
 				row["shift_end"] = log.shift_end
 				row["out_latitude"] = log.latitude
 				row["out_longitude"] = log.longitude
 				row["out_device_id"] = log.device_id
-				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
+				row["working_hours"] = round((row["working_hours"] or 0) - prev_hours + hours, 2)
 			else:
+				closed_in = None
 				# no open IN, or the span is implausibly long (missed punch):
 				# record the OUT on its own day, unpaired.
 				out_row = _row(getdate(log.time).isoformat())
