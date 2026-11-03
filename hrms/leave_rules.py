@@ -11,6 +11,7 @@ does not enforce natively are implemented here:
   * no leave during the notice/resignation period
   * Casual cannot be combined with another leave or an adjacent holiday
   * sandwich leave (leave immediately before AND after a holiday) not allowed
+    -- Casual Leave only
   * medical proof (attachment) required for Sick Leave over 2 days
   * Compensatory Off expires 1 month after it is earned
 
@@ -181,9 +182,10 @@ def validate_leave_application(doc, method=None):
         if _other_leave_on(doc, add_days(frm, -1)) or _other_leave_on(doc, add_days(to, 1)):
             frappe.throw(_("Casual Leave cannot be combined with another leave."))
 
-    # 7) sandwich leave (leave immediately before AND after a holiday run)
-    if hl and (_sandwiched_on(doc, hl, add_days(frm, -1))
-               or _sandwiched_on(doc, hl, add_days(to, 1))):
+    # 7) sandwich leave (leave immediately before AND after a holiday run) --
+    #    applies to Casual Leave only; other leave types may bridge holidays.
+    if lt == CASUAL and hl and (_sandwiched_on(doc, hl, add_days(frm, -1))
+                                or _sandwiched_on(doc, hl, add_days(to, 1))):
         frappe.throw(_("Sandwich leave is not allowed — you cannot take leave "
                        "immediately before and after a holiday/weekend."))
 
