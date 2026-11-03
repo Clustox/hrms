@@ -96,12 +96,13 @@ def migrate_flat_state(state, devices):
 
 def normalize_logtypes(logs):
     """Decide IN/OUT per punch by position within its (user, day), not by the
-    device's unreliable punch flag: the first check punch of a day is IN, then
-    strictly alternate (IN, OUT, IN, ...). This matches Frappe's "Alternating
-    entries" semantics and fixes the device's frequent two-IN / two-OUT days.
+    device's unreliable punch flag: per HR policy the FIRST check punch of a day
+    is IN (check-in) and EVERY later punch is OUT (check-out), so the last punch
+    of the day is the real check-out. Fixes the device's two-IN / two-OUT days
+    and re-check-ins being read as check-outs.
 
     Computed over the device's FULL returned history (not just the new punches)
-    so the parity for a day is stable across runs -- a punch pushed in a later
+    so a day's first punch is stable across runs -- a punch pushed in a later
     run still gets the type consistent with that day's earlier punches. Only
     real check punches (ZK punch 0/1) take part; other codes (breaks) are left
     to PUNCH_TO_LOGTYPE. Returns {id(punch): "IN"|"OUT"}.
@@ -114,7 +115,7 @@ def normalize_logtypes(logs):
     for items in groups.values():
         items.sort(key=lambda a: a.timestamp)
         for i, a in enumerate(items):
-            logtypes[id(a)] = "IN" if i % 2 == 0 else "OUT"
+            logtypes[id(a)] = "IN" if i == 0 else "OUT"
     return logtypes
 
 
