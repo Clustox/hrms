@@ -389,12 +389,11 @@ def _working_days(employee: str, from_date, to_date) -> int:
 
 def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
 	"""Group check-ins (sorted by employee, then time) into per-employee, per-day
-	rows: pair each IN with the next OUT (overnight aware), capping a single span
-	at TIMESHEET_MAX_SHIFT_HOURS so a missed punch doesn't glue an IN to a far OUT.
-	Returns {employee: [ {attendance_date, in_time, out_time, working_hours,
-	shift_start, shift_end}, ... ]}."""
+	rows: the FIRST punch of a day is the check-in and the LAST is the check-out
+	(hours = last - first); in-between punches and the device IN/OUT flag are
+	ignored. Returns {employee: [ {attendance_date, in_time, out_time,
+	working_hours, shift_start, shift_end}, ... ]}."""
 	by_key = {}
-	pending = {}  # employee -> open IN log
 
 	def row_for(emp, when):
 		key = (emp, getdate(when).isoformat())
@@ -410,24 +409,18 @@ def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
 			},
 		)
 
-	for log in checkins:
+	for log in checkins:  # sorted by employee, then time asc
 		emp = log["employee"]
-		if log["log_type"] == "IN":
-			pending[emp] = log
-			row = row_for(emp, log["time"])
-			if row["in_time"] is None:
-				row["in_time"] = log["time"]
-				row["shift_start"] = log.get("shift_start")
-				row["shift_end"] = log.get("shift_end")
-		elif log["log_type"] == "OUT":
-			open_in = pending.pop(emp, None)
-			hours = (log["time"] - open_in["time"]).total_seconds() / 3600 if open_in else None
-			if hours is not None and 0 <= hours <= TIMESHEET_MAX_SHIFT_HOURS:
-				row = row_for(open_in["employee"], open_in["time"])
-				row["out_time"] = log["time"]
-				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
-			else:
-				row_for(emp, log["time"])["out_time"] = log["time"]
+		row = row_for(emp, log["time"])
+		if row["in_time"] is None:
+			row["in_time"] = log["time"]
+			row["shift_start"] = log.get("shift_start")
+			row["shift_end"] = log.get("shift_end")
+		elif log["time"] > row["in_time"]:
+			# later punch = running check-out (last one wins); hours = last - first
+			row["out_time"] = log["time"]
+			row["shift_end"] = log.get("shift_end")
+			row["working_hours"] = round((log["time"] - row["in_time"]).total_seconds() / 3600, 2)
 
 	out = {}
 	for (emp, _date), row in by_key.items():
@@ -587,19 +580,14 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 			},
 		)
 
-	# Pair each IN with the NEXT OUT chronologically (across days) rather than a
-	# day's first-IN with its own last-OUT: an overnight shift (6pm -> 3am next
-	# day) then reads as one positive span on the day it started, instead of the
-	# negative you'd get from pairing a day's 6pm IN with an earlier 3am OUT that
-	# actually closes the previous night's shift.
-	#
-	# But real data is full of missed punches, so guard against a stray IN
-	# matching an OUT days/weeks later: any span longer than a plausible shift is
-	# a missed check-out, not hours -- the IN is left as check-in-only and the OUT
-	# is recorded on its own day. A new IN also supersedes an earlier unclosed one.
-	MAX_SHIFT_HOURS = 16
-
-	def _record_in(log):
+	# Per HR policy: the FIRST punch of the day is the check-in and the LAST punch
+	# is the check-out; any punches in between are extra check-ins that don't move
+	# the summary. Hours = last - first. The device's IN/OUT flag is deliberately
+	# IGNORED -- it is unreliable (a re-check-in was being read as a check-out, so
+	# a real end-of-day punch was dropped). A single punch leaves check-out empty.
+	# (Assumes same-day shifts, which holds for Clustox -- no overnight rosters.)
+	days = {}
+	for log in logs:  # ordered by time asc
 		row = _row(getdate(log.time).isoformat())
 		if row["in_time"] is None:
 			row["in_time"] = log.time
@@ -608,34 +596,14 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 			row["in_latitude"] = log.latitude
 			row["in_longitude"] = log.longitude
 			row["in_device_id"] = log.device_id
-
-	days = {}
-	pending_in = None  # an open IN awaiting its OUT
-	for log in logs:
-		if log.log_type == "IN":
-			pending_in = log  # supersedes any earlier unclosed IN
-			_record_in(log)
-		elif log.log_type == "OUT":
-			hours = None
-			if pending_in is not None:
-				hours = (log.time - pending_in.time).total_seconds() / 3600
-			if hours is not None and 0 <= hours <= MAX_SHIFT_HOURS:
-				row = _row(getdate(pending_in.time).isoformat())
-				row["out_time"] = log.time
-				row["shift_end"] = log.shift_end
-				row["out_latitude"] = log.latitude
-				row["out_longitude"] = log.longitude
-				row["out_device_id"] = log.device_id
-				row["working_hours"] = round((row["working_hours"] or 0) + hours, 2)
-			else:
-				# no open IN, or the span is implausibly long (missed punch):
-				# record the OUT on its own day, unpaired.
-				out_row = _row(getdate(log.time).isoformat())
-				out_row["out_time"] = log.time
-				out_row["out_latitude"] = log.latitude
-				out_row["out_longitude"] = log.longitude
-				out_row["out_device_id"] = log.device_id
-			pending_in = None
+		elif log.time > row["in_time"]:
+			# a later punch is the running check-out (last one wins)
+			row["out_time"] = log.time
+			row["shift_end"] = log.shift_end
+			row["out_latitude"] = log.latitude
+			row["out_longitude"] = log.longitude
+			row["out_device_id"] = log.device_id
+			row["working_hours"] = round((log.time - row["in_time"]).total_seconds() / 3600, 2)
 
 	rows = list(days.values())
 	rows.sort(key=lambda r: r["attendance_date"], reverse=True)
