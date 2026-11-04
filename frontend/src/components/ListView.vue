@@ -255,6 +255,7 @@ import ShiftRequestItem from "@/components/ShiftRequestItem.vue"
 import ShiftAssignmentItem from "@/components/ShiftAssignmentItem.vue"
 import LeaveRequestItem from "@/components/LeaveRequestItem.vue"
 import ExpenseClaimItem from "@/components/ExpenseClaimItem.vue"
+import ExpenseRequestItem from "@/components/ExpenseRequestItem.vue"
 import EmployeeAdvanceItem from "@/components/EmployeeAdvanceItem.vue"
 import ListFiltersActionSheet from "@/components/ListFiltersActionSheet.vue"
 import CustomIonModal from "@/components/CustomIonModal.vue"
@@ -332,6 +333,7 @@ const listItemComponent = {
 	"Shift Assignment": markRaw(ShiftAssignmentItem),
 	"Leave Application": markRaw(LeaveRequestItem),
 	"Expense Claim": markRaw(ExpenseClaimItem),
+	"Expense Request": markRaw(ExpenseRequestItem),
 	"Employee Advance": markRaw(EmployeeAdvanceItem),
 }
 
@@ -619,4 +621,15 @@ onMounted(async () => {
 // rows until a manual refresh. Re-fetch on every view-enter so a status change
 // made on another screen is reflected immediately.
 onIonViewWillEnter(() => fetchDocumentList())
+
+// The default "My/Team" filter is built from `employee.data.name`; the first
+// fetch can run before that resource resolves, filtering on an undefined
+// employee and returning nothing until the next view-enter. Re-fetch once the
+// employee is known so the list populates on first load.
+watch(
+	() => employee.data?.name,
+	(name) => {
+		if (name) fetchDocumentList()
+	}
+)
 </script>
