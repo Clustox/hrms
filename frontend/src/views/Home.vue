@@ -95,6 +95,12 @@ const quickLinks = [
 		route: "ExpenseClaimFormView",
 	},
 	{
+		icon: markRaw(ExpenseIcon),
+		title: __("Request Expense"),
+		description: __("Tools, courses, medical"),
+		route: "ExpenseRequestFormView",
+	},
+	{
 		icon: markRaw(EmployeeAdvanceIcon),
 		title: __("Request an Advance"),
 		description: __("Salary advance"),
