@@ -314,7 +314,13 @@ doc_events = {
 		],
 	},
 	"Shift Request": {"on_submit": "hrms.telemetry.on_shift_request_submit"},
-	"Employee Checkin": {"after_insert": "hrms.telemetry.on_employee_checkin"},
+	"Employee Checkin": {
+		"after_insert": [
+			"hrms.telemetry.on_employee_checkin",
+			# Clustox: first portal check-in on an approved WFH day marks it present.
+			"hrms.hr.doctype.attendance_request.attendance_request.mark_wfh_attendance_on_checkin",
+		]
+	},
 	"Payroll Entry": {"on_submit": "hrms.telemetry.on_payroll_entry_submit"},
 	"Job Offer": {"on_submit": "hrms.telemetry.on_job_offer_submit"},
 	# Clustox: on an on-behalf ticket, point raised_by at the contact's email so

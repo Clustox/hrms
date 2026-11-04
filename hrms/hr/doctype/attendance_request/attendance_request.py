@@ -224,6 +224,11 @@ class AttendanceRequest(Document):
 				attendance_obj.cancel()
 
 	def create_attendance_records(self):
+		# Work From Home attendance is created when the employee actually checks in
+		# on a covered day (see mark_wfh_attendance_on_checkin), not for the whole
+		# range up front -- otherwise an approved-but-unworked day showed Present.
+		if self.reason == "Work From Home":
+			return
 		request_days = date_diff(self.to_date, self.from_date) + 1
 		for day in range(request_days):
 			attendance_date = add_days(self.from_date, day)
@@ -554,3 +559,41 @@ def cancel_wfh_request(name: str) -> str:
 
 	doc.db_set("status", "Cancelled")
 	return doc.status
+
+
+def mark_wfh_attendance_on_checkin(doc, method=None):
+	"""Employee Checkin after_insert: on a day covered by an Approved Work From Home
+	request, the employee's first portal check-in marks that day "Work From Home".
+	No check-in, no attendance -- the day is not shown Present.
+
+	Skipped for biometric-machine punches (device_id set): those follow the normal
+	office attendance flow. Never raises, so a failure here can't block the check-in."""
+	if doc.get("device_id"):
+		return
+	try:
+		day = getdate(doc.time)
+		request = frappe.db.get_value(
+			"Attendance Request",
+			{
+				"employee": doc.employee,
+				"reason": "Work From Home",
+				"status": "Approved",
+				"docstatus": 1,
+				"from_date": ["<=", day],
+				"to_date": [">=", day],
+			},
+		)
+		if not request:
+			return
+		if frappe.db.exists(
+			"Attendance", {"employee": doc.employee, "attendance_date": day, "docstatus": ["!=", 2]}
+		):
+			return
+		request_doc = frappe.get_doc("Attendance Request", request)
+		if not request_doc.include_holidays and is_holiday(doc.employee, day):
+			return
+		if request_doc.has_leave_record(str(day)):
+			return
+		request_doc.create_or_update_attendance(str(day))
+	except Exception:
+		frappe.log_error(title="WFH attendance on check-in failed", message=frappe.get_traceback())
