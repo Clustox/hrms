@@ -56,6 +56,53 @@ def expense_claim_query(user=None):
 	return _conditions(user, "Expense Claim")
 
 
+# Expense Request is an org-wide approval queue: HR and Accounts act on every
+# employee's requests, so they (and the two dedicated approver roles) see all
+# records. Everyone else is still scoped to own + direct reports.
+EXPENSE_ACCESS_ROLES = ALL_ACCESS_ROLES | {
+	"Accounts Manager",
+	"Accounts User",
+	"Expense HR Approver",
+	"Expense Accounts Approver",
+}
+
+
+def _expense_visible_employees(user):
+	if EXPENSE_ACCESS_ROLES & set(frappe.get_roles(user)):
+		return None
+	emp = frappe.db.get_value("Employee", {"user_id": user}, "name")
+	if not emp:
+		return []
+	reports = frappe.get_all("Employee", filters={"reports_to": emp}, pluck="name")
+	return [emp, *reports]
+
+
+def expense_request_query(user=None):
+	emps = _expense_visible_employees(user or frappe.session.user)
+	if emps is None:
+		return ""
+	if not emps:
+		return "1=0"
+	values = ", ".join(frappe.db.escape(e) for e in emps)
+	return f"`tabExpense Request`.`employee` in ({values})"
+
+
+def expense_request_has_permission(doc, ptype=None, user=None, **kwargs):
+	# Returns True/False only (never None -> Frappe reads None as DENY).
+	user = user or frappe.session.user
+	if EXPENSE_ACCESS_ROLES & set(frappe.get_roles(user)):
+		return True  # HR / Accounts / approver roles -- full access
+	target = getattr(doc, "employee", None)
+	# Create and doctype-level checks must pass so an employee can raise their own.
+	if ptype == "create" or target is None:
+		return True
+	# Only approver roles (returned True above) advance/submit/cancel a request.
+	if ptype in ("submit", "cancel", "delete"):
+		return False
+	# Read/write scoped to own record + direct reports (the manager stage edits).
+	return target in (_expense_visible_employees(user) or [])
+
+
 def has_permission(doc, ptype=None, user=None, **kwargs):
 	# A has_permission hook must return True/False, never None: Frappe treats a
 	# None return (when a doc is passed) as a DENY, which would block even an

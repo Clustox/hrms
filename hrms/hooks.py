@@ -189,6 +189,7 @@ permission_query_conditions = {
 	"Attendance Request": "hrms.request_visibility.attendance_request_query",
 	"Shift Request": "hrms.request_visibility.shift_request_query",
 	"Expense Claim": "hrms.request_visibility.expense_claim_query",
+	"Expense Request": "hrms.request_visibility.expense_request_query",
 }
 
 has_permission = {
@@ -196,6 +197,7 @@ has_permission = {
 	"Attendance Request": "hrms.request_visibility.has_permission",
 	"Shift Request": "hrms.request_visibility.has_permission",
 	"Expense Claim": "hrms.request_visibility.has_permission",
+	"Expense Request": "hrms.request_visibility.expense_request_has_permission",
 }
 
 has_upload_permission = {"Employee": "erpnext.setup.doctype.employee.employee.has_upload_permission"}
