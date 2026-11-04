@@ -306,6 +306,9 @@ doc_events = {
 	# NB: Leave Application telemetry (on_submit) is registered in the single
 	# "Leave Application" entry above -- do NOT re-add a key for it here.
 	"Expense Claim": {"on_submit": "hrms.telemetry.on_expense_claim_submit"},
+	# Clustox: stage emails as an Expense Request moves through the approval
+	# workflow (manager -> HR inbox -> Accounts inbox -> requester).
+	"Expense Request": {"on_update": "hrms.expense_request_notify.notify_on_state_change"},
 	"Attendance Request": {
 		# Clustox: notify the employee's manager when a request is raised, and
 		# the employee when their manager approves it (see attendance_request_notify).
