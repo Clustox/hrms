@@ -10,8 +10,8 @@ from hrms.hr.utils import validate_active_employee
 
 # Expense types that must be approved by the employee's manager first.
 MANAGER_FIRST_TYPES = {"AI Tool", "Certifications", "Food"}
-# Types that additionally require a prescription attachment.
-PRESCRIPTION_TYPES = {"OPD", "IPD"}
+# Non-working states where attachments are not yet required.
+PRE_SUBMIT_STATES = {None, "", "Draft", "Cancelled"}
 
 
 def resolve_manager(employee: str) -> str | None:
@@ -48,10 +48,17 @@ class ExpenseRequest(Document):
 			frappe.throw(_("Amount must be greater than zero."))
 
 	def validate_attachments(self):
-		if not self.receipt:
-			frappe.throw(_("A receipt / invoice attachment is required."))
-		if self.expense_type in PRESCRIPTION_TYPES and not self.prescription:
-			frappe.throw(_("A prescription attachment is required for {0} requests.").format(self.expense_type))
+		# Attachments are generic File records uploaded after insert (the PWA
+		# pattern), so require them only once the request leaves Draft for
+		# approval. At least one file (the receipt / invoice) is mandatory;
+		# OPD / IPD should also include the prescription (reviewer-checked).
+		if self.workflow_state in PRE_SUBMIT_STATES:
+			return
+		count = frappe.db.count(
+			"File", {"attached_to_doctype": self.doctype, "attached_to_name": self.name}
+		)
+		if count < 1:
+			frappe.throw(_("Please attach the receipt / invoice before submitting this request."))
 
 	def validate_rejection(self):
 		if self.workflow_state == "Rejected" and not self.rejection_reason:

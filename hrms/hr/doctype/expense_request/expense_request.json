@@ -18,9 +18,6 @@
   "amount",
   "currency",
   "reason",
-  "attachments_section",
-  "receipt",
-  "prescription",
   "state_section",
   "workflow_state",
   "rejection_reason",
@@ -112,22 +109,6 @@
    "fieldtype": "Small Text",
    "label": "Reason",
    "reqd": 1
-  },
-  {
-   "fieldname": "attachments_section",
-   "fieldtype": "Section Break",
-   "label": "Attachments"
-  },
-  {
-   "fieldname": "receipt",
-   "fieldtype": "Attach",
-   "label": "Receipt / Invoice"
-  },
-  {
-   "depends_on": "eval:[\"OPD\",\"IPD\"].includes(doc.expense_type)",
-   "fieldname": "prescription",
-   "fieldtype": "Attach",
-   "label": "Prescription"
   },
   {
    "collapsible": 1,

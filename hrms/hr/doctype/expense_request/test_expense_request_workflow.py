@@ -15,6 +15,20 @@ def _user_for(employee):
 	return frappe.db.get_value("Employee", employee, "user_id")
 
 
+def attach_receipt(doc):
+	"""Attach a generic File (the receipt) so the request can be submitted."""
+	frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": "receipt.txt",
+			"attached_to_doctype": "Expense Request",
+			"attached_to_name": doc.name,
+			"content": "receipt",
+			"is_private": 1,
+		}
+	).insert(ignore_permissions=True)
+
+
 def _make_user_employee(email, reports_to=None, roles=None):
 	emp = make_employee(email, company="_Test Company", reports_to=reports_to)
 	user = frappe.get_doc("User", _user_for(emp))
@@ -44,10 +58,10 @@ class TestExpenseRequestWorkflow(HRMSTestSuite):
 				"expense_type": expense_type,
 				"amount": 1000,
 				"reason": "test",
-				"receipt": "/files/r.pdf",
 				**extra,
 			}
 		).insert()
+		attach_receipt(doc)
 		return doc
 
 	def test_manager_first_routes_to_pending_manager(self):

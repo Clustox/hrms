@@ -7,7 +7,10 @@ import frappe
 from frappe.model.workflow import apply_workflow
 from frappe.utils import nowdate
 
-from hrms.hr.doctype.expense_request.test_expense_request_workflow import _make_user_employee
+from hrms.hr.doctype.expense_request.test_expense_request_workflow import (
+	_make_user_employee,
+	attach_receipt,
+)
 from hrms.patches.v16_0.create_expense_request_workflow import execute as seed_workflow
 from hrms.tests.utils import HRMSTestSuite
 
@@ -41,9 +44,9 @@ class TestExpenseRequestNotify(HRMSTestSuite):
 					"expense_type": "AI Tool",
 					"amount": 1000,
 					"reason": "t",
-					"receipt": "/files/r.pdf",
 				}
 			).insert()
+			attach_receipt(doc)
 			n = len(sent)
 			apply_workflow(doc, "Submit for Approval")
 			self.assertIn((mgr_user,), sent[n:])

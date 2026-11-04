@@ -5,7 +5,10 @@ import frappe
 from frappe.model.workflow import apply_workflow
 
 from hrms.api import get_expense_requests
-from hrms.hr.doctype.expense_request.test_expense_request_workflow import _make_user_employee
+from hrms.hr.doctype.expense_request.test_expense_request_workflow import (
+	_make_user_employee,
+	attach_receipt,
+)
 from hrms.patches.v16_0.create_expense_request_workflow import execute as seed_workflow
 from hrms.tests.utils import HRMSTestSuite
 
@@ -36,9 +39,9 @@ class TestExpenseRequestAPI(HRMSTestSuite):
 				"expense_type": "AI Tool",
 				"amount": 1234,
 				"reason": "t",
-				"receipt": "/files/r.pdf",
 			}
 		).insert()
+		attach_receipt(doc)
 		apply_workflow(doc, "Submit for Approval")
 		frappe.set_user(mgr_user)
 		apply_workflow(frappe.get_doc("Expense Request", doc.name), "Approve")  # -> Pending HR
