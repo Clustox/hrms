@@ -126,6 +126,13 @@ class EmployeeCheckin(Document):
 		if not (self.latitude or self.longitude):
 			frappe.throw(_("Latitude and longitude values are required for checking in."))
 
+		# On an approved Work From Home day (or for portal-check-in-exempt remote
+		# staff) the employee is not expected to be at the shift location.
+		from hrms.hr.doctype.attendance_request.attendance_request import is_remote_checkin_allowed
+
+		if is_remote_checkin_allowed(self.employee, self.time):
+			return
+
 		assignment_locations = frappe.get_all(
 			"Shift Assignment",
 			filters={

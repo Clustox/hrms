@@ -455,26 +455,32 @@ def has_approved_wfh_today(employee: str | None = None) -> bool:
 	employee = employee or frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
 	if not employee:
 		return False
+	return is_remote_checkin_allowed(employee, nowdate())
 
-	# Per-employee exemption: fully-remote / field staff can be allowed to use
-	# the portal Check-in/out without raising a WFH request each day, via the
-	# "Allow Portal Check-in (no WFH request)" flag on their Employee record.
-	if frappe.db.get_value("Employee", employee, "custom_allow_portal_checkin"):
+
+def is_remote_checkin_allowed(employee: str, on_date) -> bool:
+	"""Whether `employee` may check in from outside the office on `on_date`: an
+	Approved, submitted Work From Home request covers that date, or the employee
+	is exempt via the "Allow Portal Check-in (no WFH request)" flag (fully-remote
+	/ field staff, who can use the portal Check-in/out without a daily request).
+	Shared by the portal button gate and the check-in geofence exemption."""
+	if frappe.db.exists(
+		"Attendance Request",
+		{
+			"employee": employee,
+			"reason": "Work From Home",
+			"status": "Approved",
+			"docstatus": 1,
+			"from_date": ["<=", getdate(on_date)],
+			"to_date": [">=", getdate(on_date)],
+		},
+	):
 		return True
-
-	today = nowdate()
+	# Guarded: the flag is a fixture Custom Field that exists only once the site
+	# has been migrated; without it, treat the employee as not exempt.
 	return bool(
-		frappe.db.exists(
-			"Attendance Request",
-			{
-				"employee": employee,
-				"reason": "Work From Home",
-				"status": "Approved",
-				"docstatus": 1,
-				"from_date": ["<=", today],
-				"to_date": [">=", today],
-			},
-		)
+		frappe.get_meta("Employee").has_field("custom_allow_portal_checkin")
+		and frappe.db.get_value("Employee", employee, "custom_allow_portal_checkin")
 	)
 
 
