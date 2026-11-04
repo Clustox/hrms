@@ -46,7 +46,7 @@ const props = defineProps({
 const ACTION_ORDER = [
 	"LeaveApplicationFormView",
 	"AttendanceRequestFormView",
-	"ExpenseClaimFormView",
+	"ExpenseRequestFormView",
 	"EmployeeAdvanceFormView",
 	"ShiftRequestFormView",
 	"SalarySlipsDashboard",

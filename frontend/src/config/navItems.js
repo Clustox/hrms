@@ -39,7 +39,7 @@ export function getNavItems(__) {
 		{
 			icon: ExpenseIcon,
 			title: __("Expenses"),
-			route: "/dashboard/expense-claims",
+			route: "/expense-requests",
 		},
 		{
 			icon: SalaryIcon,

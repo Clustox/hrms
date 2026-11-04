@@ -19,7 +19,7 @@ import { inject, markRaw, ref, onMounted, onBeforeUnmount } from "vue"
 import { onIonViewWillEnter } from "@ionic/vue"
 
 import { myLeaves, teamLeaves, leaveBalance } from "@/data/leaves"
-import { myClaims, teamClaims } from "@/data/claims"
+import { myExpenseRequests, teamExpenseRequests } from "@/data/expense_requests"
 import {
 	myShiftRequests,
 	teamShiftRequests,
@@ -60,8 +60,8 @@ onIonViewWillEnter(() => {
 		myLeaves,
 		teamLeaves,
 		leaveBalance,
-		myClaims,
-		teamClaims,
+		myExpenseRequests,
+		teamExpenseRequests,
 		myShiftRequests,
 		teamShiftRequests,
 		myAttendanceRequests,
@@ -87,12 +87,6 @@ const quickLinks = [
 		title: __("Request Leave"),
 		description: __("Apply for time off"),
 		route: "LeaveApplicationFormView",
-	},
-	{
-		icon: markRaw(ExpenseIcon),
-		title: __("Claim an Expense"),
-		description: __("Reimbursements"),
-		route: "ExpenseClaimFormView",
 	},
 	{
 		icon: markRaw(ExpenseIcon),

@@ -20,11 +20,11 @@ import TabButtons from "@/components/TabButtons.vue"
 import RequestList from "@/components/RequestList.vue"
 
 import { myAttendanceRequests, myShiftRequests, teamShiftRequests, teamAttendanceRequests } from "@/data/attendance"
-import { myClaims, teamClaims } from "@/data/claims"
+import { myExpenseRequests, teamExpenseRequests } from "@/data/expense_requests"
 import { myLeaves, teamLeaves } from "@/data/leaves"
 
 import AttendanceRequestItem from "@/components/AttendanceRequestItem.vue"
-import ExpenseClaimItem from "@/components/ExpenseClaimItem.vue"
+import ExpenseRequestItem from "@/components/ExpenseRequestItem.vue"
 import LeaveRequestItem from "@/components/LeaveRequestItem.vue"
 import ShiftRequestItem from "@/components/ShiftRequestItem.vue"
 
@@ -36,22 +36,22 @@ const socket = inject("$socket")
 const TAB_BUTTONS = ["My Requests", "Team Requests"] // __("My Requests"), __("Team Requests")
 
 const myRequests = computed(() =>
-	updateRequestDetails(myLeaves, myClaims, myShiftRequests, myAttendanceRequests)
+	updateRequestDetails(myLeaves, myExpenseRequests, myShiftRequests, myAttendanceRequests)
 )
 
 const teamRequests = computed(() =>
-	updateRequestDetails(teamLeaves, teamClaims, teamShiftRequests, teamAttendanceRequests)
+	updateRequestDetails(teamLeaves, teamExpenseRequests, teamShiftRequests, teamAttendanceRequests)
 )
 
-function updateRequestDetails(leaves, claims, shiftRequests, attendanceRequests) {
-	const requests = [leaves, claims, shiftRequests, attendanceRequests].reduce(
+function updateRequestDetails(leaves, expenseRequests, shiftRequests, attendanceRequests) {
+	const requests = [leaves, expenseRequests, shiftRequests, attendanceRequests].reduce(
 		(acc, resource) => acc.concat(resource?.data || []),
 		[]
 	)
 
 	const componentMap = {
 		"Leave Application": LeaveRequestItem,
-		"Expense Claim": ExpenseClaimItem,
+		"Expense Request": ExpenseRequestItem,
 		"Shift Request": ShiftRequestItem,
 		"Attendance Request": AttendanceRequestItem,
 	}
@@ -73,7 +73,7 @@ function getSortedRequests(list) {
 
 onMounted(() => {
 	useListUpdate(socket, "Leave Application", () => teamLeaves.reload())
-	useListUpdate(socket, "Expense Claim", () => teamClaims.reload())
+	useListUpdate(socket, "Expense Request", () => teamExpenseRequests.reload())
 	useListUpdate(socket, "Shift Request", () => teamShiftRequests.reload())
 	useListUpdate(socket, "Attendance Request", () => teamAttendanceRequests.reload())
 })

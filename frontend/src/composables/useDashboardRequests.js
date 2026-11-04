@@ -1,14 +1,14 @@
 import { computed } from "vue"
 
 import { myAttendanceRequests, myShiftRequests, teamShiftRequests, teamAttendanceRequests } from "@/data/attendance"
-import { myClaims, teamClaims } from "@/data/claims"
+import { myExpenseRequests, teamExpenseRequests } from "@/data/expense_requests"
 import { myLeaves, teamLeaves } from "@/data/leaves"
 
 // Collapse the different per-doctype status fields (workflow state, status,
 // approval_status, docstatus) into one of three buckets for display.
 function bucket(label, docstatus) {
 	if (/reject|cancel/i.test(label || "")) return "rejected"
-	if (/approv|paid|submitted|closed/i.test(label || "")) return "approved"
+	if (/approv|paid|submitted|closed|completed/i.test(label || "")) return "approved"
 	if (!label && docstatus === 1) return "approved"
 	if (!label && docstatus === 2) return "rejected"
 	return "pending"
@@ -32,7 +32,7 @@ function statusLabel(doc) {
  */
 export function useDashboardRequests(__, dayjs, formatCurrency) {
 	const all = computed(() =>
-		[myLeaves, myClaims, myShiftRequests, myAttendanceRequests]
+		[myLeaves, myExpenseRequests, myShiftRequests, myAttendanceRequests]
 			.flatMap((r) => r?.data || [])
 			.map((doc) => {
 				const label = statusLabel(doc)
@@ -44,7 +44,7 @@ export function useDashboardRequests(__, dayjs, formatCurrency) {
 	const pendingCount = computed(() => all.value.filter((r) => r.state === "pending").length)
 
 	const teamPendingCount = computed(() =>
-		[teamLeaves, teamClaims, teamShiftRequests, teamAttendanceRequests].reduce(
+		[teamLeaves, teamExpenseRequests, teamShiftRequests, teamAttendanceRequests].reduce(
 			(n, r) => n + (r?.data?.length || 0),
 			0
 		)
@@ -58,7 +58,7 @@ export function useDashboardRequests(__, dayjs, formatCurrency) {
 	)
 
 	const loading = computed(() =>
-		[myLeaves, myClaims, myShiftRequests, myAttendanceRequests].some((r) => r?.loading && !r?.data)
+		[myLeaves, myExpenseRequests, myShiftRequests, myAttendanceRequests].some((r) => r?.loading && !r?.data)
 	)
 
 	return { recent, pendingCount, teamPendingCount, loading }
@@ -84,15 +84,13 @@ function describe(doc, state, label, __, dayjs, formatCurrency) {
 					doc.total_leave_days,
 				])}`,
 			}
-		case "Expense Claim":
+		case "Expense Request":
 			return {
 				...base,
 				icon: "credit-card",
-				title: doc.total_expenses > 1
-					? __("{0} & {1} more", [__(doc.expense_type), doc.total_expenses - 1])
-					: __(doc.expense_type) || __("Expense Claim"),
-				subtitle: dayjs(doc.posting_date).format("D MMM"),
-				amount: formatCurrency(doc.total_claimed_amount, doc.currency),
+				title: __(doc.expense_type) || __("Expense Request"),
+				subtitle: dayjs(doc.creation).format("D MMM"),
+				amount: formatCurrency(doc.amount, doc.currency),
 			}
 		case "Shift Request":
 			return {
