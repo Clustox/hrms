@@ -123,8 +123,21 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 			return dayjs().diff(dayjs(log.time), "hour") < STALE_CHECKIN_HOURS
 		})
 
+		// One check-in per day, then check-outs: the first punch of the day is the
+		// Check In, every later punch is a Check Out (the day's check-out simply
+		// moves to the latest one) -- same rule as the biometric machine sync. So
+		// once there is an IN today the button stays "Check Out" instead of
+		// flipping back to "Check In" after each check-out. An IN left unclosed
+		// from a previous day doesn't count (isCheckedIn handles the 24h window).
+		const hasCheckinToday = computed(() => {
+			void checkinClock.value
+			return (checkins.data || []).some(
+				(log) => log.log_type === "IN" && dayjs(log.time).isSame(dayjs(), "day")
+			)
+		})
+
 		nextAction = computed(() => {
-			return isCheckedIn.value
+			return isCheckedIn.value || hasCheckinToday.value
 				? { action: "OUT", label: __("Check Out") }
 				: { action: "IN", label: __("Check In") }
 		})
