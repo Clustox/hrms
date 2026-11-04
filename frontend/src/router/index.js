@@ -7,6 +7,7 @@ import wfhRequestRoutes from "./wfh_requests"
 import claimRoutes from "./claims"
 import employeeAdvanceRoutes from "./advances"
 import salarySlipRoutes from "./salary_slips"
+import expenseRoutes from "./expenses"
 
 const routes = [
 	{
@@ -89,6 +90,7 @@ const routes = [
 	...claimRoutes,
 	...employeeAdvanceRoutes,
 	...salarySlipRoutes,
+	...expenseRoutes,
 ]
 
 const router = createRouter({
