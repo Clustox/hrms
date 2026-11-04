@@ -49,11 +49,17 @@ class TestExpenseRequest(HRMSTestSuite):
 		self.assertEqual(doc.requires_manager, 1)
 		self.assertEqual(doc.manager, mgr_user)
 
-		doc2 = make_expense_request(employee=emp, expense_type="OPD", prescription="/files/rx.pdf")
+		doc2 = make_expense_request(employee=emp, expense_type="OPD")
 		self.assertEqual(doc2.requires_manager, 0)
 
 	def test_amount_must_be_positive(self):
 		self.assertRaises(frappe.ValidationError, make_expense_request, amount=0)
+
+	def test_reimbursement_fields_cleared_before_accounts(self):
+		# A paid amount set on a Draft (e.g. by the requester) must not survive.
+		doc = make_expense_request(amount=1000, paid_amount=9999, payment_mode="Petty Cash")
+		self.assertIsNone(doc.paid_amount)
+		self.assertIsNone(doc.payment_mode)
 
 	def test_reject_requires_reason(self):
 		doc = make_expense_request()

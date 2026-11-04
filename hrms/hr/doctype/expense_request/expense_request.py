@@ -30,8 +30,23 @@ class ExpenseRequest(Document):
 		self.set_currency()
 		self.validate_amount()
 		self.validate_attachments()
+		self.guard_reimbursement_fields()
 		self.validate_rejection()
 		self.validate_completion()
+
+	def guard_reimbursement_fields(self):
+		# The reimbursement is recorded only once Accounts handles the request.
+		# The PWA cannot hide fields per workflow-state (FormField ignores
+		# depends_on), so any value set earlier -- e.g. a requester typing into
+		# the still-visible "Paid Amount" box on their draft -- is cleared here.
+		# The paid amount can therefore only originate at Pending Accounts /
+		# Completed, closing the "self-set reimbursement amount" hole.
+		if self.workflow_state not in ("Pending Accounts", "Completed"):
+			self.paid_amount = None
+			self.payment_date = None
+			self.payment_mode = None
+			self.reference_no = None
+			self.paid_by = None
 
 	def set_routing_fields(self):
 		self.requires_manager = 1 if self.expense_type in MANAGER_FIRST_TYPES else 0

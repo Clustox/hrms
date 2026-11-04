@@ -2,6 +2,21 @@ import { createResource, toast } from "frappe-ui"
 import { computed } from "vue"
 import { userResource } from "@/data/user"
 
+// Pull the real, human-readable validation message out of a frappe-ui error
+// (mirrors FormView.vue's extractErrorMessage) so a blocked workflow action
+// tells the user what to fix instead of a generic "action failed".
+function extractErrorMessage(error, fallback) {
+	if (!error) return fallback
+	let msgs = error.messages
+	if (typeof msgs === "string") msgs = [msgs]
+	const strip = (m) => String(m).replace(/<[^>]*>/g, "").trim()
+	if (Array.isArray(msgs) && msgs.length) {
+		const clean = msgs.map(strip).filter(Boolean)
+		if (clean.length) return [...new Set(clean)].join("\n")
+	}
+	return strip(error.message || error) || fallback
+}
+
 export default function useWorkflow(doctype) {
 	const workflowDoc = createResource({
 		url: "hrms.api.get_workflow",
@@ -75,15 +90,15 @@ export default function useWorkflow(doctype) {
 					iconClasses: "text-green-500",
 				})
 			},
-			onError() {
+			onError(error) {
 				toast({
 					title: "Error",
-					text: `Error applying workflow action: ${action}`,
+					text: extractErrorMessage(error, `Could not ${action.toLowerCase()} this request`),
 					icon: "alert-circle",
 					position: "bottom-center",
 					iconClasses: "text-red-500",
 				})
-				console.log(`Error applying workflow action: ${action}`)
+				console.error(`Workflow action '${action}' failed:`, error)
 			},
 		})
 		await applyWorkflow.reload()

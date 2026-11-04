@@ -698,44 +698,6 @@ def get_attendance_requests(
 	return attendance_requests
 
 
-@frappe.whitelist()
-def get_expense_requests(
-	employee: str,
-	approver_id: str | None = None,
-	for_approval: bool = False,
-	limit: int | None = None,
-) -> list[dict]:
-	filters = get_filters("Expense Request", employee, approver_id, for_approval)
-	fields = [
-		"name",
-		"employee",
-		"employee_name",
-		"expense_type",
-		"amount",
-		"currency",
-		"reason",
-		"docstatus",
-		"creation",
-	]
-
-	if workflow_state_field := get_workflow_state_field("Expense Request"):
-		fields.append(workflow_state_field)
-
-	expense_requests = frappe.get_list(
-		"Expense Request",
-		fields=fields,
-		filters=filters,
-		order_by="creation desc",
-		limit=limit,
-	)
-
-	if workflow_state_field:
-		for request in expense_requests:
-			request["workflow_state_field"] = workflow_state_field
-
-	return expense_requests
-
-
 def get_filters(
 	doctype: str,
 	employee: str,

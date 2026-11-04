@@ -150,12 +150,14 @@
    "fieldname": "paid_amount",
    "fieldtype": "Currency",
    "label": "Paid Amount",
+   "no_copy": 1,
    "options": "currency"
   },
   {
    "fieldname": "payment_date",
    "fieldtype": "Date",
-   "label": "Payment Date"
+   "label": "Payment Date",
+   "no_copy": 1
   },
   {
    "fieldname": "column_break_reimb",
@@ -165,17 +167,20 @@
    "fieldname": "payment_mode",
    "fieldtype": "Select",
    "label": "Payment Mode",
+   "no_copy": 1,
    "options": "\nBank Transfer\nPetty Cash"
   },
   {
    "fieldname": "reference_no",
    "fieldtype": "Data",
-   "label": "Reference No"
+   "label": "Reference No",
+   "no_copy": 1
   },
   {
    "fieldname": "paid_by",
    "fieldtype": "Link",
    "label": "Paid By",
+   "no_copy": 1,
    "options": "User",
    "read_only": 1
   },

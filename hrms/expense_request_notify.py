@@ -39,6 +39,18 @@ def _send(recipients, subject, body):
 	frappe.sendmail(recipients=recipients, subject=subject, message=_wrap(body), now=False)
 
 
+def _notify_requester(doc, etype, link, status_line):
+	emp_user = frappe.db.get_value("Employee", doc.employee, "user_id")
+	if not emp_user:
+		return
+	_send(
+		[emp_user],
+		f"Update on your {etype} expense request",
+		f"<p>Hi,</p><p>Your <b>{etype}</b> expense request for <b>{_money(doc)}</b> moved forward. "
+		f"{status_line}</p>{link}",
+	)
+
+
 def notify_on_state_change(doc, method=None):
 	"""doc_events on_update hook: email the right party when workflow_state changes."""
 	try:
@@ -66,6 +78,11 @@ def notify_on_state_change(doc, method=None):
 				f"<p>Hi,</p><p>A <b>{etype}</b> expense request from <b>{emp_name}</b> for "
 				f"<b>{_money(doc)}</b> is awaiting HR approval.</p>{link}",
 			)
+			# Reaching HR from the manager stage means the manager approved; tell
+			# the requester (not on the Draft -> Pending HR auto-skip, which is no
+			# approval). Spec: the requester hears on each approval.
+			if old_state == "Pending Manager":
+				_notify_requester(doc, etype, link, "Your manager approved it; it is now with HR.")
 		elif new_state == "Pending Accounts":
 			_send(
 				[ACCOUNTS_INBOX],
@@ -73,6 +90,7 @@ def notify_on_state_change(doc, method=None):
 				f"<p>Hi,</p><p>A <b>{etype}</b> expense request from <b>{emp_name}</b> for "
 				f"<b>{_money(doc)}</b> is approved and awaiting reimbursement by Accounts.</p>{link}",
 			)
+			_notify_requester(doc, etype, link, "HR approved it; it is now with Accounts for reimbursement.")
 		elif new_state in ("Completed", "Rejected"):
 			emp_user = frappe.db.get_value("Employee", doc.employee, "user_id")
 			if not emp_user:
