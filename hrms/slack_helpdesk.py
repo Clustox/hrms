@@ -152,43 +152,61 @@ def slack_interact():
     if payload.get("type") != "view_submission":
         return ""
 
+    # Pull the submitted values from the payload (fast), then do the slow work --
+    # two Slack API round-trips (profile lookup + DM) plus the HD Ticket insert
+    # with all its Helpdesk after_insert hooks -- in a BACKGROUND job. Slack's
+    # view_submission ack must return within ~3s or it shows "We had some trouble
+    # connecting" (even though the ticket is still created, which is exactly what
+    # was happening). Enqueuing keeps the ack instant.
     vals = payload["view"]["state"]["values"]
-    subject = vals["subject_b"]["subject"]["value"]
-    desc = vals["desc_b"]["desc"]["value"]
-    team = vals["team_b"]["team"]["selected_option"]["value"]
     prio_opt = vals.get("prio_b", {}).get("prio", {}).get("selected_option")
-    priority = prio_opt["value"] if prio_opt else "Medium"
+    frappe.enqueue(
+        "hrms.slack_helpdesk._create_ticket_async",
+        queue="short",
+        subject=vals["subject_b"]["subject"]["value"],
+        desc=vals["desc_b"]["desc"]["value"],
+        team=vals["team_b"]["team"]["selected_option"]["value"],
+        priority=prio_opt["value"] if prio_opt else "Medium",
+        slack_uid=payload["user"]["id"],
+    )
 
-    slack_uid = payload["user"]["id"]
-    prof = _slack_profile(slack_uid)
-    raiser_name = prof.get("name")
-    email = _employee_email(prof.get("email"), raiser_name) or prof.get("email") or f"slack-{slack_uid}@clustox.com"
+    # Empty 200 so Slack closes the modal. Frappe otherwise wraps the return as
+    # {"message": ""} (application/json), which Slack treats as an invalid
+    # response; emit a raw empty body instead.
+    frappe.local.response["type"] = "binary"
+    frappe.local.response["filename"] = "ok"
+    frappe.local.response["filecontent"] = b""
+    frappe.local.response["content_type"] = "text/plain"
+    frappe.local.response["display_content_as"] = "inline"
+    return
 
-    doc = {
-        "doctype": "HD Ticket",
-        "subject": subject,
-        "description": desc or subject,
-        "priority": priority if priority in PRIORITIES else "Medium",
-        "raised_by": email,
-    }
-    if team in TEAMS and frappe.db.exists("HD Team", team):
-        doc["agent_group"] = team
 
-    # This endpoint runs as Guest (allow_guest). HD Ticket.after_insert applies
-    # tags via update_tags(), which calls doc.check_permission("write") and does
-    # NOT honour ignore_permissions — so as Guest it raises PermissionError and the
-    # ticket rolls back. Elevate to Administrator for the creation so the Helpdesk
-    # after_insert hooks (tagging/assignment/notifications) have the permissions
-    # they expect, then restore Guest.
-    original_user = frappe.session.user
+def _create_ticket_async(subject, desc, team, priority, slack_uid):
+    """Background job (off the Slack request): resolve the raiser, create the HD
+    Ticket, and DM the reporter their ticket number. Runs as Administrator so the
+    Helpdesk after_insert hooks (tagging/assignment/notifications) -- which call
+    check_permission('write') and ignore ignore_permissions -- have write perms."""
     try:
+        prof = _slack_profile(slack_uid)
+        raiser_name = prof.get("name")
+        email = _employee_email(prof.get("email"), raiser_name) or prof.get("email") or f"slack-{slack_uid}@clustox.com"
+
+        doc = {
+            "doctype": "HD Ticket",
+            "subject": subject,
+            "description": desc or subject,
+            "priority": priority if priority in PRIORITIES else "Medium",
+            "raised_by": email,
+        }
+        if team in TEAMS and frappe.db.exists("HD Team", team):
+            doc["agent_group"] = team
+
         frappe.set_user("Administrator")
         tk = frappe.get_doc(doc)
         tk.insert(ignore_permissions=True)
-        # The insert ran as Administrator (needed for the after_insert tagging
-        # permission), so Helpdesk attributes the ticket's description
-        # Communication to Administrator (admin@example.com). Re-attribute it to
-        # the real raiser so the thread shows their email, not Administrator's.
+        # The insert ran as Administrator, so Helpdesk attributes the description
+        # Communication to Administrator (admin@example.com); re-attribute it to
+        # the real raiser so the thread shows their email.
         frappe.db.sql(
             """update `tabCommunication` set sender=%(e)s, sender_full_name=%(n)s
                where reference_doctype='HD Ticket' and reference_name=%(t)s
@@ -197,25 +215,21 @@ def slack_interact():
              "a": frappe.db.get_value("User", "Administrator", "email")},
         )
         frappe.db.commit()
-    finally:
-        frappe.set_user(original_user)
 
-    # DM the reporter their ticket number
-    try:
-        _slack_post("chat.postMessage", {
-            "channel": slack_uid,
-            "text": f":ticket: Ticket *{tk.name}* created for *{team}* — we're on it.",
-        })
+        try:
+            _slack_post("chat.postMessage", {
+                "channel": slack_uid,
+                "text": f":ticket: Ticket *{tk.name}* created for *{team}* — we're on it.",
+            })
+        except Exception:
+            pass
     except Exception:
-        pass
-
-    # Slack's view_submission ack must be an EMPTY 200 body to close the modal.
-    # Frappe otherwise wraps the return as {"message": ""} (application/json),
-    # which Slack treats as an invalid response and shows "trouble connecting"
-    # while leaving the modal open. Emit a raw empty body instead.
-    frappe.local.response["type"] = "binary"
-    frappe.local.response["filename"] = "ok"
-    frappe.local.response["filecontent"] = b""
-    frappe.local.response["content_type"] = "text/plain"
-    frappe.local.response["display_content_as"] = "inline"
-    return
+        frappe.db.rollback()
+        frappe.log_error(title="Slack ticket creation failed")
+        try:
+            _slack_post("chat.postMessage", {
+                "channel": slack_uid,
+                "text": ":warning: Sorry, we couldn't create your ticket — please try again, or email support@clustox.com.",
+            })
+        except Exception:
+            pass
