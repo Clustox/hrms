@@ -1,7 +1,7 @@
 # Expense Request — Design
 
 **Date:** 2026-11-04
-**Status:** Parked — approved to plan; build not started.
+**Status:** Approved — writing implementation plan.
 **Owner:** Hamad
 
 ## Intent & why
@@ -135,6 +135,40 @@ not eligible) plus an optional free-text note.
   HR desk-access path.
 - Test coverage for routing, stage permissions, cancellation window, and the
   attachment requirements.
+
+## Decisions resolved in review (2026-11-04)
+
+A builder-check pass flagged six points. Three were the user's call (answered
+below); three I settled as the builder and note here.
+
+**User decisions:**
+
+1. **No manager on a manager-first type → auto-skip to HR.** If an employee on
+   an *AI Tool / Certifications / Food* request has no `reports_to`, the request
+   routes straight to the HR stage (no Pending-Manager step, nothing stalls).
+2. **No self-approval (separation of duties).** If the requester is themselves
+   on the HR or Accounts team, they cannot act on their own request at that
+   stage — another member of that team must approve/reject it. Transition
+   guards must exclude the requester as an approver at any stage.
+3. **Accounts can set an actual paid amount.** The reimbursement record holds a
+   `paid_amount` distinct from the requested amount, so Accounts can record a
+   partial or corrected reimbursement at completion. The requested amount is
+   preserved on the request.
+
+**My calls (builder):**
+
+4. **Queue visibility via role.** Employees see their own requests and managers
+   see their direct reports' (the existing `request_visibility` own+reports
+   scoping). HR and Accounts roles get full read access to Expense Requests so
+   their team queues work org-wide; the ability to *act* is still gated by the
+   current stage (and by decision 2). This resolves the tension between the
+   own+reports constraint and the org-wide team queues.
+5. **Manager is notified.** On `Draft → Pending Manager`, the manager is
+   emailed at their own employee email (the HR/Accounts team inboxes only cover
+   those two stages).
+6. **Rejection is terminal; resubmit = new request.** A rejected request keeps
+   its reason as a record and has no outbound transitions. To try again, the
+   employee raises a new request. No in-place edit/resubmit in v1.
 
 ## Open questions deferred
 
