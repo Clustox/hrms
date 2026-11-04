@@ -176,7 +176,6 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		if frappe.db.get_single_value("HR Settings", "send_leave_notification"):
 			self.notify_employee()
 		self.cancel_attendance()
-		self.restore_wfh_attendance()
 
 		self.publish_update()
 
@@ -697,9 +696,9 @@ class LeaveApplication(Document, PWANotificationsMixin):
 			fields=["name", "attendance_date", "status", "attendance_request"],
 			order_by="attendance_date",
 		)
-		# Attendance pre-created for an approved WFH day doesn't block leave on that
-		# day (the leave takes it over on approval) -- unless the employee actually
-		# checked in that day.
+		# Legacy: WFH approval used to pre-create attendance for every day in range.
+		# Such a record doesn't block leave on that day (the leave takes it over on
+		# approval) -- unless the employee actually checked in that day.
 		attendance_dates = [a for a in attendance_dates if not self.is_replaceable_wfh_attendance(a)]
 		if attendance_dates:
 			frappe.throw(
@@ -733,31 +732,6 @@ class LeaveApplication(Document, PWANotificationsMixin):
 				"time": ["between", [f"{day} 00:00:00", f"{day} 23:59:59"]],
 			},
 		)
-
-	def restore_wfh_attendance(self):
-		"""After this leave is cancelled, give back the WFH attendance it had taken
-		over for days still covered by an approved Work From Home request."""
-		for dt in daterange(getdate(self.from_date), getdate(self.to_date)):
-			if frappe.db.exists(
-				"Attendance", {"employee": self.employee, "attendance_date": dt, "docstatus": ("!=", 2)}
-			):
-				continue
-			request = frappe.db.get_value(
-				"Attendance Request",
-				{
-					"employee": self.employee,
-					"reason": "Work From Home",
-					"status": "Approved",
-					"docstatus": 1,
-					"from_date": ("<=", dt),
-					"to_date": (">=", dt),
-				},
-			)
-			if not request:
-				continue
-			request_doc = frappe.get_doc("Attendance Request", request)
-			if request_doc.include_holidays or not is_holiday(self.employee, dt):
-				request_doc.create_or_update_attendance(dt)
 
 	def validate_optional_leave(self):
 		leave_period = get_leave_period(self.from_date, self.to_date, self.company)
