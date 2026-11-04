@@ -554,12 +554,17 @@ function fetchDocumentList(start = 0) {
 
 	if (appliedFilters.value) filters.push(...appliedFilters.value)
 
-	if (workflowStateField.value) {
-		listOptions.value.fields.push(workflowStateField.value)
+	// Append the workflow state field for workflow-driven doctypes -- on a copy,
+	// and only if not already present. Mutating the shared props.fields array (and
+	// re-pushing on every fetch) duplicated the column and broke the query.
+	const fields = [...listOptions.value.fields]
+	if (workflowStateField.value && !fields.includes(workflowStateField.value)) {
+		fields.push(workflowStateField.value)
 	}
 
 	documents.submit({
 		...listOptions.value,
+		fields,
 		start: start || 0,
 		filters: filters,
 	})
@@ -594,8 +599,15 @@ watch(
 
 onMounted(async () => {
 	const workflow = useWorkflow(props.doctype)
-	await workflow.workflowDoc.promise
-	workflowStateField.value = workflow.getWorkflowStateField()
+	// A failed workflow-metadata fetch must not blank the list: without the
+	// try/catch a rejected promise aborts onMounted before fetchDocumentList,
+	// leaving the list with neither rows nor the empty state.
+	try {
+		await workflow.workflowDoc.promise
+		workflowStateField.value = workflow.getWorkflowStateField()
+	} catch (e) {
+		console.error("Workflow metadata fetch failed; listing without it:", e)
+	}
 	fetchDocumentList()
 
 	useListUpdate(socket, props.doctype, () => fetchDocumentList())

@@ -17,13 +17,13 @@ import ListView from "@/components/ListView.vue"
 
 const __ = inject("$translate")
 const TAB_BUTTONS = ["My Requests", "Team Requests"]
+// workflow_state is appended automatically by ListView for workflow doctypes.
 const EXPENSE_REQUEST_FIELDS = [
 	"name",
 	"employee",
 	"employee_name",
 	"expense_type",
 	"amount",
-	"workflow_state",
 	"docstatus",
 ]
 const EXPENSE_TYPES = ["AI Tool", "Certifications", "Food", "OPD", "IPD", "Long Service Reward"]
