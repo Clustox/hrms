@@ -4,6 +4,8 @@
 import frappe
 from frappe.utils import nowdate
 
+from erpnext.setup.doctype.employee.test_employee import make_employee
+
 from hrms.tests.utils import HRMSTestSuite
 
 EXPENSE_TYPES = {"AI Tool", "Certifications", "Food", "OPD", "IPD", "Long Service Reward"}
@@ -37,3 +39,57 @@ class TestExpenseRequest(HRMSTestSuite):
 			self.assertTrue(meta.has_field(f), f)
 		self.assertTrue(meta.is_submittable)
 		self.assertEqual(set(meta.get_field("expense_type").options.split("\n")), EXPENSE_TYPES)
+
+	# --- Task 2: controller validation ---
+
+	def test_requires_manager_flag_and_manager_resolution(self):
+		mgr = make_employee("exp-mgr@example.com", company="_Test Company")
+		emp = make_employee("exp-staff@example.com", company="_Test Company", reports_to=mgr)
+		mgr_user = frappe.db.get_value("Employee", mgr, "user_id")
+
+		doc = make_expense_request(employee=emp, expense_type="AI Tool")
+		self.assertEqual(doc.requires_manager, 1)
+		self.assertEqual(doc.manager, mgr_user)
+
+		doc2 = make_expense_request(employee=emp, expense_type="OPD", prescription="/files/rx.pdf")
+		self.assertEqual(doc2.requires_manager, 0)
+
+	def test_amount_must_be_positive(self):
+		self.assertRaises(frappe.ValidationError, make_expense_request, amount=0)
+
+	def test_receipt_required(self):
+		self.assertRaises(frappe.ValidationError, make_expense_request, receipt=None)
+
+	def test_prescription_required_for_opd_ipd(self):
+		self.assertRaises(
+			frappe.ValidationError, make_expense_request, expense_type="OPD", prescription=None
+		)
+
+	def test_reject_requires_reason(self):
+		doc = make_expense_request()
+		doc.workflow_state = "Rejected"
+		self.assertRaises(frappe.ValidationError, doc.save)
+
+	def test_complete_defaults_paid_amount_and_sets_paid_by(self):
+		doc = make_expense_request(amount=5000)
+		doc.workflow_state = "Completed"
+		doc.payment_date = nowdate()
+		doc.payment_mode = "Bank Transfer"
+		doc.save()
+		self.assertEqual(doc.paid_amount, 5000)
+		self.assertEqual(doc.paid_by, frappe.session.user)
+
+
+def make_expense_request(**kw):
+	"""Insert a (by default valid) Expense Request. Pass receipt=None / prescription=None
+	explicitly to exercise the attachment rules."""
+	kw.setdefault("employee", frappe.db.get_value("Employee", {"status": "Active"}, "name"))
+	kw.setdefault("expense_type", "AI Tool")
+	kw.setdefault("amount", 1000)
+	kw.setdefault("reason", "Test expense")
+	if "receipt" not in kw:
+		kw["receipt"] = "/files/receipt.pdf"
+	doc = frappe.get_doc({"doctype": "Expense Request", **kw})
+	doc.flags.ignore_permissions = True
+	doc.insert()
+	return doc
