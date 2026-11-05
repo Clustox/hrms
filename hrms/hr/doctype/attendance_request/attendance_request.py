@@ -359,15 +359,20 @@ class AttendanceRequest(Document):
 		)
 
 	def get_attendance_doc(self, attendance_date: str) -> str | None:
-		attendance = frappe.db.exists(
-			"Attendance",
-			{
-				"employee": self.employee,
-				"attendance_date": attendance_date,
-				"docstatus": ("!=", 2),
-				"shift": self.shift,
-			},
-		)
+		filters = {
+			"employee": self.employee,
+			"attendance_date": attendance_date,
+			"docstatus": ("!=", 2),
+		}
+		# When the request carries a shift, match that shift (so a multi-shift day
+		# keeps one attendance per shift). When it has no shift (the typical WFH
+		# request), match the day's attendance regardless of shift, so a Present
+		# row already created by process_auto_attendance from the check-in is
+		# relabelled in place (-> Work From Home) instead of triggering a
+		# DuplicateAttendanceError on insert.
+		if self.shift:
+			filters["shift"] = self.shift
+		attendance = frappe.db.exists("Attendance", filters)
 		return frappe.get_doc("Attendance", attendance) if attendance else None
 
 	def get_attendance_status(self, attendance_date: str) -> str:
