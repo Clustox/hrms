@@ -10,6 +10,8 @@ from hrms.hr.utils import validate_active_employee
 
 # Expense types that must be approved by the employee's manager first.
 MANAGER_FIRST_TYPES = {"AI Tool", "Certifications", "Food"}
+# Expense types for which a beneficiary (self / spouse / children) is meaningful.
+MEDICAL_TYPES = {"OPD", "IPD"}
 # Non-working states where attachments are not yet required.
 PRE_SUBMIT_STATES = {None, "", "Draft", "Cancelled"}
 
@@ -27,6 +29,7 @@ class ExpenseRequest(Document):
 	def validate(self):
 		validate_active_employee(self.employee)
 		self.set_routing_fields()
+		self.normalize_beneficiary()
 		self.set_currency()
 		self.validate_amount()
 		self.validate_attachments()
@@ -53,6 +56,14 @@ class ExpenseRequest(Document):
 		# Resolved here so the workflow's Draft routing condition
 		# (`doc.requires_manager and doc.manager`) is accurate at submit time.
 		self.manager = resolve_manager(self.employee)
+
+	def normalize_beneficiary(self):
+		# Beneficiary only applies to medical claims (OPD / IPD), where the expense
+		# may be for a dependent. For every other type it is always the employee, so
+		# clear any stale value (e.g. left over from switching type on the form) to
+		# keep non-medical rows clean.
+		if self.expense_type not in MEDICAL_TYPES:
+			self.beneficiary = None
 
 	def set_currency(self):
 		if not self.currency and self.company:

@@ -12,6 +12,7 @@
   "company",
   "column_break_main",
   "expense_type",
+  "beneficiary",
   "requires_manager",
   "manager",
   "details_section",
@@ -67,6 +68,15 @@
    "label": "Expense Type",
    "options": "AI Tool\nCertifications\nFood\nOPD\nIPD\nLong Service Reward",
    "reqd": 1
+  },
+  {
+   "default": "Self",
+   "depends_on": "eval:[\"OPD\", \"IPD\"].includes(doc.expense_type)",
+   "description": "Who the medical expense was for.",
+   "fieldname": "beneficiary",
+   "fieldtype": "Select",
+   "label": "Beneficiary",
+   "options": "Self\nSpouse\nChildren"
   },
   {
    "default": "0",

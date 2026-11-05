@@ -38,6 +38,38 @@ class TestExpenseRequest(HRMSTestSuite):
 		self.assertTrue(meta.is_submittable)
 		self.assertEqual(set(meta.get_field("expense_type").options.split("\n")), EXPENSE_TYPES)
 
+	def test_beneficiary_field_installed(self):
+		meta = frappe.get_meta("Expense Request")
+		self.assertTrue(meta.has_field("beneficiary"))
+		f = meta.get_field("beneficiary")
+		self.assertEqual({x for x in f.options.split("\n") if x}, {"Self", "Spouse", "Children"})
+		self.assertEqual(f.default, "Self")
+
+	def test_beneficiary_cleared_for_non_medical_kept_for_medical(self):
+		emp = make_employee("exp-ben@example.com", company="_Test Company")
+		non_medical = frappe.get_doc(
+			{
+				"doctype": "Expense Request",
+				"employee": emp,
+				"expense_type": "AI Tool",
+				"amount": 500,
+				"reason": "t",
+				"beneficiary": "Spouse",
+			}
+		).insert()
+		self.assertEqual(non_medical.beneficiary or "", "")
+		medical = frappe.get_doc(
+			{
+				"doctype": "Expense Request",
+				"employee": emp,
+				"expense_type": "OPD",
+				"amount": 500,
+				"reason": "t",
+				"beneficiary": "Spouse",
+			}
+		).insert()
+		self.assertEqual(medical.beneficiary, "Spouse")
+
 	# --- Task 2: controller validation ---
 
 	def test_requires_manager_flag_and_manager_resolution(self):
