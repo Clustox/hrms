@@ -195,6 +195,7 @@ class TestAttendanceRequest(HRMSTestSuite):
 
 		# adding an extra day to the attendance request
 		attendance_request.to_date = add_days(today, 1)
+		seed_checkin(self.employee.name, add_days(today, 1))
 		attendance_request.save()
 		attendance_request.submit()
 		# attendance created for the third day
@@ -203,6 +204,7 @@ class TestAttendanceRequest(HRMSTestSuite):
 
 	def test_half_day_status_change(self):
 		# when new attendance is created via attendance request
+		seed_checkin(self.employee.name, getdate())
 		attendance_request = frappe.get_doc(
 			{
 				"doctype": "Attendance Request",
@@ -224,6 +226,7 @@ class TestAttendanceRequest(HRMSTestSuite):
 
 	def test_half_day_status_change_when_existing_attendance_is_updated(self):
 		# when existing attendance is updated via attendance request
+		seed_checkin(self.employee.name, getdate())
 		frappe.get_doc(
 			{
 				"doctype": "Attendance",
@@ -258,6 +261,7 @@ class TestAttendanceRequest(HRMSTestSuite):
 		today = getdate()
 
 		mark_attendance(self.employee.name, today, "Half Day", half_day_status="Absent")
+		seed_checkin(self.employee.name, today)
 
 		attendance_request = frappe.get_doc(
 			{
@@ -315,6 +319,7 @@ class TestAttendanceRequest(HRMSTestSuite):
 		shift_type.enable_auto_attendance = 1
 		shift_type.save()
 		create_shift_assignment(self.employee.name, shift_type.name, add_days(today, -1), add_days(today, 1))
+		seed_checkin(self.employee.name, today)
 
 		# 3) Attendance request for the other half — creates half-day attendance
 		attendance_request = frappe.get_doc(
@@ -452,6 +457,20 @@ class TestAttendanceRequest(HRMSTestSuite):
 
 def get_employee():
 	return frappe.get_doc("Employee", "_T-Employee-00001")
+
+
+def seed_checkin(employee: str, date) -> None:
+	"""A WFH/On Duty day is only marked once the employee has checked in that
+	day, so tests that build an Attendance Request inline must seed a check-in
+	on the covered date for attendance to be created."""
+	frappe.get_doc(
+		{
+			"doctype": "Employee Checkin",
+			"employee": employee,
+			"time": f"{getdate(date)} 10:00:00",
+			"log_type": "IN",
+		}
+	).insert(ignore_permissions=True)
 
 
 def create_attendance_request(**args: dict) -> dict:

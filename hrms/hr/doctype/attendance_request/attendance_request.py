@@ -321,13 +321,16 @@ class AttendanceRequest(Document):
 
 	def _has_checkin(self, attendance_date) -> bool:
 		day = getdate(attendance_date)
+		next_day = add_days(day, 1)
 		return bool(
-			frappe.db.exists(
+			frappe.get_all(
 				"Employee Checkin",
-				{
-					"employee": self.employee,
-					"time": ["between", [f"{day} 00:00:00", f"{day} 23:59:59"]],
-				},
+				filters=[
+					["employee", "=", self.employee],
+					["time", ">=", str(day)],
+					["time", "<", str(next_day)],
+				],
+				limit=1,
 			)
 		)
 
@@ -604,11 +607,21 @@ def reconcile_requested_attendance(window_days: int = 3):
 		pluck="name",
 	)
 	for name in requests:
-		ar = frappe.get_doc("Attendance Request", name)
-		day = max(getdate(ar.from_date), start)
-		last = min(getdate(ar.to_date), end)
-		while day <= last:
-			date_str = str(day)
-			if ar.should_mark_attendance(date_str):
-				ar.create_or_update_attendance(date_str)
-			day = add_days(day, 1)
+		# Isolate each request: a failure on one must not abort the whole daily
+		# run (every later request would otherwise be skipped until tomorrow).
+		try:
+			ar = frappe.get_doc("Attendance Request", name)
+			day = max(getdate(ar.from_date), start)
+			last = min(getdate(ar.to_date), end)
+			while day <= last:
+				date_str = str(day)
+				if ar.should_mark_attendance(date_str):
+					ar.create_or_update_attendance(date_str)
+				day = add_days(day, 1)
+			frappe.db.commit()  # noqa: keep each request independent of later failures
+		except Exception:
+			frappe.db.rollback()
+			frappe.log_error(
+				title="reconcile_requested_attendance failed",
+				message=f"Attendance Request {name}: {frappe.get_traceback()}",
+			)

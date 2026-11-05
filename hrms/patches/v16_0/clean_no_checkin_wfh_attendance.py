@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import getdate
+from frappe.utils import add_days, getdate
 
 # Clean up the fabricated, zero-work WFH/On Duty attendance created before the
 # "require a check-in" rule shipped. October 2026 payroll is closed, so only the
@@ -9,13 +9,16 @@ CUTOFF = "2026-11-01"
 
 def _has_checkin(employee: str, day) -> bool:
 	day = getdate(day)
+	next_day = add_days(day, 1)
 	return bool(
-		frappe.db.exists(
+		frappe.get_all(
 			"Employee Checkin",
-			{
-				"employee": employee,
-				"time": ["between", [f"{day} 00:00:00", f"{day} 23:59:59"]],
-			},
+			filters=[
+				["employee", "=", employee],
+				["time", ">=", str(day)],
+				["time", "<", str(next_day)],
+			],
+			limit=1,
 		)
 	)
 
