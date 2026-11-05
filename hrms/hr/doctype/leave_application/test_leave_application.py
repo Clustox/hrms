@@ -254,6 +254,66 @@ class TestLeaveApplication(HRMSTestSuite):
 		for d in ("2018-01-01", "2018-01-02", "2018-01-03"):
 			self.assertTrue(getdate(d) in dates)
 
+	def test_request_based_wfh_does_not_block_leave(self):
+		"""A request-based Work From Home / On Duty attendance must not block a
+		leave application (it is superseded -> On Leave on submit), while a
+		genuine non-request worked Present day still blocks it."""
+		from hrms.hr.doctype.leave_application.leave_application import AttendanceAlreadyMarkedError
+
+		employee = get_employee()
+		date = "2019-02-01"
+		company = frappe.db.get_value("Employee", employee.name, "company")
+
+		ar = frappe.get_doc(
+			{
+				"doctype": "Attendance Request",
+				"employee": employee.name,
+				"from_date": date,
+				"to_date": date,
+				"reason": "Work From Home",
+				"company": company,
+			}
+		)
+		ar.flags.ignore_mandatory = True
+		ar.flags.ignore_validate = True
+		ar.insert(ignore_permissions=True)
+
+		wfh = frappe.get_doc(
+			{
+				"doctype": "Attendance",
+				"employee": employee.name,
+				"attendance_date": date,
+				"company": company,
+				"status": "Work From Home",
+				"attendance_request": ar.name,
+			}
+		)
+		wfh.flags.ignore_validate = True
+		wfh.insert(ignore_permissions=True)
+		wfh.submit()
+
+		la = frappe.new_doc("Leave Application")
+		la.employee = employee.name
+		la.from_date = la.to_date = date
+		la.validate_attendance()  # request-based WFH: must not raise
+
+		wfh.cancel()
+		frappe.delete_doc("Attendance", wfh.name, force=1)
+		worked = frappe.get_doc(
+			{
+				"doctype": "Attendance",
+				"employee": employee.name,
+				"attendance_date": date,
+				"company": company,
+				"status": "Present",
+			}
+		)
+		worked.flags.ignore_validate = True
+		worked.insert(ignore_permissions=True)
+		worked.submit()
+		# genuine worked Present (no attendance_request): must still block
+		self.assertRaises(AttendanceAlreadyMarkedError, la.validate_attendance)
+
 	def test_overwrite_half_day_attendance(self):
 		mark_attendance("_T-Employee-00001", "2023-01-02", "Absent")
 

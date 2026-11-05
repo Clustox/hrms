@@ -355,6 +355,9 @@ class LeaveApplication(Document, PWANotificationsMixin):
 					"status": status,
 					"leave_type": self.leave_type,
 					"leave_application": self.name,
+					# This day is now leave, not a WFH/On Duty request; drop the stale
+					# request link so the record isn't both a request day and On Leave.
+					"attendance_request": None,
 					"half_day_status": half_day_status,
 					"modify_half_day_status": modify_half_day_status,
 				}
@@ -689,6 +692,11 @@ class LeaveApplication(Document, PWANotificationsMixin):
 				["status", "in", ["Present", "Work From Home"]],
 				["docstatus", "=", 1],
 				["half_day_status", "!=", "Absent"],
+				# Only a genuine, non-request-based attendance (real office check-in)
+				# blocks leave. Request-based Work From Home / On Duty days are
+				# superseded by the leave on submit (update_attendance relabels the
+				# day to On Leave), so they must not block the application here.
+				["attendance_request", "is", "not set"],
 			],
 			fields=["name", "attendance_date"],
 			order_by="attendance_date",
