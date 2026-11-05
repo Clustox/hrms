@@ -140,6 +140,7 @@
 							<FileUploaderView
 								v-else-if="showAttachmentView && index === 0"
 								v-model="fileAttachments"
+								:required="attachmentRequired"
 								@handleFileSelect="handleFileSelect"
 								@handleFileDelete="handleFileDelete"
 							/>
@@ -188,6 +189,7 @@
 						</div>
 						<FileUploaderView
 							v-model="fileAttachments"
+							:required="attachmentRequired"
 							@handleFileSelect="handleFileSelect"
 							@handleFileDelete="handleFileDelete"
 						/>
