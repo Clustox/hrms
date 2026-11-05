@@ -577,3 +577,38 @@ def cancel_wfh_request(name: str) -> str:
 
 	doc.db_set("status", "Cancelled")
 	return doc.status
+
+
+def reconcile_requested_attendance(window_days: int = 3):
+	"""Mark Work From Home / On Duty attendance for approved requests once the
+	employee has actually checked in.
+
+	WFH/On Duty requests are usually approved before the day, when no check-in
+	exists yet, so ``on_submit`` marks nothing (see ``should_mark_attendance``).
+	This daily job revisits recently-covered dates and marks the day once a
+	check-in has landed. Idempotent (an already-marked day is left unchanged),
+	and it excludes today because the day is not over yet.
+	"""
+	today = getdate()
+	start = add_days(today, -window_days)
+	end = add_days(today, -1)
+
+	requests = frappe.get_all(
+		"Attendance Request",
+		filters={
+			"docstatus": 1,
+			"reason": ["in", ["Work From Home", "On Duty"]],
+			"from_date": ["<=", end],
+			"to_date": [">=", start],
+		},
+		pluck="name",
+	)
+	for name in requests:
+		ar = frappe.get_doc("Attendance Request", name)
+		day = max(getdate(ar.from_date), start)
+		last = min(getdate(ar.to_date), end)
+		while day <= last:
+			date_str = str(day)
+			if ar.should_mark_attendance(date_str):
+				ar.create_or_update_attendance(date_str)
+			day = add_days(day, 1)
