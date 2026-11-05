@@ -2,7 +2,7 @@
 # See license.txt
 
 import frappe
-from frappe.utils import add_days, add_months, get_year_ending, get_year_start, getdate
+from frappe.utils import add_days, add_months, date_diff, get_year_ending, get_year_start, getdate
 
 from hrms.hr.doctype.attendance.attendance import mark_attendance
 from hrms.hr.doctype.attendance_request.attendance_request import OverlappingAttendanceRequestError
@@ -84,6 +84,17 @@ class TestAttendanceRequest(HRMSTestSuite):
 		attendance_request.cancel()
 		records = self.get_attendance_records(attendance_request.name)
 		self.assertEqual(records[0].docstatus, 2)
+
+	def test_wfh_requires_checkin(self):
+		"Without a check-in, a WFH/On Duty request marks no attendance (day stays free for leave)."
+		attendance_request = create_attendance_request(
+			employee=self.employee.name,
+			reason="Work From Home",
+			company="_Test Company",
+			skip_checkin=True,
+		)
+		records = self.get_attendance_records(attendance_request.name)
+		self.assertEqual(len(records), 0)
 
 	def test_overwrite_attendance(self):
 		attendance_name = mark_attendance(self.employee.name, getdate(), "Absent")
@@ -446,6 +457,11 @@ def get_employee():
 def create_attendance_request(**args: dict) -> dict:
 	args = frappe._dict(args)
 	today = getdate()
+	# A WFH/On Duty day is only marked when the employee checked in that day, so
+	# by default we seed a check-in across the request range (keeps the existing
+	# attendance-creation assertions valid). Pass skip_checkin=True to exercise
+	# the "no check-in -> no attendance" path.
+	skip_checkin = args.pop("skip_checkin", False)
 
 	attendance_request = frappe.get_doc(
 		{
@@ -461,6 +477,18 @@ def create_attendance_request(**args: dict) -> dict:
 
 	if args:
 		attendance_request.update(args)
+
+	if not skip_checkin:
+		for n in range(date_diff(attendance_request.to_date, attendance_request.from_date) + 1):
+			d = getdate(add_days(attendance_request.from_date, n))
+			frappe.get_doc(
+				{
+					"doctype": "Employee Checkin",
+					"employee": attendance_request.employee,
+					"time": f"{d} 10:00:00",
+					"log_type": "IN",
+				}
+			).insert(ignore_permissions=True)
 
 	return attendance_request.submit()
 

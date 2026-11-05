@@ -311,7 +311,25 @@ class AttendanceRequest(Document):
 			)
 			return False
 
+		# A Work From Home / On Duty day only counts as attendance if the employee
+		# actually checked in that day. Without a check-in the day is left open, so
+		# it neither shows as a worked day nor blocks a leave application.
+		if not self._has_checkin(attendance_date):
+			return False
+
 		return True
+
+	def _has_checkin(self, attendance_date) -> bool:
+		day = getdate(attendance_date)
+		return bool(
+			frappe.db.exists(
+				"Employee Checkin",
+				{
+					"employee": self.employee,
+					"time": ["between", [f"{day} 00:00:00", f"{day} 23:59:59"]],
+				},
+			)
+		)
 
 	def has_leave_record(self, attendance_date: str) -> str | None:
 		filters = {
