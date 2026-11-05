@@ -7,6 +7,7 @@ import frappe
 from frappe.model.workflow import apply_workflow
 from frappe.utils import nowdate
 
+from hrms.expense_request_notify import _article
 from hrms.hr.doctype.expense_request.test_expense_request_workflow import (
 	_make_user_employee,
 	attach_receipt,
@@ -27,6 +28,50 @@ class TestExpenseRequestNotify(HRMSTestSuite):
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
+
+	def test_article_helper(self):
+		# Each of the six current expense types resolves to the right article.
+		self.assertEqual(_article("AI Tool"), "An")
+		self.assertEqual(_article("Certifications"), "A")
+		self.assertEqual(_article("Food"), "A")
+		self.assertEqual(_article("OPD"), "An")
+		self.assertEqual(_article("IPD"), "An")
+		self.assertEqual(_article("Long Service Reward"), "A")
+		# Empty / None must not crash and defaults to "A".
+		self.assertEqual(_article(""), "A")
+		self.assertEqual(_article(None), "A")
+		# Lowercased form when requested.
+		self.assertEqual(_article("OPD", capitalized=False), "an")
+
+	def test_email_body_article_grammar(self):
+		mgr, mgr_user = _make_user_employee("exp-art-mgr@example.com")
+		emp, emp_user = _make_user_employee("exp-art-emp@example.com", reports_to=mgr)
+
+		bodies = []
+		with patch(
+			"frappe.sendmail",
+			side_effect=lambda **kw: bodies.append(kw.get("message") or ""),
+		):
+			frappe.set_user(emp_user)
+			doc = frappe.get_doc(
+				{
+					"doctype": "Expense Request",
+					"employee": emp,
+					"expense_type": "AI Tool",
+					"amount": 1000,
+					"reason": "t",
+				}
+			).insert()
+			attach_receipt(doc)
+			apply_workflow(doc, "Submit for Approval")
+			frappe.set_user(mgr_user)
+			apply_workflow(frappe.get_doc("Expense Request", doc.name), "Approve")
+
+		hr_bodies = [b for b in bodies if "<b>AI Tool</b>" in b]
+		self.assertTrue(hr_bodies, "expected an email mentioning the AI Tool expense type")
+		for b in hr_bodies:
+			self.assertIn("An <b>AI Tool</b>", b)
+			self.assertNotIn("A <b>AI Tool</b>", b)
 
 	def test_stage_emails(self):
 		mgr, mgr_user = _make_user_employee("exp-nt-mgr@example.com")

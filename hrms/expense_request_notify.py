@@ -19,6 +19,27 @@ HR_INBOX = "hr@clustox.com"
 ACCOUNTS_INBOX = "accounts@clustox.com"
 
 
+# Letters whose spoken name begins with a vowel sound, for all-caps acronyms read
+# letter-by-letter (OPD -> "oh-pee-dee", IPD -> "eye-pee-dee" both take "an").
+_ACRONYM_VOWEL_SOUND = set("AEFHILMNORSX")
+
+
+def _article(word, capitalized=True):
+	"""The indefinite article ("A"/"An", or lowercase) that fits `word`, chosen by
+	the sound of its first token: the leading vowel letter for an ordinary word,
+	the first letter's spoken name for an all-caps acronym (AI Tool, OPD, IPD)."""
+	text = (word or "").strip()
+	if not text:
+		return "A" if capitalized else "a"
+	first = text.split()[0]
+	if first.isupper() and len(first) >= 2:
+		use_an = first[0] in _ACRONYM_VOWEL_SOUND
+	else:
+		use_an = first[0].lower() in "aeiou"
+	art = "an" if use_an else "a"
+	return art.capitalize() if capitalized else art
+
+
 def _request_url(doc):
 	return f"{PORTAL}/expense-requests/{doc.name}"
 
@@ -67,15 +88,16 @@ def notify_on_state_change(doc, method=None):
 		if new_state == "Pending Manager" and doc.manager:
 			_send(
 				[doc.manager],
-				f"{emp_name} submitted a {etype} expense request",
-				f"<p>Hi,</p><p><b>{emp_name}</b> submitted a <b>{etype}</b> expense request for "
+				f"{emp_name} submitted {_article(etype, capitalized=False)} {etype} expense request",
+				f"<p>Hi,</p><p><b>{emp_name}</b> submitted {_article(etype, capitalized=False)} "
+				f"<b>{etype}</b> expense request for "
 				f"<b>{_money(doc)}</b> and it is awaiting your approval.</p>{link}",
 			)
 		elif new_state == "Pending HR":
 			_send(
 				[HR_INBOX],
 				f"Expense request awaiting HR approval — {emp_name}",
-				f"<p>Hi,</p><p>A <b>{etype}</b> expense request from <b>{emp_name}</b> for "
+				f"<p>Hi,</p><p>{_article(etype)} <b>{etype}</b> expense request from <b>{emp_name}</b> for "
 				f"<b>{_money(doc)}</b> is awaiting HR approval.</p>{link}",
 			)
 			# Reaching HR from the manager stage means the manager approved; tell
@@ -87,7 +109,7 @@ def notify_on_state_change(doc, method=None):
 			_send(
 				[ACCOUNTS_INBOX],
 				f"Expense request awaiting Accounts — {emp_name}",
-				f"<p>Hi,</p><p>A <b>{etype}</b> expense request from <b>{emp_name}</b> for "
+				f"<p>Hi,</p><p>{_article(etype)} <b>{etype}</b> expense request from <b>{emp_name}</b> for "
 				f"<b>{_money(doc)}</b> is approved and awaiting reimbursement by Accounts.</p>{link}",
 			)
 			_notify_requester(doc, etype, link, "HR approved it; it is now with Accounts for reimbursement.")
