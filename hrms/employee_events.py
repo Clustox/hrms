@@ -31,6 +31,15 @@ def _emp_email(emp) -> str | None:
 	return emp.get("company_email") or emp.get("user_id") or emp.get("personal_email")
 
 
+def _full_name(emp) -> str:
+	"""first + middle + last, as stored on the Employee. Built from the parts (the
+	rest of a surname lives in last_name, e.g. "Waqar Jaan"), not read from the
+	stored employee_name, so a stale copy can never shorten a greeting. Falls back
+	to employee_name, then first_name, when the parts are empty."""
+	parts = [(emp.get(k) or "").strip() for k in ("first_name", "middle_name", "last_name")]
+	return " ".join(" ".join(parts).split()) or emp.get("employee_name") or ""
+
+
 def _manager_email(emp) -> str | None:
 	if not emp.get("reports_to"):
 		return None
@@ -51,6 +60,7 @@ def _employees_with_event_today(field: str, min_years: int = 0) -> list:
 		frappe.qb.from_(Employee)
 		.select(
 			Employee.name, Employee.employee_name, Employee.first_name,
+			Employee.middle_name, Employee.last_name,
 			Employee.company_email, Employee.personal_email, Employee.user_id,
 			Employee.reports_to, Employee.date_of_joining,
 		)
@@ -90,15 +100,15 @@ def send_birthday_greetings():
 		to = _emp_email(emp)
 		if not to:
 			continue
-		first = emp.employee_name or emp.first_name
+		full_name = _full_name(emp)
 		msg = _wish(
-			f"<p>Dear {frappe.utils.escape_html(first)},</p>"
+			f"<p>Dear {frappe.utils.escape_html(full_name)},</p>"
 			f"<p>Wishing you a very <b>Happy Birthday</b>! 🎉</p>"
 			f"<p>Thank you for being part of the Clustox family. We hope your day is "
 			f"filled with joy and celebration.</p>"
 		)
 		try:
-			_send([to], _("Happy Birthday, {0}! 🎉").format(first), msg, cc=[HR_CC], emp_name=emp.name)
+			_send([to], _("Happy Birthday, {0}! 🎉").format(full_name), msg, cc=[HR_CC], emp_name=emp.name)
 		except Exception:
 			frappe.log_error(title="birthday greeting failed", message=frappe.get_traceback())
 
@@ -111,13 +121,13 @@ def send_work_anniversary_greetings():
 			continue
 		years = today.year - getdate(emp.date_of_joining).year
 		label = _("year") if years == 1 else _("years")
-		first = emp.employee_name or emp.first_name
+		full_name = _full_name(emp)
 		recipients = [to]
 		mgr = _manager_email(emp)
 		if mgr:
 			recipients.append(mgr)
 		msg = _wish(
-			f"<p>Dear {frappe.utils.escape_html(first)},</p>"
+			f"<p>Dear {frappe.utils.escape_html(full_name)},</p>"
 			f"<p>Congratulations on completing <b>{years} {label}</b> at Clustox! 🎉</p>"
 			f"<p>Thank you for your dedication and contributions over this time. "
 			f"Here's to many more milestones together.</p>"
@@ -125,7 +135,7 @@ def send_work_anniversary_greetings():
 		try:
 			_send(
 				recipients,
-				_("Happy {0}-{1} Work Anniversary, {2}! 🎉").format(years, label, first),
+				_("Happy {0}-{1} Work Anniversary, {2}! 🎉").format(years, label, full_name),
 				msg, cc=[HR_CC], emp_name=emp.name,
 			)
 		except Exception:
