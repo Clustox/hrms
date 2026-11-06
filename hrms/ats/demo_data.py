@@ -15,16 +15,39 @@ from frappe.utils import add_days, getdate, nowdate
 DEMO_TAG = "[Demo]"
 DEMO_DOMAIN = "@demo.ats.test"
 
-# (title, department keyword, location, vacancies, salary range or None for negotiable, status, designation)
+# Department tree (name, parent, is_group), as on the reference Department list.
+# Names get the company suffix ("Development - Clustox") like the rest of the site.
+DEPARTMENTS = [
+	("Professional Services", "All Departments", 1),
+	("Corporate Services", "All Departments", 1),
+	("Sales & Marketing", "All Departments", 1),
+	("Multimedia & Graphics", "All Departments", 1),
+	("Marketing", "Sales & Marketing", 0),
+	("Sales", "Sales & Marketing", 0),
+	("PreSales", "Sales & Marketing", 0),
+	("Human Resources", "Corporate Services", 0),
+	("Accounts & Finance", "Corporate Services", 0),
+	("Administration", "Corporate Services", 0),
+	("Network & Operations", "Corporate Services", 0),
+	("Management", "Professional Services", 0),
+	("Development", "Professional Services", 0),
+	("Project Management", "Professional Services", 0),
+	("Quality Assurance", "Professional Services", 0),
+	("Dev Ops", "Professional Services", 0),
+	("Business Analysis", "Professional Services", 0),
+	("UI/UX", "Multimedia & Graphics", 0),
+]
+
+# (title, department name, location, vacancies, salary range or None for negotiable, status, designation)
 JOBS = [
-	("Associate Software Engineer", "Research", "Lahore", 3, (120000, 180000), "Open", "Engineer"),
-	("Associate SQA Engineer", "Quality", "Lahore", 2, (90000, 140000), "Open", "Analyst"),
-	("Business Analyst", "Operations", "Lahore", 1, (150000, 220000), "Open", "Business Analyst"),
-	("Assistant Manager HR", "Human", "Lahore", 1, None, "Open", "Manager"),
+	("Associate Software Engineer", "Development", "Lahore", 3, (120000, 180000), "Open", "Engineer"),
+	("Associate SQA Engineer", "Quality Assurance", "Lahore", 2, (90000, 140000), "Open", "Analyst"),
+	("Business Analyst", "Business Analysis", "Lahore", 1, (150000, 220000), "Open", "Business Analyst"),
+	("Assistant Manager HR", "Human Resources", "Lahore", 1, None, "Open", "Manager"),
 	("Associate Sales Executive", "Sales", "Lahore", 4, (70000, 110000), "Open", "Executive"),
 	("Digital Marketing Executive", "Marketing", "Lahore", 2, None, "Open", "Executive"),
-	("Admin Officer", "Management", "Lahore", 1, (60000, 90000), "Open", "Administrative Officer"),
-	("Accounts Officer", "Accounts", "Lahore", 1, (80000, 120000), "Closed", "Accountant"),
+	("Admin Officer", "Administration", "Lahore", 1, (60000, 90000), "Open", "Administrative Officer"),
+	("Accounts Officer", "Accounts & Finance", "Lahore", 1, (80000, 120000), "Closed", "Accountant"),
 ]
 
 FIRST = [
@@ -52,7 +75,7 @@ def create_demo_data(applicants_per_job: int = 8):
 		pluck="name",
 		limit=4,
 	)
-	departments = frappe.get_all("Department", filters={"is_group": 0, "disabled": 0}, pluck="name")
+	departments = _ensure_departments(company, users)
 
 	interviewer_types = _ensure_interview_types(users)
 
@@ -74,6 +97,30 @@ def create_demo_data(applicants_per_job: int = 8):
 	frappe.db.commit()
 	print(f"Demo data ready: {created}")
 	return created
+
+
+def _ensure_departments(company, users):
+	"""Create/align the department tree. Existing departments keep their records and only get
+	the parent/group flag from the reference tree. Returns {short name: full department id}."""
+	from erpnext.setup.doctype.department.department import get_abbreviated_name
+
+	ids = {}
+	for name, parent, is_group in DEPARTMENTS:
+		dept_id = get_abbreviated_name(name, company)
+		parent_id = parent if parent == "All Departments" else get_abbreviated_name(parent, company)
+		if frappe.db.exists("Department", dept_id):
+			doc = frappe.get_doc("Department", dept_id)
+		else:
+			doc = frappe.new_doc("Department")
+			doc.department_name = name
+			doc.company = company
+		doc.parent_department = parent_id
+		doc.is_group = is_group
+		if users and not is_group and not doc.get("department_owner"):
+			doc.department_owner = users[0]
+		doc.save(ignore_permissions=True) if doc.get("name") else doc.insert(ignore_permissions=True)
+		ids[name] = doc.name
+	return ids
 
 
 def _ensure_skills():
@@ -100,12 +147,13 @@ def _ensure_interview_types(users):
 
 def _ensure_job(company, departments, title, dept_key, location, vacancies, salary, desig, users):
 	job_title = f"{DEMO_TAG} {title}"
+	department = departments.get(dept_key)
 	existing = frappe.db.get_value("Job Opening", {"job_title": job_title}, "name")
 	if existing:
+		frappe.db.set_value("Job Opening", existing, "department", department)
 		return existing, False
 
 	designation = _ensure_designation(desig)
-	department = next((d for d in departments if dept_key.lower() in d.lower()), None)
 
 	doc = frappe.new_doc("Job Opening")
 	doc.job_title = job_title
