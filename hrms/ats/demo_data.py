@@ -58,9 +58,9 @@ def create_demo_data(applicants_per_job: int = 8):
 
 	created = {"jobs": 0, "applicants": 0, "interviews": 0}
 	for title, dept_key, location, vacancies, salary, status, desig in JOBS:
-		job = _ensure_job(company, departments, title, dept_key, location, vacancies, salary, desig, users)
-		if not job:
-			continue
+		job, is_new = _ensure_job(company, departments, title, dept_key, location, vacancies, salary, desig, users)
+		if not is_new:
+			continue  # already seeded: skip its applicants too, so re-runs change nothing
 		created["jobs"] += 1
 
 		for i in range(applicants_per_job):
@@ -102,7 +102,7 @@ def _ensure_job(company, departments, title, dept_key, location, vacancies, sala
 	job_title = f"{DEMO_TAG} {title}"
 	existing = frappe.db.get_value("Job Opening", {"job_title": job_title}, "name")
 	if existing:
-		return existing
+		return existing, False
 
 	designation = _ensure_designation(desig)
 	department = next((d for d in departments if dept_key.lower() in d.lower()), None)
@@ -128,7 +128,7 @@ def _ensure_job(company, departments, title, dept_key, location, vacancies, sala
 		for user in users[1:3]:
 			doc.append("job_team", {"user": user, "team_role": "Recruiter"})
 	doc.insert(ignore_permissions=True)
-	return doc.name
+	return doc.name, True
 
 
 def _ensure_designation(name):
