@@ -15,6 +15,8 @@
 				:attachmentRequiredHint="
 					__('Sick Leave for more than 2 days requires a medical document. Please attach it before submitting.')
 				"
+				:canSubmit="canSubmitLeave"
+				:draftWithdraw="canWithdrawLeave"
 				@validateForm="validateForm"
 			/>
 		</ion-content>
@@ -63,6 +65,25 @@ const medicalDocRequired = computed(
 	() =>
 		leaveApplication.value.leave_type === "Sick Leave" &&
 		(Number(leaveApplication.value.total_leave_days) || 0) > 2
+)
+
+// The applicant must never see a "Submit" button on their own application.
+// Submitting (docstatus 0 -> 1) is the approver's *approve* action -- it is
+// what deducts the leave via the ledger entry -- and the backend
+// (leave_application.on_submit) rejects a submit while status is "Pending".
+// Applying already filed the request; a "Pending" application is
+// submitted-for-approval. The applicant's only action is to withdraw it
+// (Cancel) while it is still Pending. Approver/HR views (not their own
+// application) keep the normal Submit/approve flow.
+const isOwnApplication = computed(
+	() => !!props.id && leaveApplication.value.employee === sessionEmployee.data.name
+)
+const canSubmitLeave = computed(() => !isOwnApplication.value)
+const canWithdrawLeave = computed(
+	() =>
+		isOwnApplication.value &&
+		leaveApplication.value.docstatus === 0 &&
+		leaveApplication.value.status === "Pending"
 )
 
 // For existing docs, watchers fire during initial data population from the DB.

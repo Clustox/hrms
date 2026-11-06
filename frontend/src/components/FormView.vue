@@ -305,7 +305,7 @@
 		</template>
 		<template #body-content>
 			<p class="text-gray-700">
-				{{ __("Permanently cancel {0}", [__(props.doctype)]) }}
+				{{ formModel.docstatus === 0 ? __("Cancel {0}", [__(props.doctype)]) : __("Permanently cancel {0}", [__(props.doctype)]) }}
 				<span class="font-bold">{{ formModel.name }}</span
 				>?
 			</p>
@@ -461,6 +461,26 @@ const props = defineProps({
 	newTitleOverride: {
 		type: String,
 		required: false,
+	},
+	// Whether the current viewer may submit (docstatus 0 -> 1) this document.
+	// Default true keeps the generic behaviour. Set false where a submittable
+	// doctype must NOT be submitted by this viewer -- e.g. an employee viewing
+	// their own Leave Application: submitting is the approver's approve action
+	// (it creates the leave-ledger entry), and the backend rejects a submit
+	// while status is still "Pending". Without this they got a dead "Submit"
+	// button that failed silently.
+	canSubmit: {
+		type: Boolean,
+		required: false,
+		default: true,
+	},
+	// Offer a "Cancel" (withdraw) button on a docstatus-0 draft that sets
+	// status = "Cancelled" and saves (no docstatus change, no ledger entry).
+	// Used so an applicant can withdraw their own still-"Pending" request.
+	draftWithdraw: {
+		type: Boolean,
+		required: false,
+		default: false,
 	},
 })
 const emit = defineEmits(["validateForm", "update:modelValue", "formReloaded"])
@@ -694,8 +714,11 @@ const formButton = computed(() => {
 	if (!props.showFormButton) return
 
 	if (props.id && props.isSubmittable && !isFormDirty.value) {
-		if (formModel.value.docstatus === 0 && hasPermission("submit")) {
+		if (formModel.value.docstatus === 0 && props.canSubmit && hasPermission("submit")) {
 			return "Submit"
+		} else if (formModel.value.docstatus === 0 && props.draftWithdraw) {
+			// withdraw a not-yet-approved draft (sets status = Cancelled on save)
+			return "Cancel"
 		} else if (formModel.value.docstatus === 1 && hasPermission("cancel") && canReverseApproval.value) {
 			return "Cancel"
 		}
@@ -791,22 +814,39 @@ const submitDocument = createResource({ url: "frappe.client.submit" })
 const cancelDocument = createResource({ url: "frappe.client.cancel" })
 
 async function handleDocUpdate(action) {
-	if (documentResource.doc) {
-		let params = { ...formModel.value }
+	if (!documentResource.doc) return
 
-		if (!validateMandatoryFields()) return
-		if (!validateRequiredAttachment()) return
+	let params = { ...formModel.value }
 
+	if (!validateMandatoryFields()) return
+	if (!validateRequiredAttachment()) return
+
+	// "Cancel" on a docstatus-0 draft is a withdraw: there is nothing to
+	// cancel at document level yet (frappe.client.cancel needs docstatus 1),
+	// so mark it Cancelled and save. docstatus stays 0, no ledger entry.
+	const isDraftWithdraw = action === "cancel" && formModel.value.docstatus === 0
+
+	// Previously a failing submit/cancel threw out of this function before the
+	// dialog closed or the error surfaced: the field-save fired its "Success"
+	// toast, then the transition rejected with no handler, leaving the modal
+	// open with no status change and the action re-tappable. Surface the real
+	// error and always close the dialog.
+	try {
 		if (action == "submit" || action == "cancel") {
-			// save any edited fields first, then transition docstatus
-			await documentResource.setValue.submit(params)
-			if (action == "submit") {
-				await submitDocument.submit({ doc: documentResource.doc })
+			if (isDraftWithdraw) {
+				params.status = "Cancelled"
+				await documentResource.setValue.submit(params)
 			} else {
-				await cancelDocument.submit({
-					doctype: props.doctype,
-					name: props.id,
-				})
+				// save any edited fields first, then transition docstatus
+				await documentResource.setValue.submit(params)
+				if (action == "submit") {
+					await submitDocument.submit({ doc: documentResource.doc })
+				} else {
+					await cancelDocument.submit({
+						doctype: props.doctype,
+						name: props.id,
+					})
+				}
 			}
 		} else {
 			await documentResource.setValue.submit(params)
@@ -814,10 +854,12 @@ async function handleDocUpdate(action) {
 
 		await documentResource.get.promise
 		resetForm()
+	} catch (error) {
+		showError(extractErrorMessage(error))
+	} finally {
+		showSubmitDialog.value = false
+		showCancelDialog.value = false
 	}
-
-	if (action === "submit") showSubmitDialog.value = false
-	else if (action === "cancel") showCancelDialog.value = false
 }
 
 function saveForm() {
@@ -833,10 +875,13 @@ function saveForm() {
 function submitOrCancelForm() {
 	if (isFormDirty.value) return
 
-	if (formModel.value.docstatus === 0) {
+	// Drive off the already-computed button label so a docstatus-0 draft
+	// withdraw (Cancel) and a docstatus-1 cancel both open the cancel dialog,
+	// while a real submit opens the submit dialog.
+	if (formButton.value === "Submit") {
 		emit("validateForm")
 		showSubmitDialog.value = true
-	} else if (formModel.value.docstatus === 1) {
+	} else if (formButton.value === "Cancel") {
 		showCancelDialog.value = true
 	}
 }
