@@ -54,9 +54,43 @@ def department_custom_fields() -> dict:
 	}
 
 
+def job_opening_custom_fields() -> dict:
+	return {
+		"Job Opening": [
+			{
+				"fieldname": "ats_section",
+				"fieldtype": "Section Break",
+				"label": _("Hiring Team"),
+				"insert_after": "location",
+			},
+			{
+				"fieldname": "job_owner",
+				"fieldtype": "Link",
+				"label": _("Job Owner"),
+				"options": "User",
+				"insert_after": "ats_section",
+			},
+			{
+				"fieldname": "job_team",
+				"fieldtype": "Table",
+				"label": _("Job Team"),
+				"options": "ATS Team Member",
+				"insert_after": "job_owner",
+			},
+			{
+				"fieldname": "salary_negotiable",
+				"fieldtype": "Check",
+				"label": _("Salary Negotiable"),
+				"description": _("Show 'Negotiable' instead of a salary range."),
+				"insert_after": "upper_range",
+			},
+		]
+	}
+
+
 def get_ats_custom_fields() -> dict:
 	fields: dict[str, list] = {}
-	for getter in (department_custom_fields,):
+	for getter in (department_custom_fields, job_opening_custom_fields):
 		for doctype, items in getter().items():
 			fields.setdefault(doctype, []).extend(items)
 	return fields
