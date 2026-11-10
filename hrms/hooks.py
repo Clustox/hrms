@@ -140,6 +140,7 @@ after_install = "hrms.install.after_install"
 after_migrate = [
 	# ATS: custom fields on Department / Job Opening / Job Applicant (idempotent)
 	"hrms.ats.setup.apply_custom_fields",
+	"hrms.ats.setup.seed_defaults",
 	"hrms.setup.update_select_perm_after_install",
 	"hrms.cx360.setup.place_cx360_workspace",
 ]

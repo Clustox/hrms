@@ -100,3 +100,21 @@ def apply_custom_fields():
 	"""after_migrate hook: create/update every ATS custom field."""
 	create_custom_fields(get_ats_custom_fields(), ignore_validate=True)
 	frappe.clear_cache()
+
+
+def seed_defaults():
+	"""after_migrate hook: create the default pipeline template if it is missing."""
+	from hrms.ats.pipeline import DEFAULT_TEMPLATE_NAME, default_stage_rows
+
+	if frappe.db.exists("ATS Pipeline Template", DEFAULT_TEMPLATE_NAME):
+		return
+
+	template = frappe.get_doc(
+		{
+			"doctype": "ATS Pipeline Template",
+			"template_name": DEFAULT_TEMPLATE_NAME,
+			"description": "Standard hiring flow with technical screening, interviews and offer.",
+			"stages": default_stage_rows(),
+		}
+	)
+	template.insert(ignore_permissions=True)
