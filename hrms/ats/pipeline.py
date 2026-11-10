@@ -80,6 +80,8 @@ def validate_required_fields(row) -> None:
 
 def check_required_fields(doc, stage) -> None:
 	"""Block a move into a stage while any of its required fields is empty."""
+	if doc.flags.get("ats_skip_required_fields"):
+		return  # system-driven move (offer accepted, employee created): the decision is already made
 	meta = frappe.get_meta("Job Applicant")
 	missing = [
 		_(meta.get_field(f).label or f)
@@ -379,3 +381,34 @@ def restore_applicant(job_applicant: str) -> str:
 	doc.save()
 	log_stage_change(doc.name, doc.pipeline_stage, doc.pipeline_stage, source="Manual", reason=f"Restored (was dropped: {previous_reason})")
 	return doc.name
+
+
+def set_applicant_status(job_applicant: str, status: str, source: str = "System"):
+	"""Set an applicant's status from code outside the pipeline (Job Offer, Employee creation).
+
+	The change goes through a normal save, so the stage follows the status and the move
+	is logged. An accepted offer or a created employee always ends in the hired stage, and a
+	declined offer in the last rejected stage, even when the applicant's current stage
+	already maps to the same status (Offer Placed maps to Accepted). Required-field rules
+	are skipped because the decision has already been made.
+	"""
+	doc = frappe.get_doc("Job Applicant", job_applicant)
+	stages = get_job_stages(doc.job_title) if doc.job_title else []
+
+	target = None
+	if status == "Accepted":
+		target = next((s for s in stages if s.stage_type == "Hired"), None)
+	elif status == "Rejected" and source == "Offer":
+		target = next((s for s in reversed(stages) if s.stage_type == "Rejected"), None)
+
+	if target and doc.pipeline_stage != target.stage_name:
+		doc.pipeline_stage = target.stage_name  # the stage move sets the status and writes the history
+	elif doc.status != status:
+		doc.status = status
+	else:
+		return doc
+
+	doc.flags.ats_source = source
+	doc.flags.ats_skip_required_fields = True
+	doc.save(ignore_permissions=True)
+	return doc

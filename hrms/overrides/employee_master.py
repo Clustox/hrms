@@ -60,7 +60,10 @@ def update_job_applicant_and_offer(doc, method=None):
 
 	applicant_status_before_change = frappe.db.get_value("Job Applicant", doc.job_applicant, "status")
 	if applicant_status_before_change != "Accepted":
-		frappe.db.set_value("Job Applicant", doc.job_applicant, "status", "Accepted")
+		# a normal save (not a raw db write) so the pipeline stage follows the status
+		from hrms.ats.pipeline import set_applicant_status
+
+		set_applicant_status(doc.job_applicant, "Accepted", source="System")
 		frappe.msgprint(
 			_("Updated the status of linked Job Applicant {0} to {1}").format(
 				get_link_to_form("Job Applicant", doc.job_applicant), frappe.bold(_("Accepted"))

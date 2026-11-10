@@ -87,7 +87,10 @@ class JobOffer(Document):
 
 def update_job_applicant(status, job_applicant):
 	if status in ("Accepted", "Rejected"):
-		frappe.set_value("Job Applicant", job_applicant, "status", status)
+		# goes through a normal save so the applicant's pipeline stage follows the offer result
+		from hrms.ats.pipeline import set_applicant_status
+
+		set_applicant_status(job_applicant, status, source="Offer")
 
 
 def get_staffing_plan_detail(designation, company, offer_date):
