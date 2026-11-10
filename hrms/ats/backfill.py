@@ -15,12 +15,13 @@ LEGACY_REJECTED_REASON = "Rejected before pipeline stages existed"
 
 def backfill_pipeline() -> dict:
 	"""Run every backfill step and return how many records each one changed."""
-	from hrms.ats.setup import apply_custom_fields, seed_defaults, seed_drop_reasons
+	from hrms.ats.setup import apply_custom_fields, enable_change_history, seed_defaults, seed_drop_reasons
 
 	# migrate runs patches before after_migrate hooks, so make sure the schema and defaults exist
 	apply_custom_fields()
 	seed_defaults()
 	seed_drop_reasons()
+	enable_change_history()
 
 	return {
 		"jobs": backfill_job_stages(),

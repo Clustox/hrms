@@ -215,6 +215,7 @@ def apply_custom_fields():
 	"""after_migrate hook: create/update every ATS custom field."""
 	create_custom_fields(get_ats_custom_fields(), ignore_validate=True)
 	ensure_indexes()
+	frappe.db.commit()  # keep our changes even if a later after_migrate hook fails
 	frappe.clear_cache()
 
 
@@ -239,6 +240,7 @@ def seed_defaults():
 		}
 	)
 	template.insert(ignore_permissions=True)
+	frappe.db.commit()
 
 
 DEFAULT_DROP_REASONS = [
@@ -258,3 +260,27 @@ def seed_drop_reasons():
 	for reason in DEFAULT_DROP_REASONS:
 		if not frappe.db.exists("Drop Reason", reason):
 			frappe.get_doc({"doctype": "Drop Reason", "reason": reason}).insert(ignore_permissions=True)
+	frappe.db.commit()
+
+
+CHANGE_HISTORY_DOCTYPES = ("Job Opening", "Job Applicant", "Job Offer")
+
+
+def enable_change_history():
+	"""after_migrate hook: keep a version history for recruitment records (off by default).
+
+	Done with property setters, so the standard doctypes are not edited.
+	"""
+	for doctype in CHANGE_HISTORY_DOCTYPES:
+		frappe.make_property_setter(
+			{
+				"doctype": doctype,
+				"doctype_or_field": "DocType",
+				"property": "track_changes",
+				"value": "1",
+				"property_type": "Check",
+			},
+			is_system_generated=False,
+		)
+	frappe.db.commit()
+	frappe.clear_cache()
