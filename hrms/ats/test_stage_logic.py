@@ -105,7 +105,7 @@ class TestLegacyStatusWrites(IntegrationTestCase):
 		name = new_applicant(self.job, "legacy.hired@example.com").name
 		move_stage(name, "Final Interview")
 		doc = self.set_status(name, "Accepted")
-		self.assertEqual(doc.pipeline_stage, "Offer Accepted")
+		self.assertEqual(doc.pipeline_stage, "Hired")
 
 	def test_accepted_while_in_an_offer_stage_does_not_move(self):
 		name = new_applicant(self.job, "legacy.offer@example.com").name

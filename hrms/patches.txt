@@ -59,3 +59,4 @@ hrms.patches.v16_0.add_hr_timesheet_workspace_link
 hrms.patches.v16_0.create_expense_request_workflow #2026-11-04
 hrms.patches.v16_0.clean_no_checkin_wfh_attendance #2026-11-05
 hrms.patches.v16_0.backfill_ats_pipeline #2026-11-10
+hrms.patches.v16_0.upgrade_ats_default_pipeline #2026-11-10

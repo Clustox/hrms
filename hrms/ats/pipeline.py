@@ -26,8 +26,13 @@ DEFAULT_STAGES = [
 	# onboarding flow (gated on Accepted) keeps working before the offer is accepted.
 	("Ready to Offer", "Active", "Accepted", 0),
 	("Offer Placed", "Active", "Accepted", 0),
-	("Offer Accepted", "Hired", "Accepted", 0),
+	("Offer Accepted", "Active", "Accepted", 0),
+	# Hired is its own stage after Offer Accepted (the candidate has joined / is onboarding);
+	# the Hired counter counts the people in it.
+	("Hired", "Hired", "Accepted", 0),
 	("Offer Rejected", "Rejected", "Rejected", 0),
+	# On Hold is a stage of its own, kept at the end so "next stage" never lands on it.
+	("On Hold", "Active", "Hold", 0),
 ]
 
 
@@ -382,17 +387,27 @@ def set_applicant_status(job_applicant: str, status: str, source: str = "System"
 	"""Set an applicant's status from code outside the pipeline (Job Offer, Employee creation).
 
 	The change goes through a normal save, so the stage follows the status and the move
-	is logged. An accepted offer or a created employee always ends in the hired stage, and a
-	declined offer in the last rejected stage, even when the applicant's current stage
-	already maps to the same status (Offer Placed maps to Accepted). Required-field rules
-	are skipped because the decision has already been made.
+	is logged. An accepted offer moves the candidate to the last accepted stage (Offer
+	Accepted), a created employee moves them to the Hired stage, and a declined offer to
+	the last rejected stage, even when the current stage already maps to the same status
+	(Offer Placed maps to Accepted). A candidate is never moved backwards out of Hired.
+	Required-field rules are skipped because the decision has already been made.
 	"""
 	doc = frappe.get_doc("Job Applicant", job_applicant)
 	stages = get_job_stages(doc.job_title) if doc.job_title else []
+	current = next((s for s in stages if s.stage_name == doc.pipeline_stage), None)
 
 	target = None
 	if status == "Accepted":
-		target = next((s for s in stages if s.stage_type == "Hired"), None)
+		hired = next((s for s in stages if s.stage_type == "Hired"), None)
+		if source == "Offer":
+			target = next(
+				(s for s in reversed(stages) if s.stage_type == "Active" and s.maps_to_status == "Accepted"), hired
+			)
+		else:
+			target = hired
+		if current and current.stage_type == "Hired":
+			target = None  # already hired: do not move them back to Offer Accepted
 	elif status == "Rejected" and source == "Offer":
 		target = next((s for s in reversed(stages) if s.stage_type == "Rejected"), None)
 
@@ -409,9 +424,14 @@ def set_applicant_status(job_applicant: str, status: str, source: str = "System"
 	return doc
 
 
+def is_forward_stage(stage) -> bool:
+	"""A stage a candidate can be advanced into: not a rejected stage and not On Hold."""
+	return stage.stage_type != "Rejected" and stage.maps_to_status != "Hold"
+
+
 @frappe.whitelist()
 def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
-	"""Move a candidate to the next active stage of their job's pipeline."""
+	"""Move a candidate to the next stage of their job's pipeline (never a rejected or On Hold stage)."""
 	doc = frappe.get_doc("Job Applicant", job_applicant)
 	doc.check_permission("write")
 	if doc.is_dropped:
@@ -422,13 +442,9 @@ def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
 	if not current:
 		frappe.throw(_("{0} is not in a pipeline stage.").format(doc.applicant_name or doc.name))
 
-	target = next((s for s in stages if s.idx > current.idx and s.stage_type == "Active"), None)
+	target = next((s for s in stages if s.idx > current.idx and is_forward_stage(s)), None)
 	if not target:
-		frappe.throw(
-			_("{0} is already in the last active stage. Use the Job Offer to finish the hire.").format(
-				doc.applicant_name or doc.name
-			)
-		)
+		frappe.throw(_("{0} is already in the last stage.").format(doc.applicant_name or doc.name))
 
 	doc.pipeline_stage = target.stage_name
 	doc.flags.ats_source = source

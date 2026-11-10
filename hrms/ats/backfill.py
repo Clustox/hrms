@@ -134,3 +134,63 @@ def backfill_candidates() -> int:
 		frappe.db.set_value("Job Applicant", applicant.name, "candidate", candidate, update_modified=False)
 		count += 1
 	return count
+
+
+OLD_DEFAULT_STAGE_NAMES = [
+	"New Candidates",
+	"Technical Profile Review",
+	"Shortlisted (Phone Screening)",
+	"Technical Assessment",
+	"1st Technical Interview",
+	"2nd Technical Interview",
+	"Final Interview",
+	"Rejected after Technical Interview",
+	"Rejected after Final Interview",
+	"Ready to Offer",
+	"Offer Placed",
+	"Offer Accepted",
+	"Offer Rejected",
+]
+
+# (parent doctype, child doctype, child field on the parent)
+STAGE_TABLES = (
+	("ATS Pipeline Template", "ATS Template Stage", "stages"),
+	("Job Opening", "Job Pipeline Stage", "pipeline_stages"),
+)
+
+
+def upgrade_default_pipeline() -> int:
+	"""Give pipelines that still match the first default (13 stages) the stages added since:
+	Offer Accepted becomes an ordinary stage, Hired follows it as its own stage, and On Hold is
+	added at the end. Pipelines that were edited are left alone. Safe to run again."""
+	count = 0
+	for parent_doctype, child_doctype, fieldname in STAGE_TABLES:
+		parents = frappe.get_all(child_doctype, filters={"parenttype": parent_doctype}, pluck="parent", distinct=True)
+		for parent in parents:
+			rows = frappe.get_all(
+				child_doctype,
+				filters={"parent": parent, "parenttype": parent_doctype},
+				fields=["name", "stage_name"],
+				order_by="idx asc",
+			)
+			if [r.stage_name for r in rows] != OLD_DEFAULT_STAGE_NAMES:
+				continue
+
+			by_name = {r.stage_name: r.name for r in rows}
+			frappe.db.set_value(child_doctype, by_name["Offer Accepted"], "stage_type", "Active", update_modified=False)
+			frappe.db.set_value(child_doctype, by_name["Offer Rejected"], "idx", 14, update_modified=False)
+			for idx, (name, stage_type, status) in ((13, ("Hired", "Hired", "Accepted")), (15, ("On Hold", "Active", "Hold"))):
+				frappe.get_doc(
+					{
+						"doctype": child_doctype,
+						"parent": parent,
+						"parenttype": parent_doctype,
+						"parentfield": fieldname,
+						"idx": idx,
+						"stage_name": name,
+						"stage_type": stage_type,
+						"maps_to_status": status,
+					}
+				).insert(ignore_permissions=True)
+			count += 1
+	return count

@@ -16,9 +16,15 @@ class TestATSPipelineTemplate(IntegrationTestCase):
 		template = frappe.get_doc("ATS Pipeline Template", DEFAULT_TEMPLATE_NAME)
 		names = [s.stage_name for s in template.stages]
 		self.assertEqual(names[0], "New Candidates")
-		self.assertEqual(names[-1], "Offer Rejected")
+		self.assertEqual(names[-1], "On Hold")
 		# rejection stages sit before Ready to Offer, as on the reference board
 		self.assertLess(names.index("Rejected after Final Interview"), names.index("Ready to Offer"))
+		# Hired is its own stage straight after Offer Accepted
+		self.assertEqual(names.index("Hired"), names.index("Offer Accepted") + 1)
+		self.assertEqual(
+			{s.stage_name: s.stage_type for s in template.stages}["Hired"],
+			"Hired",
+		)
 		self.assertEqual(len(names), len(default_stage_rows()))
 
 	def test_status_defaults_from_stage_type(self):
