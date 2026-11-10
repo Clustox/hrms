@@ -109,9 +109,93 @@ def job_opening_custom_fields() -> dict:
 	}
 
 
+def job_applicant_custom_fields() -> dict:
+	return {
+		"Job Applicant": [
+			{
+				"fieldname": "pipeline_section",
+				"fieldtype": "Section Break",
+				"label": _("Pipeline"),
+				"insert_after": "applicant_rating",
+			},
+			{
+				"fieldname": "pipeline_stage",
+				"fieldtype": "Data",
+				"label": _("Pipeline Stage"),
+				"search_index": 1,
+				"in_standard_filter": 1,
+				"insert_after": "pipeline_section",
+			},
+			{
+				"fieldname": "stage_entered_on",
+				"fieldtype": "Datetime",
+				"label": _("Stage Entered On"),
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "pipeline_stage",
+			},
+			{
+				"fieldname": "pipeline_column_break",
+				"fieldtype": "Column Break",
+				"insert_after": "stage_entered_on",
+			},
+			{
+				"fieldname": "is_dropped",
+				"fieldtype": "Check",
+				"label": _("Dropped"),
+				"default": "0",
+				"search_index": 1,
+				"in_standard_filter": 1,
+				"no_copy": 1,
+				"insert_after": "pipeline_column_break",
+			},
+			{
+				"fieldname": "drop_reason",
+				"fieldtype": "Link",
+				"label": _("Drop Reason"),
+				"options": "Drop Reason",
+				"depends_on": "eval:doc.is_dropped",
+				"mandatory_depends_on": "eval:doc.is_dropped",
+				"no_copy": 1,
+				"insert_after": "is_dropped",
+			},
+			{
+				"fieldname": "dropped_at_stage",
+				"fieldtype": "Data",
+				"label": _("Dropped At Stage"),
+				"read_only": 1,
+				"depends_on": "eval:doc.is_dropped",
+				"no_copy": 1,
+				"insert_after": "drop_reason",
+			},
+			{
+				"fieldname": "department",
+				"fieldtype": "Link",
+				"label": _("Department"),
+				"options": "Department",
+				"fetch_from": "job_title.department",
+				"read_only": 1,
+				"search_index": 1,
+				"in_standard_filter": 1,
+				"insert_after": "designation",
+			},
+			{
+				"fieldname": "legacy_id",
+				"fieldtype": "Data",
+				"label": _("Legacy ID"),
+				"description": _("Identifier of this application in the system it was imported from."),
+				"read_only": 1,
+				"no_copy": 1,
+				"search_index": 1,
+				"insert_after": "source_name",
+			},
+		]
+	}
+
+
 def get_ats_custom_fields() -> dict:
 	fields: dict[str, list] = {}
-	for getter in (department_custom_fields, job_opening_custom_fields):
+	for getter in (department_custom_fields, job_opening_custom_fields, job_applicant_custom_fields):
 		for doctype, items in getter().items():
 			fields.setdefault(doctype, []).extend(items)
 	return fields
@@ -120,7 +204,13 @@ def get_ats_custom_fields() -> dict:
 def apply_custom_fields():
 	"""after_migrate hook: create/update every ATS custom field."""
 	create_custom_fields(get_ats_custom_fields(), ignore_validate=True)
+	ensure_indexes()
 	frappe.clear_cache()
+
+
+def ensure_indexes():
+	"""Composite index that serves the pipeline board: one job, one stage, not dropped."""
+	frappe.db.add_index("Job Applicant", ["job_title", "pipeline_stage", "is_dropped"], "ats_job_stage_dropped")
 
 
 def seed_defaults():

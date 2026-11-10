@@ -132,3 +132,15 @@ def delete_applicant_stage_log(doc, method=None):
 			frappe.delete_doc("Applicant Stage Log", name, force=True, ignore_permissions=True)
 	finally:
 		frappe.flags.ats_allow_log_delete = False
+
+
+def validate_drop(doc, method=None):
+	"""Job Applicant validate hook: a dropped candidate needs a reason; restoring clears it."""
+	if doc.get("is_dropped"):
+		if not doc.get("drop_reason"):
+			frappe.throw(_("Drop Reason is required to drop a candidate."), frappe.MandatoryError)
+		if not doc.get("dropped_at_stage"):
+			doc.dropped_at_stage = doc.get("pipeline_stage")
+	else:
+		doc.drop_reason = None
+		doc.dropped_at_stage = None
