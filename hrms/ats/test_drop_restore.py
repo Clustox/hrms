@@ -44,11 +44,6 @@ class TestDropAndRestore(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			drop_applicant(self.name, "Position filled")
 
-	def test_hired_candidate_cannot_be_dropped(self):
-		move_stage(self.name, "Offer Accepted")
-		with self.assertRaises(frappe.ValidationError):
-			drop_applicant(self.name, "Position filled")
-
 	def test_dropping_does_not_change_stage_time_or_stage_history_moves(self):
 		before = frappe.db.get_value("Job Applicant", self.name, "stage_entered_on")
 		moves_before = len([h for h in history(self.name)])

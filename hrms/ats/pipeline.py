@@ -355,11 +355,6 @@ def drop_applicant(job_applicant: str, reason: str) -> str:
 	if not reason:
 		frappe.throw(_("Select a reason for dropping the candidate."), frappe.MandatoryError)
 
-	stages = get_job_stages(doc.job_title) if doc.job_title else []
-	current = next((s for s in stages if s.stage_name == doc.pipeline_stage), None)
-	if current and current.stage_type == "Hired":
-		frappe.throw(_("A hired candidate cannot be dropped."))
-
 	doc.is_dropped = 1
 	doc.drop_reason = reason
 	doc.dropped_at_stage = doc.pipeline_stage
@@ -414,9 +409,6 @@ def set_applicant_status(job_applicant: str, status: str, source: str = "System"
 	return doc
 
 
-INTERVIEW_REJECT_REASON = "Failed technical assessment"
-
-
 @frappe.whitelist()
 def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
 	"""Move a candidate to the next active stage of their job's pipeline."""
@@ -443,8 +435,3 @@ def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
 	doc.save()
 	return target.stage_name
 
-
-@frappe.whitelist()
-def drop_after_interview(job_applicant: str) -> str:
-	"""Drop a candidate whose interview was marked Rejected."""
-	return drop_applicant(job_applicant, INTERVIEW_REJECT_REASON)

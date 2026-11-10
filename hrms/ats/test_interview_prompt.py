@@ -6,7 +6,7 @@ from unittest.mock import patch
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from hrms.ats.pipeline import advance_applicant, drop_after_interview
+from hrms.ats.pipeline import advance_applicant
 from hrms.ats.test_pipeline import make_job
 from hrms.ats.test_stage_logic import history, move_stage, new_applicant
 
@@ -42,11 +42,6 @@ class TestAdvanceApplicant(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			advance_applicant(self.name)
 
-	def test_drop_after_interview_uses_the_standard_reason(self):
-		drop_after_interview(self.name)
-		doc = frappe.get_doc("Job Applicant", self.name)
-		self.assertEqual((doc.is_dropped, doc.drop_reason), (1, "Failed technical assessment"))
-
 
 class TestInterviewPrompt(IntegrationTestCase):
 	def setUp(self):
@@ -63,14 +58,23 @@ class TestInterviewPrompt(IntegrationTestCase):
 		self.assertEqual(action["server_action"], "hrms.ats.pipeline.advance_applicant")
 		self.assertEqual(action["args"], {"job_applicant": self.name, "source": "Interview"})
 
-	def test_rejected_offers_to_drop_the_candidate(self):
+	def test_rejected_keeps_the_original_prompt(self):
 		action = self.prompt("Rejected").call_args.kwargs["primary_action"]
-		self.assertEqual(action["server_action"], "hrms.ats.pipeline.drop_after_interview")
+		self.assertEqual(action["server_action"], "hrms.hr.doctype.interview.interview.update_job_applicant_status")
+		self.assertEqual(action["args"]["status"], "Rejected")
 
-	def test_never_offers_to_mark_a_pipeline_applicant_accepted(self):
-		for status in ("Cleared", "Rejected"):
-			action = self.prompt(status).call_args.kwargs["primary_action"]
-			self.assertNotIn("update_job_applicant_status", action["server_action"])
+	def test_original_rejected_prompt_drops_a_pipeline_applicant_in_place(self):
+		from hrms.hr.doctype.interview.interview import update_job_applicant_status
+
+		move_stage(self.name, "Technical Assessment")
+		update_job_applicant_status("Rejected", self.name)
+		doc = frappe.get_doc("Job Applicant", self.name)
+		self.assertEqual((doc.is_dropped, doc.pipeline_stage), (1, "Technical Assessment"))
+		self.assertEqual(doc.drop_reason, "Rejected by recruiter")
+
+	def test_cleared_never_offers_to_mark_a_pipeline_applicant_accepted(self):
+		action = self.prompt("Cleared").call_args.kwargs["primary_action"]
+		self.assertNotIn("update_job_applicant_status", action["server_action"])
 
 	def test_dropped_applicant_gets_no_prompt(self):
 		frappe.db.set_value("Job Applicant", self.name, {"is_dropped": 1, "drop_reason": "Position filled"})
