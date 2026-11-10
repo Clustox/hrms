@@ -8,7 +8,13 @@
 import frappe
 
 from hrms.ats.candidates import find_duplicate, normalize_email, normalize_phone
-from hrms.ats.pipeline import DEFAULT_TEMPLATE_NAME, STAGE_COPY_FIELDS, copy_template_stages, log_stage_change
+from hrms.ats.pipeline import (
+	DEFAULT_TEMPLATE_NAME,
+	STAGE_COPY_FIELDS,
+	copy_template_stages,
+	log_stage_change,
+	stage_for_status,
+)
 
 LEGACY_REJECTED_REASON = "Rejected before pipeline stages existed"
 
@@ -52,16 +58,6 @@ def backfill_job_stages() -> int:
 			).insert(ignore_permissions=True)
 		count += 1
 	return count
-
-
-def stage_for_status(stages: list[dict], status: str | None) -> dict:
-	"""The pipeline stage an applicant with this legacy status belongs in."""
-	first = stages[0]
-	if status == "Accepted":
-		return next((s for s in stages if s.stage_type == "Hired"), first)
-	if status == "Shortlisted":
-		return next((s for s in stages if s.stage_type == "Active" and s.maps_to_status == "Shortlisted"), first)
-	return first  # Open, Replied, Hold and Rejected start at the first stage
 
 
 def backfill_applicant_stages() -> int:

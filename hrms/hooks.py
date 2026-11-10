@@ -343,7 +343,8 @@ doc_events = {
 	},
 	# ATS: stage history is removed together with its applicant
 	"Job Applicant": {
-		"validate": "hrms.ats.pipeline.validate_drop",
+		"validate": "hrms.ats.pipeline.validate_applicant",
+		"on_update": "hrms.ats.pipeline.log_pending_stage_change",
 		"on_trash": "hrms.ats.pipeline.delete_applicant_stage_log",
 	},
 	"Appraisal Cycle": {"after_insert": "hrms.telemetry.on_milestone_insert"},

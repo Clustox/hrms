@@ -134,6 +134,116 @@ def delete_applicant_stage_log(doc, method=None):
 		frappe.flags.ats_allow_log_delete = False
 
 
+DEFAULT_REJECT_REASON = "Rejected by recruiter"
+
+# Statuses written by older code (Desk buttons, Interview, Job Offer, Employee) that should move
+# the stage. Open, Replied and Hold never move a candidate.
+RECONCILED_STATUSES = ("Shortlisted", "Accepted", "Rejected")
+
+
+def get_job_stages(job: str):
+	"""Stage rows of a job in pipeline order."""
+	return frappe.get_all(
+		"Job Pipeline Stage",
+		filters={"parent": job, "parenttype": "Job Opening"},
+		fields=["stage_name", "stage_type", "maps_to_status", "visible_to_guests", "idx"],
+		order_by="idx asc",
+	)
+
+
+def stage_for_status(stages, status: str | None):
+	"""The pipeline stage an applicant with this legacy status belongs in."""
+	first = stages[0]
+	if status == "Accepted":
+		return next((s for s in stages if s.stage_type == "Hired"), first)
+	if status == "Shortlisted":
+		return next((s for s in stages if s.stage_type == "Active" and s.maps_to_status == "Shortlisted"), first)
+	return first  # Open, Replied, Hold and Rejected start at the first stage
+
+
+def _source(doc) -> str:
+	if doc.flags.get("ats_source"):
+		return doc.flags.ats_source
+	return "Board" if "kanban_board" in (frappe.form_dict.get("cmd") or "") else "Manual"
+
+
+def validate_applicant(doc, method=None):
+	"""Job Applicant validate hook: keep stage and status in step, then check dropping."""
+	sync_stage_and_status(doc)
+	validate_drop(doc)
+
+
+def sync_stage_and_status(doc):
+	"""Place a new applicant, apply a stage move to the status, or turn an older status write
+	(Shortlist button, Job Offer, Employee hook...) into the matching stage move."""
+	if not doc.get("job_title"):
+		return
+	stages = get_job_stages(doc.job_title)
+	if not stages:
+		return  # a job from before the ATS: leave it alone
+	by_name = {s.stage_name: s for s in stages}
+	now = frappe.utils.now_datetime()
+
+	if doc.is_new():
+		if not doc.pipeline_stage:
+			doc.pipeline_stage = stage_for_status(stages, doc.status).stage_name
+		elif doc.pipeline_stage not in by_name:
+			frappe.throw(_("Stage {0} is not part of this job's pipeline.").format(frappe.bold(doc.pipeline_stage)))
+		doc.stage_entered_on = now
+		doc.flags.ats_stage_change = (None, doc.pipeline_stage, "System")
+		return
+
+	before = doc.get_doc_before_save()
+	if not before:
+		return
+	old_stage, old_status = before.get("pipeline_stage"), before.get("status")
+
+	if doc.pipeline_stage != old_stage:
+		if doc.pipeline_stage not in by_name:
+			frappe.throw(_("Stage {0} is not part of this job's pipeline.").format(frappe.bold(doc.pipeline_stage)))
+		doc.stage_entered_on = now
+		doc.status = by_name[doc.pipeline_stage].maps_to_status or doc.status
+		doc.flags.ats_stage_change = (old_stage, doc.pipeline_stage, _source(doc))
+		return
+
+	if doc.status != old_status and doc.status in RECONCILED_STATUSES:
+		reconcile_status(doc, stages, by_name)
+
+
+def reconcile_status(doc, stages, by_name):
+	"""An older status write happened with no stage change: move the stage to match."""
+	if doc.status == "Rejected":
+		declined_offer = doc.flags.get("ats_source") == "Offer"
+		last_rejected = next((s for s in reversed(stages) if s.stage_type == "Rejected"), None)
+		if declined_offer and last_rejected:
+			move(doc, last_rejected.stage_name, "Offer")  # an offer turned down ends in the last rejected stage
+		elif not doc.is_dropped:
+			doc.is_dropped = 1
+			doc.drop_reason = doc.drop_reason or DEFAULT_REJECT_REASON
+		return
+
+	current = by_name.get(doc.pipeline_stage)
+	if current and current.maps_to_status == doc.status:
+		return  # the current stage already stands for this status
+	target = stage_for_status(stages, doc.status)
+	if target.stage_name != doc.pipeline_stage:
+		move(doc, target.stage_name, doc.flags.get("ats_source") or "System")
+
+
+def move(doc, to_stage: str, source: str):
+	doc.flags.ats_stage_change = (doc.pipeline_stage, to_stage, source)
+	doc.pipeline_stage = to_stage
+	doc.stage_entered_on = frappe.utils.now_datetime()
+
+
+def log_pending_stage_change(doc, method=None):
+	"""Job Applicant on_update hook: write the stage history row for a move made in validate."""
+	change = doc.flags.pop("ats_stage_change", None)
+	if change:
+		from_stage, to_stage, source = change
+		log_stage_change(doc.name, from_stage, to_stage, source=source)
+
+
 def validate_drop(doc, method=None):
 	"""Job Applicant validate hook: a dropped candidate needs a reason; restoring clears it."""
 	if doc.get("is_dropped"):

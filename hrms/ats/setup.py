@@ -252,6 +252,7 @@ DEFAULT_DROP_REASONS = [
 	"Failed technical assessment",
 	"Duplicate application",
 	"Rejected before pipeline stages existed",
+	"Rejected by recruiter",
 ]
 
 
