@@ -341,3 +341,41 @@ def validate_drop(doc, method=None):
 	else:
 		doc.drop_reason = None
 		doc.dropped_at_stage = None
+
+
+@frappe.whitelist()
+def drop_applicant(job_applicant: str, reason: str) -> str:
+	"""Drop a candidate from the pipeline. They keep their stage and show in its dropped count."""
+	doc = frappe.get_doc("Job Applicant", job_applicant)
+	doc.check_permission("write")
+	if doc.is_dropped:
+		frappe.throw(_("{0} is already dropped.").format(doc.applicant_name or doc.name))
+	if not reason:
+		frappe.throw(_("Select a reason for dropping the candidate."), frappe.MandatoryError)
+
+	stages = get_job_stages(doc.job_title) if doc.job_title else []
+	current = next((s for s in stages if s.stage_name == doc.pipeline_stage), None)
+	if current and current.stage_type == "Hired":
+		frappe.throw(_("A hired candidate cannot be dropped."))
+
+	doc.is_dropped = 1
+	doc.drop_reason = reason
+	doc.dropped_at_stage = doc.pipeline_stage
+	doc.save()
+	log_stage_change(doc.name, doc.pipeline_stage, doc.pipeline_stage, source="Manual", reason=f"Dropped: {reason}")
+	return doc.name
+
+
+@frappe.whitelist()
+def restore_applicant(job_applicant: str) -> str:
+	"""Bring a dropped candidate back into the pipeline at the stage they were dropped from."""
+	doc = frappe.get_doc("Job Applicant", job_applicant)
+	doc.check_permission("write")
+	if not doc.is_dropped:
+		frappe.throw(_("{0} is not dropped.").format(doc.applicant_name or doc.name))
+
+	previous_reason = doc.drop_reason
+	doc.is_dropped = 0
+	doc.save()
+	log_stage_change(doc.name, doc.pipeline_stage, doc.pipeline_stage, source="Manual", reason=f"Restored (was dropped: {previous_reason})")
+	return doc.name
