@@ -14,7 +14,7 @@ def make_job(title: str, **kwargs):
 	doc = frappe.get_doc(
 		{
 			"doctype": "Job Opening",
-			"job_title": title,
+			"job_title": f"{title} {frappe.generate_hash(length=6)}",  # unique: the job web route must be unique
 			"company": company,
 			"designation": "_Test ATS Designation",
 			"status": "Open",

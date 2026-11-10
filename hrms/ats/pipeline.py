@@ -106,3 +106,29 @@ def setup_job_pipeline(doc, method=None):
 
 	if doc.get("pipeline_stages"):
 		validate_stages(doc.pipeline_stages)
+
+
+def log_stage_change(applicant: str, from_stage: str | None, to_stage: str | None, source: str = "Manual", reason: str | None = None):
+	"""Append one row to the applicant's stage history."""
+	job_opening = frappe.db.get_value("Job Applicant", applicant, "job_title")
+	return frappe.get_doc(
+		{
+			"doctype": "Applicant Stage Log",
+			"job_applicant": applicant,
+			"job_opening": job_opening,
+			"from_stage": from_stage,
+			"to_stage": to_stage,
+			"trigger_source": source,
+			"reason": reason,
+		}
+	).insert(ignore_permissions=True)
+
+
+def delete_applicant_stage_log(doc, method=None):
+	"""Job Applicant on_trash hook: the history is removed together with its applicant."""
+	frappe.flags.ats_allow_log_delete = True
+	try:
+		for name in frappe.get_all("Applicant Stage Log", filters={"job_applicant": doc.name}, pluck="name"):
+			frappe.delete_doc("Applicant Stage Log", name, force=True, ignore_permissions=True)
+	finally:
+		frappe.flags.ats_allow_log_delete = False
