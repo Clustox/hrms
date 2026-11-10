@@ -12,6 +12,7 @@ from frappe.model.document import Document
 from frappe.model.naming import append_number_if_name_exists
 from frappe.utils import flt, validate_email_address
 
+from hrms.ats.board import apply_pipeline_definition
 from hrms.hr.doctype.interview.interview import get_interviewers
 
 
@@ -104,9 +105,6 @@ class JobApplicant(Document):
 			emp_ref.db_set("status", self.status)
 
 
-KANBAN_COLUMNS = ["Open", "Replied", "Shortlisted", "Accepted"]
-
-
 @frappe.whitelist()
 def create_kanban_board(board_name: str) -> dict:
 	frappe.has_permission("Job Applicant", throw=True)
@@ -116,14 +114,9 @@ def create_kanban_board(board_name: str) -> dict:
 
 	board = frappe.new_doc("Kanban Board")
 	board.kanban_board_name = board_name
-	board.reference_doctype = "Job Applicant"
-	board.field_name = "status"
 	board.private = 0
-	board.fields = json.dumps(["designation", "applicant_rating"])
-	board.show_labels = 1
-
-	for column_name in KANBAN_COLUMNS:
-		board.append("columns", {"column_name": column_name, "status": "Active"})
+	# ATS: columns are the pipeline stages (hrms.ats.board), not the four fixed statuses
+	apply_pipeline_definition(board)
 
 	board.insert(ignore_permissions=True)
 	return board.as_dict()
