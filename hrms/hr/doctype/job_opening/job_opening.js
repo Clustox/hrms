@@ -14,6 +14,15 @@ frappe.ui.form.on("Job Opening", {
 	refresh: function (frm) {
 		frm.trigger("add_status_toggle_button");
 		frm.trigger("add_pipeline_board_button");
+		frm.trigger("show_pipeline_counters");
+	},
+	show_pipeline_counters: function (frm) {
+		// ATS: Hired / In pipeline / Dropped at the top of the job
+		if (frm.is_new()) return;
+
+		frm.dashboard.add_indicator(__("Hired: {0}", [frm.doc.hired_count || 0]), "green");
+		frm.dashboard.add_indicator(__("In pipeline: {0}", [frm.doc.in_pipeline_count || 0]), "blue");
+		frm.dashboard.add_indicator(__("Dropped: {0}", [frm.doc.dropped_count || 0]), "gray");
 	},
 	add_pipeline_board_button: function (frm) {
 		// ATS: open the Kanban board of this job's candidates

@@ -346,12 +346,17 @@ doc_events = {
 		"on_update": [
 			"hrms.ats.pipeline.apply_stage_renames",
 			"hrms.ats.board.sync_job_board_on_save",
+			"hrms.ats.counters.refresh_for_job",
 		],
 	},
 	# ATS: stage history is removed together with its applicant
 	"Job Applicant": {
 		"validate": "hrms.ats.pipeline.validate_applicant",
-		"on_update": "hrms.ats.pipeline.log_pending_stage_change",
+		"on_update": [
+			"hrms.ats.pipeline.log_pending_stage_change",
+			"hrms.ats.counters.refresh_for_applicant",
+		],
+		"after_delete": "hrms.ats.counters.refresh_for_applicant",
 		"on_trash": "hrms.ats.pipeline.delete_applicant_stage_log",
 	},
 	"Appraisal Cycle": {"after_insert": "hrms.telemetry.on_milestone_insert"},

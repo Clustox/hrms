@@ -61,3 +61,4 @@ hrms.patches.v16_0.clean_no_checkin_wfh_attendance #2026-11-05
 hrms.patches.v16_0.backfill_ats_pipeline #2026-11-10
 hrms.patches.v16_0.upgrade_ats_default_pipeline #2026-11-10
 hrms.patches.v16_0.upgrade_ats_hiring_pipeline_board #2026-11-10
+hrms.patches.v16_0.backfill_ats_job_counters #2026-11-10
