@@ -40,6 +40,13 @@ def _ensure_user(employee_doc) -> str:
 	if employee_doc.user_id != email:
 		employee_doc.db_set("user_id", email)
 	user = frappe.get_doc("User", email)
+	# add_roles() calls user.save(), which runs under the CALLER's permissions.
+	# HR Manager / HR User have no write access to the User doctype, so an HR
+	# user onboarding a hire failed here with "No permission for User" (the
+	# ignore_permissions on the insert above does not carry to this later save).
+	# Granting the ESS role is an authorized system step -- the caller is already
+	# gated by _require_hr -- so bypass the permission check on this save.
+	user.flags.ignore_permissions = True
 	if "Employee Self Service" not in frappe.get_roles(email):
 		user.add_roles("Employee Self Service")
 	return email

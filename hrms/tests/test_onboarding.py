@@ -62,6 +62,58 @@ class TestOnboardEmployee(FrappeTestCase):
 		self.assertEqual(frappe.db.get_value("Employee", emp.name, "user_id"), email)
 		self.assertIn("Employee Self Service", frappe.get_roles(email))
 
+	def test_hr_manager_without_system_manager_can_onboard(self):
+		# Regression: an HR Manager / HR User who is NOT a System Manager must be
+		# able to onboard a hire. _ensure_user's add_roles() saves the User doc,
+		# which runs under the CALLER's permissions; HR roles have no write access
+		# to the User doctype, so this failed with "No permission for User" until
+		# the role-grant save was made to ignore permissions. The existing
+		# test_provisions_login_and_status runs as Administrator (a System Manager
+		# with User write), so it never exercised this path.
+		from hrms.onboarding import onboard_employee
+
+		hr_email = "test.hire.onb.hrmgr@example.com"
+		target_email = "test.hire.onb.hrtarget@example.com"
+		# onboard_employee commits on its success path, defeating the per-test
+		# rollback, so clear any leftovers from a prior run by identity.
+		for e in (hr_email, target_email):
+			frappe.db.delete("Employee", {"user_id": e})
+			frappe.db.delete("Employee", {"company_email": e})
+			frappe.db.delete("User", {"name": e})
+		frappe.db.commit()
+
+		# The caller: HR Manager + HR User, explicitly NOT System Manager --
+		# exactly the live HR user's role set.
+		hr_user = frappe.get_doc({
+			"doctype": "User", "email": hr_email, "first_name": "Hr", "last_name": "Mgr",
+			"send_welcome_email": 0, "user_type": "System User",
+		})
+		hr_user.flags.no_welcome_mail = True
+		hr_user.insert(ignore_permissions=True)
+		hr_user.add_roles("HR Manager", "HR User")
+		self.assertNotIn("System Manager", frappe.get_roles(hr_email))
+
+		target = frappe.get_doc({
+			"doctype": "Employee", "first_name": "Hr", "last_name": "Target",
+			"company": "Clustox", "status": "Active", "date_of_joining": "2026-01-01",
+			"gender": "Male", "date_of_birth": "1995-01-01", "company_email": target_email,
+		}).insert(ignore_permissions=True)
+
+		frappe.set_user(hr_email)
+		res = onboard_employee(target.name, send_invite=0)
+		frappe.set_user("Administrator")
+
+		self.assertEqual(res["status"], "Invited")
+		self.assertTrue(frappe.db.exists("User", target_email))
+		self.assertEqual(frappe.db.get_value("Employee", target.name, "user_id"), target_email)
+		self.assertIn("Employee Self Service", frappe.get_roles(target_email))
+
+		# onboard_employee committed, so clean up explicitly.
+		frappe.db.delete("Employee", {"name": target.name})
+		frappe.db.delete("User", {"name": target_email})
+		frappe.db.delete("User", {"name": hr_email})
+		frappe.db.commit()
+
 	def test_requires_hr_role(self):
 		from hrms.onboarding import onboard_employee
 
