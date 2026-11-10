@@ -180,7 +180,15 @@ def get_job_stages(job: str):
 	return frappe.get_all(
 		"Job Pipeline Stage",
 		filters={"parent": job, "parenttype": "Job Opening"},
-		fields=["stage_name", "stage_type", "maps_to_status", "visible_to_guests", "required_fields", "idx"],
+		fields=[
+			"stage_name",
+			"stage_type",
+			"maps_to_status",
+			"visible_to_guests",
+			"required_fields",
+			"auto_email_template",
+			"idx",
+		],
 		order_by="idx asc",
 	)
 
@@ -281,6 +289,46 @@ def log_pending_stage_change(doc, method=None):
 	if change:
 		from_stage, to_stage, source = change
 		log_stage_change(doc.name, from_stage, to_stage, source=source)
+		send_stage_email(doc, to_stage)
+
+
+def send_stage_email(doc, stage_name: str) -> bool:
+	"""Email the candidate when they enter a stage that has an email template.
+
+	A failure here is logged and never stops the stage move.
+	"""
+	if doc.flags.get("ats_skip_email") or not doc.get("email_id"):
+		return False
+	template_name = frappe.db.get_value(
+		"Job Pipeline Stage",
+		{"parent": doc.job_title, "parenttype": "Job Opening", "stage_name": stage_name},
+		"auto_email_template",
+	)
+	if not template_name:
+		return False
+
+	try:
+		template = frappe.get_doc("Email Template", template_name)
+		context = {
+			**doc.as_dict(),
+			"candidate_name": doc.applicant_name,
+			"job_name": frappe.db.get_value("Job Opening", doc.job_title, "job_title"),
+			"stage_name": stage_name,
+		}
+		email = template.get_formatted_email(context)
+		frappe.sendmail(
+			recipients=[doc.email_id],
+			sender=frappe.db.get_single_value("HR Settings", "hiring_sender_email") or None,
+			subject=email["subject"],
+			message=email["message"],
+			reference_doctype=doc.doctype,
+			reference_name=doc.name,
+			delayed=True,
+		)
+		return True
+	except Exception:
+		frappe.log_error(title=f"ATS stage email failed ({doc.name}, {stage_name})")
+		return False
 
 
 def validate_drop(doc, method=None):
