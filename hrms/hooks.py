@@ -343,7 +343,10 @@ doc_events = {
 			"hrms.ats.pipeline.setup_job_pipeline",
 			"hrms.ats.pipeline.guard_stage_changes",
 		],
-		"on_update": "hrms.ats.pipeline.apply_stage_renames",
+		"on_update": [
+			"hrms.ats.pipeline.apply_stage_renames",
+			"hrms.ats.board.sync_job_board_on_save",
+		],
 	},
 	# ATS: stage history is removed together with its applicant
 	"Job Applicant": {

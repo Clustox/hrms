@@ -13,6 +13,18 @@ frappe.ui.form.on("Job Opening", {
 	},
 	refresh: function (frm) {
 		frm.trigger("add_status_toggle_button");
+		frm.trigger("add_pipeline_board_button");
+	},
+	add_pipeline_board_button: function (frm) {
+		// ATS: open the Kanban board of this job's candidates
+		if (frm.is_new()) return;
+
+		frm.add_custom_button(__("Pipeline Board"), () => {
+			frappe.xcall("hrms.ats.board.get_job_board", { job: frm.doc.name }).then((board) => {
+				frappe.route_options = { job_title: frm.doc.name };
+				frappe.set_route("List", "Job Applicant", "Kanban", board);
+			});
+		});
 	},
 	add_status_toggle_button: function (frm) {
 		if (frm.is_new()) return;
