@@ -249,6 +249,7 @@ DEFAULT_DROP_REASONS = [
 	"Position filled",
 	"Failed technical assessment",
 	"Duplicate application",
+	"Rejected before pipeline stages existed",
 ]
 
 
