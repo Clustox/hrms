@@ -109,5 +109,4 @@ Production customisations not seen; card time-in-stage; board columns edited dir
 5. Dropped vs rejected definition.
 6. Email replies: ATS threads only or whole inbox.
 7. Google: Internal Workspace app and public HTTPS address.
-8. Migration source and bulk resume access.
-9. Legacy Hold applicants and Staffing Plan rule for ATS jobs.
+8. Legacy Hold applicants and Staffing Plan rule for ATS jobs.
