@@ -451,3 +451,56 @@ def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
 	doc.save()
 	return target.stage_name
 
+
+
+def guard_stage_changes(doc, method=None):
+	"""Job Opening validate hook: a stage that still holds candidates cannot be deleted, and
+	renamed stages are remembered so their candidates can follow (see apply_stage_renames)."""
+	before = doc.get_doc_before_save()
+	if not before:
+		return
+
+	current = {row.name: row.stage_name for row in doc.get("pipeline_stages") or []}
+	for old in before.get("pipeline_stages") or []:
+		if old.name not in current:
+			holding = frappe.db.count("Job Applicant", {"job_title": doc.name, "pipeline_stage": old.stage_name})
+			if holding:
+				frappe.throw(
+					_("Stage {0} still has {1} candidate(s). Move them to another stage before deleting it.").format(
+						frappe.bold(old.stage_name), holding
+					),
+					title=_("Stage Not Empty"),
+				)
+
+	doc.flags.ats_stage_renames = [
+		(old.stage_name, current[old.name])
+		for old in before.get("pipeline_stages") or []
+		if old.name in current and current[old.name] != old.stage_name
+	]
+
+
+def apply_stage_renames(doc, method=None):
+	"""Job Opening on_update hook: candidates keep their place when a stage is renamed.
+
+	Done in two steps through temporary names so swapping two names does not mix people up."""
+	renames = doc.flags.pop("ats_stage_renames", None)
+	if not renames:
+		return
+
+	for field in ("pipeline_stage", "dropped_at_stage"):
+		for index, (old_name, _new) in enumerate(renames):
+			frappe.db.set_value(
+				"Job Applicant",
+				{"job_title": doc.name, field: old_name},
+				field,
+				f"@@rename-{index}@@",
+				update_modified=False,
+			)
+		for index, (_old, new_name) in enumerate(renames):
+			frappe.db.set_value(
+				"Job Applicant",
+				{"job_title": doc.name, field: f"@@rename-{index}@@"},
+				field,
+				new_name,
+				update_modified=False,
+			)

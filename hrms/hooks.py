@@ -339,7 +339,11 @@ doc_events = {
 	"Job Opening": {
 		"after_insert": "hrms.telemetry.on_milestone_insert",
 		# ATS: give every job its pipeline stages (copied from a template)
-		"validate": "hrms.ats.pipeline.setup_job_pipeline",
+		"validate": [
+			"hrms.ats.pipeline.setup_job_pipeline",
+			"hrms.ats.pipeline.guard_stage_changes",
+		],
+		"on_update": "hrms.ats.pipeline.apply_stage_renames",
 	},
 	# ATS: stage history is removed together with its applicant
 	"Job Applicant": {
