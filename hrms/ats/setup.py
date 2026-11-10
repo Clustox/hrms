@@ -78,6 +78,27 @@ def job_opening_custom_fields() -> dict:
 				"insert_after": "job_owner",
 			},
 			{
+				"fieldname": "pipeline_section",
+				"fieldtype": "Section Break",
+				"label": _("Hiring Pipeline"),
+				"insert_after": "job_team",
+			},
+			{
+				"fieldname": "pipeline_template",
+				"fieldtype": "Link",
+				"label": _("Pipeline Template"),
+				"options": "ATS Pipeline Template",
+				"description": _("Stages are copied from this template when the job is created."),
+				"insert_after": "pipeline_section",
+			},
+			{
+				"fieldname": "pipeline_stages",
+				"fieldtype": "Table",
+				"label": _("Pipeline Stages"),
+				"options": "Job Pipeline Stage",
+				"insert_after": "pipeline_template",
+			},
+			{
 				"fieldname": "salary_negotiable",
 				"fieldtype": "Check",
 				"label": _("Salary Negotiable"),

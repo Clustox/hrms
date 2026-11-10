@@ -71,3 +71,38 @@ def default_stage_rows() -> list[dict]:
 		}
 		for name, stage_type, status, visible in DEFAULT_STAGES
 	]
+
+
+STAGE_COPY_FIELDS = (
+	"stage_name",
+	"stage_type",
+	"maps_to_status",
+	"visible_to_guests",
+	"color",
+	"auto_email_template",
+	"require_reason",
+)
+
+
+def copy_template_stages(template_name: str) -> list[dict]:
+	"""Stage rows of a template, as plain dicts that can be appended to a job."""
+	template = frappe.get_doc("ATS Pipeline Template", template_name)
+	return [{field: row.get(field) for field in STAGE_COPY_FIELDS} for row in template.stages]
+
+
+def setup_job_pipeline(doc, method=None):
+	"""Job Opening validate hook.
+
+	A job with no stages gets a copy of its pipeline template (or the default template).
+	The copy is independent: editing the template later never changes a live job.
+	A job that already has stages keeps them and they are validated.
+	"""
+	if not doc.get("pipeline_stages"):
+		template = doc.get("pipeline_template") or DEFAULT_TEMPLATE_NAME
+		if not frappe.db.exists("ATS Pipeline Template", template):
+			return  # nothing to copy (e.g. before the default template is seeded)
+		for row in copy_template_stages(template):
+			doc.append("pipeline_stages", row)
+
+	if doc.get("pipeline_stages"):
+		validate_stages(doc.pipeline_stages)

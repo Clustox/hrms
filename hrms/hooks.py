@@ -334,7 +334,11 @@ doc_events = {
 	"Shift Type": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Leave Type": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Salary Structure": {"after_insert": "hrms.telemetry.on_milestone_insert"},
-	"Job Opening": {"after_insert": "hrms.telemetry.on_milestone_insert"},
+	"Job Opening": {
+		"after_insert": "hrms.telemetry.on_milestone_insert",
+		# ATS: give every job its pipeline stages (copied from a template)
+		"validate": "hrms.ats.pipeline.setup_job_pipeline",
+	},
 	"Appraisal Cycle": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Employee Onboarding": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Salary Slip": {"on_submit": "hrms.telemetry.on_milestone_submit"},
