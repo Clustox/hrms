@@ -14,7 +14,7 @@ class TestChangeHistory(IntegrationTestCase):
 			self.assertEqual(frappe.get_meta(doctype).track_changes, 1, doctype)
 
 	def test_enabling_twice_keeps_a_single_setting(self):
-		enable_change_history()
+		enable_change_history(commit=False)
 		count = frappe.db.count(
 			"Property Setter", {"doc_type": "Job Opening", "property": "track_changes", "doctype_or_field": "DocType"}
 		)

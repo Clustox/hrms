@@ -211,11 +211,12 @@ def get_ats_custom_fields() -> dict:
 	return fields
 
 
-def apply_custom_fields():
+def apply_custom_fields(commit: bool = True):
 	"""after_migrate hook: create/update every ATS custom field."""
 	create_custom_fields(get_ats_custom_fields(), ignore_validate=True)
 	ensure_indexes()
-	frappe.db.commit()  # keep our changes even if a later after_migrate hook fails
+	if commit:
+		frappe.db.commit()  # keep our changes even if a later after_migrate hook fails
 	frappe.clear_cache()
 
 
@@ -224,7 +225,7 @@ def ensure_indexes():
 	frappe.db.add_index("Job Applicant", ["job_title", "pipeline_stage", "is_dropped"], "ats_job_stage_dropped")
 
 
-def seed_defaults():
+def seed_defaults(commit: bool = True):
 	"""after_migrate hook: create the default pipeline template if it is missing."""
 	from hrms.ats.pipeline import DEFAULT_TEMPLATE_NAME, default_stage_rows
 
@@ -240,7 +241,8 @@ def seed_defaults():
 		}
 	)
 	template.insert(ignore_permissions=True)
-	frappe.db.commit()
+	if commit:
+		frappe.db.commit()
 
 
 DEFAULT_DROP_REASONS = [
@@ -256,18 +258,19 @@ DEFAULT_DROP_REASONS = [
 ]
 
 
-def seed_drop_reasons():
+def seed_drop_reasons(commit: bool = True):
 	"""after_migrate hook: create the standard drop reasons that are missing."""
 	for reason in DEFAULT_DROP_REASONS:
 		if not frappe.db.exists("Drop Reason", reason):
 			frappe.get_doc({"doctype": "Drop Reason", "reason": reason}).insert(ignore_permissions=True)
-	frappe.db.commit()
+	if commit:
+		frappe.db.commit()
 
 
 CHANGE_HISTORY_DOCTYPES = ("Job Opening", "Job Applicant", "Job Offer")
 
 
-def enable_change_history():
+def enable_change_history(commit: bool = True):
 	"""after_migrate hook: keep a version history for recruitment records (off by default).
 
 	Done with property setters, so the standard doctypes are not edited.
@@ -283,5 +286,6 @@ def enable_change_history():
 			},
 			is_system_generated=False,
 		)
-	frappe.db.commit()
+	if commit:
+		frappe.db.commit()
 	frappe.clear_cache()

@@ -24,10 +24,11 @@ def backfill_pipeline() -> dict:
 	from hrms.ats.setup import apply_custom_fields, enable_change_history, seed_defaults, seed_drop_reasons
 
 	# migrate runs patches before after_migrate hooks, so make sure the schema and defaults exist
-	apply_custom_fields()
-	seed_defaults()
-	seed_drop_reasons()
-	enable_change_history()
+	# no commits here: the caller (patch or test) decides, so a test never leaks data
+	apply_custom_fields(commit=False)
+	seed_defaults(commit=False)
+	seed_drop_reasons(commit=False)
+	enable_change_history(commit=False)
 
 	return {
 		"jobs": backfill_job_stages(),
