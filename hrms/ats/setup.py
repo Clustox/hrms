@@ -139,3 +139,21 @@ def seed_defaults():
 		}
 	)
 	template.insert(ignore_permissions=True)
+
+
+DEFAULT_DROP_REASONS = [
+	"Not a fit for the role",
+	"Salary expectation too high",
+	"Candidate withdrew",
+	"No response from candidate",
+	"Position filled",
+	"Failed technical assessment",
+	"Duplicate application",
+]
+
+
+def seed_drop_reasons():
+	"""after_migrate hook: create the standard drop reasons that are missing."""
+	for reason in DEFAULT_DROP_REASONS:
+		if not frappe.db.exists("Drop Reason", reason):
+			frappe.get_doc({"doctype": "Drop Reason", "reason": reason}).insert(ignore_permissions=True)
