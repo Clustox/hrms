@@ -113,6 +113,16 @@ def job_applicant_custom_fields() -> dict:
 	return {
 		"Job Applicant": [
 			{
+				"fieldname": "candidate",
+				"fieldtype": "Link",
+				"label": _("Candidate"),
+				"options": "Candidate",
+				"read_only": 1,
+				"no_copy": 1,
+				"search_index": 1,
+				"insert_after": "email_id",
+			},
+			{
 				"fieldname": "pipeline_section",
 				"fieldtype": "Section Break",
 				"label": _("Pipeline"),
