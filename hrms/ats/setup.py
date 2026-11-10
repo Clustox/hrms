@@ -24,12 +24,14 @@ def department_custom_fields() -> dict:
 				"fieldtype": "Data",
 				"label": _("Industry"),
 				"insert_after": "ats_section",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "department_location",
 				"fieldtype": "Data",
 				"label": _("Location"),
 				"insert_after": "industry",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "ats_column_break",
@@ -42,6 +44,7 @@ def department_custom_fields() -> dict:
 				"label": _("Department Owner"),
 				"options": "User",
 				"insert_after": "ats_column_break",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "department_team",
@@ -69,6 +72,7 @@ def job_opening_custom_fields() -> dict:
 				"label": _("Job Owner"),
 				"options": "User",
 				"insert_after": "ats_section",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "job_team",
@@ -111,6 +115,7 @@ def job_opening_custom_fields() -> dict:
 				"read_only": 1,
 				"no_copy": 1,
 				"insert_after": "counters_column_break",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "hired_count",
@@ -324,6 +329,33 @@ def enable_change_history(commit: bool = True):
 			},
 			is_system_generated=False,
 		)
+	if commit:
+		frappe.db.commit()
+	frappe.clear_cache()
+
+
+# Standard Job Opening fields the ATS Jobs list also shows (salary range and location)
+LIST_COLUMN_FIELDS = {"Job Opening": ("location", "lower_range", "upper_range")}
+
+
+def set_list_columns(commit: bool = True):
+	"""after_migrate hook: show location and salary range as columns of the Job Opening list.
+
+	A property setter, so the standard doctype is not edited. The Department and the other
+	Job Opening columns come from the custom field definitions above."""
+	for doctype, fieldnames in LIST_COLUMN_FIELDS.items():
+		for fieldname in fieldnames:
+			frappe.make_property_setter(
+				{
+					"doctype": doctype,
+					"doctype_or_field": "DocField",
+					"fieldname": fieldname,
+					"property": "in_list_view",
+					"value": "1",
+					"property_type": "Check",
+				},
+				is_system_generated=False,
+			)
 	if commit:
 		frappe.db.commit()
 	frappe.clear_cache()

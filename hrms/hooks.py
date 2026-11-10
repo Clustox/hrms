@@ -143,6 +143,7 @@ after_migrate = [
 	"hrms.ats.setup.seed_defaults",
 	"hrms.ats.setup.seed_drop_reasons",
 	"hrms.ats.setup.enable_change_history",
+	"hrms.ats.setup.set_list_columns",
 	"hrms.setup.update_select_perm_after_install",
 	"hrms.cx360.setup.place_cx360_workspace",
 ]
