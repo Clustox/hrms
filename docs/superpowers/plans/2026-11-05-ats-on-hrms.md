@@ -107,8 +107,7 @@ Production customisations not seen; card time-in-stage; board columns edited dir
 3. Hired counter with an empty Offer Accepted column.
 4. Guest visibility: current stage or ever reached.
 5. Dropped vs rejected definition.
-6. Production boards, fields or screens not seen here.
-7. Email replies: ATS threads only or whole inbox.
-8. Google: Internal Workspace app and public HTTPS address.
-9. Migration source and bulk resume access.
-10. Legacy Hold applicants and Staffing Plan rule for ATS jobs.
+6. Email replies: ATS threads only or whole inbox.
+7. Google: Internal Workspace app and public HTTPS address.
+8. Migration source and bulk resume access.
+9. Legacy Hold applicants and Staffing Plan rule for ATS jobs.
