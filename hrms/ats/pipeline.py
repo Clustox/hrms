@@ -412,3 +412,39 @@ def set_applicant_status(job_applicant: str, status: str, source: str = "System"
 	doc.flags.ats_skip_required_fields = True
 	doc.save(ignore_permissions=True)
 	return doc
+
+
+INTERVIEW_REJECT_REASON = "Failed technical assessment"
+
+
+@frappe.whitelist()
+def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
+	"""Move a candidate to the next active stage of their job's pipeline."""
+	doc = frappe.get_doc("Job Applicant", job_applicant)
+	doc.check_permission("write")
+	if doc.is_dropped:
+		frappe.throw(_("Restore {0} before moving them.").format(doc.applicant_name or doc.name))
+
+	stages = get_job_stages(doc.job_title) if doc.job_title else []
+	current = next((s for s in stages if s.stage_name == doc.pipeline_stage), None)
+	if not current:
+		frappe.throw(_("{0} is not in a pipeline stage.").format(doc.applicant_name or doc.name))
+
+	target = next((s for s in stages if s.idx > current.idx and s.stage_type == "Active"), None)
+	if not target:
+		frappe.throw(
+			_("{0} is already in the last active stage. Use the Job Offer to finish the hire.").format(
+				doc.applicant_name or doc.name
+			)
+		)
+
+	doc.pipeline_stage = target.stage_name
+	doc.flags.ats_source = source
+	doc.save()
+	return target.stage_name
+
+
+@frappe.whitelist()
+def drop_after_interview(job_applicant: str) -> str:
+	"""Drop a candidate whose interview was marked Rejected."""
+	return drop_applicant(job_applicant, INTERVIEW_REJECT_REASON)
