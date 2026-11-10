@@ -468,6 +468,7 @@ global_search_doctypes = {
 # along with any modifications made in other Frappe apps
 override_doctype_dashboards = {
 	"Employee": "hrms.overrides.dashboard_overrides.get_dashboard_for_employee",
+	"Department": "hrms.overrides.dashboard_overrides.get_dashboard_for_department",
 	"Holiday List": "hrms.overrides.dashboard_overrides.get_dashboard_for_holiday_list",
 	"Task": "hrms.overrides.dashboard_overrides.get_dashboard_for_project",
 	"Project": "hrms.overrides.dashboard_overrides.get_dashboard_for_project",

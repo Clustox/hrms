@@ -115,3 +115,10 @@ def get_dashboard_for_bank_account(data):
 			break
 
 	return data
+
+
+def get_dashboard_for_department(data):
+	# ATS: the jobs of a department, with their count, on the Department page
+	data["fieldname"] = data.get("fieldname") or "department"
+	data["transactions"].append({"label": _("Recruitment"), "items": ["Job Opening"]})
+	return data
