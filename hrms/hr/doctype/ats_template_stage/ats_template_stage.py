@@ -19,7 +19,7 @@ class ATSTemplateStage(Document):
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data
-		require_reason: DF.Check
+		required_fields: DF.SmallText | None
 		stage_name: DF.Data
 		stage_type: DF.Literal["Active", "Hired", "Rejected"]
 		visible_to_guests: DF.Check

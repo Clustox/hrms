@@ -51,6 +51,8 @@ def validate_stages(stages) -> None:
 		if row.stage_type not in STAGE_TYPES:
 			row.stage_type = "Active"
 
+		validate_required_fields(row)
+
 		if not row.maps_to_status:
 			if row.stage_type in DEFAULT_STATUS_BY_TYPE:
 				row.maps_to_status = DEFAULT_STATUS_BY_TYPE[row.stage_type]
@@ -59,6 +61,38 @@ def validate_stages(stages) -> None:
 
 	if stages[0].stage_type != "Active":
 		frappe.throw(_("The first stage must be an Active stage, because new candidates start there."))
+
+
+def parse_required_fields(text: str | None) -> list[str]:
+	"""Field names from a comma or new-line separated list."""
+	return [f.strip() for f in (text or "").replace(chr(10), ",").split(",") if f.strip()]
+
+
+def validate_required_fields(row) -> None:
+	"""Every named field must be a real Job Applicant field."""
+	meta = frappe.get_meta("Job Applicant")
+	for fieldname in parse_required_fields(row.get("required_fields")):
+		if not meta.get_field(fieldname):
+			frappe.throw(
+				_("Stage {0}: {1} is not a Job Applicant field.").format(frappe.bold(row.stage_name), frappe.bold(fieldname))
+			)
+
+
+def check_required_fields(doc, stage) -> None:
+	"""Block a move into a stage while any of its required fields is empty."""
+	meta = frappe.get_meta("Job Applicant")
+	missing = [
+		_(meta.get_field(f).label or f)
+		for f in parse_required_fields(stage.get("required_fields"))
+		if meta.get_field(f) and not doc.get(f)
+	]
+	if missing:
+		frappe.throw(
+			_("Fill in {0} before moving {1} to {2}.").format(
+				frappe.bold(", ".join(missing)), doc.applicant_name or doc.name, frappe.bold(stage.stage_name)
+			),
+			title=_("Missing Information"),
+		)
 
 
 def default_stage_rows() -> list[dict]:
@@ -80,7 +114,7 @@ STAGE_COPY_FIELDS = (
 	"visible_to_guests",
 	"color",
 	"auto_email_template",
-	"require_reason",
+	"required_fields",
 )
 
 
@@ -146,7 +180,7 @@ def get_job_stages(job: str):
 	return frappe.get_all(
 		"Job Pipeline Stage",
 		filters={"parent": job, "parenttype": "Job Opening"},
-		fields=["stage_name", "stage_type", "maps_to_status", "visible_to_guests", "idx"],
+		fields=["stage_name", "stage_type", "maps_to_status", "visible_to_guests", "required_fields", "idx"],
 		order_by="idx asc",
 	)
 
@@ -201,6 +235,7 @@ def sync_stage_and_status(doc):
 	if doc.pipeline_stage != old_stage:
 		if doc.pipeline_stage not in by_name:
 			frappe.throw(_("Stage {0} is not part of this job's pipeline.").format(frappe.bold(doc.pipeline_stage)))
+		check_required_fields(doc, by_name[doc.pipeline_stage])
 		doc.stage_entered_on = now
 		doc.status = by_name[doc.pipeline_stage].maps_to_status or doc.status
 		doc.flags.ats_stage_change = (old_stage, doc.pipeline_stage, _source(doc))
@@ -216,7 +251,7 @@ def reconcile_status(doc, stages, by_name):
 		declined_offer = doc.flags.get("ats_source") == "Offer"
 		last_rejected = next((s for s in reversed(stages) if s.stage_type == "Rejected"), None)
 		if declined_offer and last_rejected:
-			move(doc, last_rejected.stage_name, "Offer")  # an offer turned down ends in the last rejected stage
+			move(doc, last_rejected.stage_name, "Offer", stages)  # an offer turned down ends in the last rejected stage
 		elif not doc.is_dropped:
 			doc.is_dropped = 1
 			doc.drop_reason = doc.drop_reason or DEFAULT_REJECT_REASON
@@ -227,10 +262,14 @@ def reconcile_status(doc, stages, by_name):
 		return  # the current stage already stands for this status
 	target = stage_for_status(stages, doc.status)
 	if target.stage_name != doc.pipeline_stage:
-		move(doc, target.stage_name, doc.flags.get("ats_source") or "System")
+		move(doc, target.stage_name, doc.flags.get("ats_source") or "System", stages)
 
 
-def move(doc, to_stage: str, source: str):
+def move(doc, to_stage: str, source: str, stages=None):
+	if stages:
+		target = next((s for s in stages if s.stage_name == to_stage), None)
+		if target:
+			check_required_fields(doc, target)
 	doc.flags.ats_stage_change = (doc.pipeline_stage, to_stage, source)
 	doc.pipeline_stage = to_stage
 	doc.stage_entered_on = frappe.utils.now_datetime()
