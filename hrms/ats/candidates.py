@@ -55,3 +55,13 @@ def find_duplicate(email: str | None, phone: str | None, exclude: str | None = N
 		if name:
 			return name
 	return None
+
+
+def sync_applicant_card_fields(doc, method=None):
+	"""Candidate on_update: the current title and employer shown on the board cards follow the
+	candidate. Applicants copy them when they are saved; this covers later edits."""
+	frappe.db.sql(
+		"""update `tabJob Applicant` set candidate_title = %s, candidate_employer = %s
+		where candidate = %s""",
+		(doc.current_title, doc.current_employer, doc.name),
+	)

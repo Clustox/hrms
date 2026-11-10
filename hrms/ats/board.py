@@ -12,7 +12,16 @@ import frappe
 
 BOARD_NAME = "Hiring Pipeline"
 STAGE_FIELD = "pipeline_stage"
-CARD_FIELDS = ["designation", "applicant_rating"]
+# A card shows the candidate's current title and employer, the rating, when they applied
+# (Created On) and when they entered the current stage.
+CARD_FIELDS = [
+	"candidate_title",
+	"candidate_employer",
+	"designation",
+	"applicant_rating",
+	"creation",
+	"stage_entered_on",
+]
 HIDE_DROPPED_FILTER = [["Job Applicant", "is_dropped", "=", 0]]
 
 
@@ -114,3 +123,17 @@ def sync_job_board_on_save(doc, method=None):
 	"""Job Opening on_update hook: keep an existing own board in step with the job's stages."""
 	if frappe.db.exists("Kanban Board", job_board_name(doc.name)):
 		sync_job_board(doc.name)
+
+
+def refresh_board_cards() -> int:
+	"""Give every pipeline board (the shared one and the per-job ones) the current card fields.
+	Returns how many boards changed. Safe to run again."""
+	wanted = json.dumps(CARD_FIELDS)
+	changed = 0
+	for name in frappe.get_all(
+		"Kanban Board", filters={"reference_doctype": "Job Applicant", "field_name": STAGE_FIELD}, pluck="name"
+	):
+		if frappe.db.get_value("Kanban Board", name, "fields") != wanted:
+			frappe.db.set_value("Kanban Board", name, "fields", wanted)
+			changed += 1
+	return changed
