@@ -196,6 +196,7 @@ def job_applicant_custom_fields() -> dict:
 				"search_index": 1,
 				"in_standard_filter": 1,
 				"insert_after": "pipeline_section",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "stage_entered_on",
