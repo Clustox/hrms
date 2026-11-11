@@ -186,8 +186,10 @@ function add_candidate_avatars_to_kanban_cards() {
 	style.textContent =
 		".ats-card-avatar{flex:0 0 auto;display:inline-flex}.ats-card-avatar .avatar{margin:0}" +
 		".ats-applicant-board .kanban-col-dot{display:none}" +
-		".ats-applicant-board .kanban-card-doc{display:none}" +
-		".ats-card-info{margin-top:2px;padding-left:46px;color:var(--text-muted);font-size:12px;line-height:1.35}" +
+		".ats-applicant-board .kanban-card-doc{display:none !important}" +
+		".ats-applicant-board .kanban-card-header{height:auto !important;overflow:visible !important;align-items:flex-start}" +
+		".ats-card-text{flex:1 1 auto;min-width:0}" +
+		".ats-card-info{margin-top:1px;padding-left:0;color:var(--text-muted);font-size:12px;line-height:1.35}" +
 		".ats-card-info .ats-info-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
 		".ats-card-info .ats-info-times{display:flex;gap:12px;margin-top:6px;align-items:center}" +
 		".ats-card-info .ats-info-times span{display:inline-flex;align-items:center;gap:3px}" +
@@ -326,10 +328,19 @@ function fill_card_info() {
 				if (info.innerHTML !== html) info.innerHTML = html;  // refreshed: a moved card starts counting again
 				return;
 			}
+			// the name and what goes under it share one column, so the text sits right below the name
+			let column = header && header.querySelector(".ats-card-text");
+			if (!column && header) {
+				const link = header.querySelector(".kanban-card-title-link");
+				column = document.createElement("div");
+				column.className = "ats-card-text";
+				header.insertBefore(column, link);
+				if (link) column.appendChild(link);
+			}
 			info = document.createElement("div");
 			info.className = "ats-card-info";
 			info.innerHTML = html;
-			area.insertBefore(info, card.querySelector(".kanban-card-doc"));
+			(column || area).appendChild(info);
 		});
 	};
 
