@@ -201,7 +201,7 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-menu{position:absolute;right:0;top:20px;z-index:20;background:var(--card-bg,#fff);border:1px solid var(--border-color);" +
 		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
 		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
-		".ats-job-header{display:flex;flex-direction:column;justify-content:center;min-width:0;line-height:1.25}" +
+		".ats-job-header{display:flex;flex-direction:column;justify-content:center;min-width:0;line-height:1.3;padding:4px 0 4px 4px}" +
 		".ats-job-title{font-size:16px;font-weight:600;color:var(--text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
 		".ats-job-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);white-space:nowrap}" +
 		".ats-job-meta span{display:inline-flex;align-items:center;gap:4px}" +
@@ -310,10 +310,10 @@ function fill_job_header() {
 
 	area.dataset.atsJob = job || "";
 	area.querySelectorAll(".ats-job-header").forEach((el) => el.remove());
-	const breadcrumbs = area.querySelector(".navbar-breadcrumbs");
-	const pill = area.querySelector(".page-indicator-pill");
-	if (breadcrumbs) breadcrumbs.style.display = job ? "none" : "";
-	if (pill) pill.style.display = job ? "none" : "";
+	// on a job's board the header replaces the usual title (breadcrumb, board name, status pill)
+	Array.from(area.children).forEach((child) => {
+		if (!child.classList.contains("ats-job-header")) child.style.display = job ? "none" : "";
+	});
 	if (!job) return;
 
 	load_job_details(job).then((d) => {
