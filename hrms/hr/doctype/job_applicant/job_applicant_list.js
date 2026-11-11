@@ -201,6 +201,10 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-menu{position:absolute;right:0;top:20px;z-index:20;background:var(--card-bg,#fff);border:1px solid var(--border-color);" +
 		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
 		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
+		".ats-dropped-footer{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 6px;cursor:pointer;" +
+		"font-size:12px;color:#1a6fd6;border-top:1px solid var(--border-color);flex:0 0 auto}" +
+		".ats-dropped-footer:hover{text-decoration:underline}.ats-dropped-footer.ats-dropped-none{color:var(--text-muted)}" +
+		".ats-dropped-footer svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}" +
 		".ats-job-bar{display:flex;flex-direction:column;gap:2px;padding:8px var(--padding-lg,24px);background:var(--bg-color,#fff);border-bottom:1px solid var(--border-color);line-height:1.3}" +
 		".ats-job-title{font-size:16px;font-weight:600;color:var(--text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
 		".ats-job-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);white-space:nowrap}" +
@@ -254,6 +258,7 @@ function add_candidate_avatars_to_kanban_cards() {
 
 		fill_card_info();
 		fill_job_header();
+		fill_dropped_footers();
 	};
 
 	let scheduled = false;
@@ -489,6 +494,87 @@ document.addEventListener(
 		}
 	},
 	true, // capture phase, so the card does not also open
+);
+
+// ---- "N Dropped Candidates" under each column: the people dropped while they were in that stage
+
+const ICON_DROPPED = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>';
+const dropped = { key: "", at: 0, loading: false, counts: {} };
+const DROPPED_CACHE_SECONDS = 30;
+
+// the filters the board is looking at (the page's, and the board's own), without its "not dropped" rule
+function board_filters(list) {
+	const page = list.filter_area ? list.filter_area.get() || [] : [];
+	const own = (list.board && list.board.filters_array) || [];
+	return [...page, ...own].filter((f) => f[1] !== "is_dropped");
+}
+
+function fill_dropped_footers() {
+	const list = window.cur_list;
+	if (!list || list.doctype !== "Job Applicant" || !list.board) return;
+	const filters = board_filters(list);
+	const key = JSON.stringify(filters);
+
+	const render = () => {
+		document.querySelectorAll(".kanban-column").forEach((column) => {
+			const stage = column.dataset.columnValue;
+			if (!stage) return;
+			let footer = column.querySelector(".ats-dropped-footer");
+			if (!footer) {
+				footer = document.createElement("div");
+				footer.className = "ats-dropped-footer";
+				footer.dataset.stage = stage;
+				column.appendChild(footer);
+			}
+			const n = dropped.counts[stage] || 0;
+			const label = n === 1 ? __("{0} Dropped Candidate", [n]) : __("{0} Dropped Candidates", [n]);
+			const html = `${ICON_DROPPED}<span>${frappe.utils.escape_html(label)}</span>`;
+			if (footer.innerHTML !== html) footer.innerHTML = html;
+			footer.classList.toggle("ats-dropped-none", !n);
+		});
+	};
+
+	const stale = Date.now() - dropped.at > DROPPED_CACHE_SECONDS * 1000;
+	if ((key !== dropped.key || stale) && !dropped.loading) {
+		dropped.loading = true;
+		frappe
+			.xcall("frappe.client.get_list", {
+				doctype: "Job Applicant",
+				filters: [...filters, ["Job Applicant", "is_dropped", "=", 1]],
+				fields: ["dropped_at_stage", { COUNT: "*", as: "n" }],
+				group_by: "dropped_at_stage",
+				limit_page_length: 0,
+			})
+			.then((rows) => {
+				dropped.counts = {};
+				rows.forEach((row) => (dropped.counts[row.dropped_at_stage] = row.n));
+			})
+			.catch(() => {})
+			.finally(() => {
+				dropped.key = key;
+				dropped.at = Date.now();
+				dropped.loading = false;
+				render();
+			});
+		return;
+	}
+	render();
+}
+
+document.addEventListener(
+	"click",
+	function (e) {
+		const footer = e.target.closest && e.target.closest(".ats-dropped-footer");
+		if (!footer || !window.cur_list) return;
+		e.preventDefault();
+		e.stopPropagation();
+		const options = { is_dropped: 1, dropped_at_stage: footer.dataset.stage };
+		const job = (board_filters(window.cur_list).find((f) => f[1] === "job_title" && f[2] === "=") || [])[3];
+		if (job) options.job_title = job;
+		frappe.route_options = options;
+		frappe.set_route("List", "Job Applicant", "List");
+	},
+	true,
 );
 
 // ---- column counts after a card is dropped in another column
