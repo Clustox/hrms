@@ -33,6 +33,7 @@ RECRUITER_PERMISSIONS = {
 	"Drop Reason": READ,
 	"ATS Pipeline Template": READ,
 	"Applicant Stage Log": READ,
+	"Job Guest Access": {"read": 1, "write": 1, "create": 1},  # limited to their own jobs by the document check
 	"Interview Type": READ,
 	"Email Template": READ,
 	"Skill": READ,

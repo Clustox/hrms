@@ -392,6 +392,8 @@ scheduler_events = {
 		"hrms.hr.doctype.shift_schedule_assignment.shift_schedule_assignment.process_auto_shift_creation",
 	],
 	"daily": [
+		# ATS: guests whose access expired lose their guest roles
+		"hrms.ats.guest_access.sync_expired_grants",
 		"hrms.controllers.employee_reminders.send_birthday_reminders",
 		"hrms.controllers.employee_reminders.send_work_anniversary_reminders",
 		# Clustox: personal birthday/anniversary greetings + probation reminders
