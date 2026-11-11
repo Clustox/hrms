@@ -201,7 +201,7 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-menu{position:absolute;right:0;top:20px;z-index:20;background:var(--card-bg,#fff);border:1px solid var(--border-color);" +
 		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
 		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
-		".ats-job-header{display:flex;flex-direction:column;justify-content:center;min-width:0;line-height:1.3;padding:4px 0 4px 4px}" +
+		".ats-job-bar{display:flex;flex-direction:column;gap:2px;padding:8px var(--padding-lg,24px);background:var(--bg-color,#fff);border-bottom:1px solid var(--border-color);line-height:1.3}" +
 		".ats-job-title{font-size:16px;font-weight:600;color:var(--text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
 		".ats-job-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);white-space:nowrap}" +
 		".ats-job-meta span{display:inline-flex;align-items:center;gap:4px}" +
@@ -302,33 +302,33 @@ function load_job_details(job) {
 
 function fill_job_header() {
 	const list = window.cur_list;
-	if (!list || list.doctype !== "Job Applicant" || !list.page || !list.page.$title_area) return;
-	const area = list.page.$title_area[0];
+	if (!list || list.doctype !== "Job Applicant" || !list.page || !list.page.wrapper) return;
+	const wrapper = list.page.wrapper[0];
+	const head = wrapper.querySelector(".page-head");
+	if (!head) return;
 	const job = filtered_job();
-	const shown = area.dataset.atsJob || "";
-	if ((job || "") === shown) return;
+	const existing = wrapper.querySelector(".ats-job-bar");
+	if ((job || "") === ((existing && existing.dataset.atsJob) || "")) return;
 
-	area.dataset.atsJob = job || "";
-	area.querySelectorAll(".ats-job-header").forEach((el) => el.remove());
-	// on a job's board the header replaces the usual title (breadcrumb, board name, status pill)
-	Array.from(area.children).forEach((child) => {
-		if (!child.classList.contains("ats-job-header")) child.style.display = job ? "none" : "";
-	});
+	if (existing) existing.remove();
 	if (!job) return;
 
+	// a row of its own under the page title (which stays as it is)
+	const bar = document.createElement("div");
+	bar.className = "ats-job-bar";
+	bar.dataset.atsJob = job;
+	head.insertAdjacentElement("afterend", bar);
+
 	load_job_details(job).then((d) => {
-		if (area.dataset.atsJob !== job) return; // the board changed while this was loading
-		const header = document.createElement("div");
-		header.className = "ats-job-header";
+		if (bar.dataset.atsJob !== job || !bar.isConnected) return; // the board changed while this was loading
 		const e = frappe.utils.escape_html;
-		header.innerHTML =
+		bar.innerHTML =
 			`<div class="ats-job-title" title="${e(d.title)}">${e(d.title)}</div>` +
 			`<div class="ats-job-meta">` +
 			(d.recruiter ? `<span>${ICON_USER}${e(d.recruiter)}</span>` : "") +
 			(d.department ? `<span class="ats-job-tag">${e(d.department)}</span>` : "") +
 			(d.location ? `<span>${ICON_PIN}${e(d.location)}</span>` : "") +
 			`</div>`;
-		area.appendChild(header);
 	});
 }
 
