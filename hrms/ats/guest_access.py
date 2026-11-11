@@ -168,3 +168,45 @@ def invite_guest(
 
 	grants = [grant_access(email, job, can_move_stages, can_view_salary, expires_on) for job in job_list]
 	return {"user": email, "created": created, "grants": grants}
+
+
+# ---- moving candidates
+
+
+def can_move_stages(user: str, job: str) -> bool:
+	"""A guest may move candidates of a job only when their grant says so."""
+	return any(g.can_move_stages for g in active_grants(user, job))
+
+
+@frappe.whitelist()
+def get_move_options(job_applicant: str) -> list[str]:
+	"""The stages a guest may move this candidate to, or [] when they have no right to move them."""
+	from hrms.ats.permissions import is_restricted_guest
+	from hrms.ats.pipeline import get_job_stages
+
+	doc = frappe.get_doc("Job Applicant", job_applicant)
+	doc.check_permission("read")
+	if not is_restricted_guest() or not can_move_stages(frappe.session.user, doc.job_title):
+		return []
+	return [s.stage_name for s in get_job_stages(doc.job_title) if s.stage_name != doc.pipeline_stage]
+
+
+@frappe.whitelist()
+def move_stage(job_applicant: str, stage: str) -> str:
+	"""Move a candidate to another stage of their job.
+
+	Staff need write access to the applicant. A guest needs a grant that allows moving, and can
+	only move candidates they can see. The move is recorded under the guest's own name."""
+	from hrms.ats.permissions import is_restricted_guest
+
+	doc = frappe.get_doc("Job Applicant", job_applicant)
+	if is_restricted_guest():
+		doc.check_permission("read")  # the candidate must be visible to them
+		if not can_move_stages(frappe.session.user, doc.job_title):
+			frappe.throw(_("You are not allowed to move candidates of this job."), frappe.PermissionError)
+	else:
+		doc.check_permission("write")
+
+	doc.pipeline_stage = stage
+	doc.save(ignore_permissions=True)  # a guest has no write role; the checks above decide
+	return doc.pipeline_stage
