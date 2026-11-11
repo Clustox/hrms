@@ -12,7 +12,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, now_datetime, nowdate, validate_email_address
 
-from hrms.ats.roles import GUEST, SALARY_VIEWER
+from hrms.ats.roles import GUEST, SALARY_VIEWER, STAFF_ROLES
 
 ADMIN_ROLES = ("System Manager", "HR Manager")
 
@@ -55,6 +55,36 @@ def sync_guest_roles(user: str) -> None:
 			doc.add_roles(role)
 		elif not wanted and role in have:
 			doc.remove_roles(role)
+
+	sync_guest_workspace(user)
+
+
+# the only parts of the Desk a guest gets: the recruitment screens
+ALLOWED_GUEST_MODULES = ("HR", "Recruitment")
+
+
+def guest_blocked_modules() -> set[str]:
+	return set(frappe.get_all("Module Def", pluck="name")) - set(ALLOWED_GUEST_MODULES)
+
+
+def sync_guest_workspace(user: str) -> None:
+	"""A guest-only user gets a menu of the recruitment screens and nothing else: every other module
+	is blocked for them. Staff, and users who keep other roles, are left exactly as they were; the
+	blocks are removed again only when they are the ones set here."""
+	doc = frappe.get_doc("User", user)
+	roles = {r.role for r in doc.roles}
+	blocked = {b.module for b in doc.block_modules}
+	ours = guest_blocked_modules()
+
+	if GUEST in roles and not (set(STAFF_ROLES) & roles):
+		if blocked != ours:
+			doc.set("block_modules", [{"module": m} for m in sorted(ours)])
+			doc.flags.ignore_permissions = True
+			doc.save()
+	elif blocked == ours and blocked:
+		doc.set("block_modules", [])
+		doc.flags.ignore_permissions = True
+		doc.save()
 
 
 def sync_expired_grants() -> None:
