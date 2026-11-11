@@ -15,15 +15,13 @@ class TestDropAndRestore(IntegrationTestCase):
 		self.name = new_applicant(self.job, "drop.restore@example.com").name
 		move_stage(self.name, "Technical Assessment")
 
-	def test_drop_keeps_the_stage_and_records_reason_and_history(self):
+	def test_drop_keeps_the_stage_and_records_the_reason(self):
 		drop_applicant(self.name, "Candidate withdrew")
 		doc = frappe.get_doc("Job Applicant", self.name)
 		self.assertEqual(doc.is_dropped, 1)
 		self.assertEqual(doc.pipeline_stage, "Technical Assessment")
 		self.assertEqual(doc.drop_reason, "Candidate withdrew")
 		self.assertEqual(doc.dropped_at_stage, "Technical Assessment")
-		last = frappe.get_all("Applicant Stage Log", filters={"job_applicant": self.name}, fields=["reason"], order_by="creation desc", limit=1)[0]
-		self.assertEqual(last.reason, "Dropped: Candidate withdrew")
 
 	def test_restore_returns_to_the_same_stage(self):
 		drop_applicant(self.name, "No response from candidate")
@@ -44,12 +42,13 @@ class TestDropAndRestore(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			drop_applicant(self.name, "Position filled")
 
-	def test_dropping_does_not_change_stage_time_or_stage_history_moves(self):
+	def test_dropping_is_not_a_stage_move(self):
 		before = frappe.db.get_value("Job Applicant", self.name, "stage_entered_on")
-		moves_before = len([h for h in history(self.name)])
+		moves_before = len(history(self.name))
 		drop_applicant(self.name, "Position filled")
+		restore_applicant(self.name)
 		self.assertEqual(frappe.db.get_value("Job Applicant", self.name, "stage_entered_on"), before)
-		self.assertEqual(len(history(self.name)), moves_before + 1)  # one audit row for the drop
+		self.assertEqual(len(history(self.name)), moves_before)  # the stage history only records moves
 
 	def test_user_without_write_permission_cannot_drop(self):
 		user = frappe.get_doc(

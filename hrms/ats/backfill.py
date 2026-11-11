@@ -101,7 +101,7 @@ def backfill_applicant_stages() -> int:
 				}
 			)
 		frappe.db.set_value("Job Applicant", applicant.name, values, update_modified=False)
-		log_stage_change(applicant.name, None, stage.stage_name, source="Import", reason="Backfilled from legacy status")
+		log_stage_change(applicant.name, None, stage.stage_name)
 		count += 1
 	return count
 

@@ -127,7 +127,7 @@ class Interview(Document):
 			primary_action={
 				"label": _("Move to Next Stage"),
 				"server_action": "hrms.ats.pipeline.advance_applicant",
-				"args": {"job_applicant": self.job_applicant, "source": "Interview"},
+				"args": {"job_applicant": self.job_applicant},
 			},
 		)
 		return True

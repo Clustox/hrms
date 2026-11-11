@@ -25,9 +25,7 @@ class ApplicantStageLog(Document):
 		job_opening: DF.Link | None
 		moved_by: DF.Link | None
 		moved_on: DF.Datetime | None
-		reason: DF.SmallText | None
 		to_stage: DF.Data | None
-		trigger_source: DF.Literal["Manual", "Board", "Interview", "Offer", "Bulk", "Import", "System"]
 	# end: auto-generated types
 
 	def before_insert(self):
