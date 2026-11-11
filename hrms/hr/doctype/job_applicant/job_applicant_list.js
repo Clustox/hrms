@@ -207,6 +207,11 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-dropped-footer:hover{text-decoration:underline}.ats-dropped-footer.ats-dropped-none{color:var(--text-muted)}" +
 		".ats-dropped-footer svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}" +
 		".ats-job-bar{display:flex;flex-direction:column;gap:2px;padding:8px var(--padding-lg,24px);background:var(--bg-color,#fff);border-bottom:1px solid var(--border-color);line-height:1.3}" +
+		".ats-job-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}" +
+		".ats-job-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 10px;line-height:1.4}" +
+		".ats-badge-green{background:#2eaa5a;color:#fff}.ats-badge-blue{background:#1a6fd6;color:#fff}.ats-badge-grey{background:#8d99a6;color:#fff}" +
+		".ats-badge-soft{background:var(--control-bg,#f0f0f0);color:var(--text-color);font-weight:500}.ats-badge-soft svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2}" +
+		".ats-job-picker{border:1px solid var(--border-color);border-radius:6px;padding:2px 8px;background:var(--control-bg,#fff);color:var(--text-color);max-width:320px}" +
 		".ats-job-title{font-size:16px;font-weight:600;color:var(--text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
 		".ats-job-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);white-space:nowrap}" +
 		".ats-job-meta span{display:inline-flex;align-items:center;gap:4px}" +
@@ -283,32 +288,54 @@ const job_details = {};
 const ICON_USER = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>';
 const ICON_PIN = '<svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>';
 
+// the job a board is about: the page's job filter, else the job in the board's own filters (a job's own board)
 function filtered_job() {
 	const list = window.cur_list;
-	if (!list || list.doctype !== "Job Applicant" || !list.filter_area) return null;
-	const filter = (list.filter_area.get() || []).find((f) => f[1] === "job_title" && f[2] === "=");
+	if (!list || list.doctype !== "Job Applicant" || !list.board) return null;
+	const filter = board_filters(list).find((f) => f[1] === "job_title" && f[2] === "=");
 	return filter ? filter[3] : null;
 }
 
 function load_job_details(job) {
 	if (job_details[job]) return Promise.resolve(job_details[job]);
-	return frappe.db
-		.get_value("Job Opening", job, ["job_title", "job_owner", "department", "location"])
-		.then(({ message }) => {
-			const details = { title: message.job_title || job, location: message.location || "", department: "", recruiter: "" };
-			const lookups = [];
-			if (message.job_owner) {
-				lookups.push(
-					frappe.db.get_value("User", message.job_owner, "full_name").then((r) => (details.recruiter = (r.message && r.message.full_name) || message.job_owner)),
-				);
-			}
-			if (message.department) {
-				lookups.push(
-					frappe.db.get_value("Department", message.department, "department_name").then((r) => (details.department = (r.message && r.message.department_name) || message.department)),
-				);
-			}
-			return Promise.all(lookups).then(() => (job_details[job] = details));
-		});
+	const fields = ["job_title", "job_owner", "department", "location", "status", "publish", "lower_range", "upper_range", "currency", "salary_negotiable"];
+	return frappe.db.get_value("Job Opening", job, fields).then(({ message }) => {
+		const m = message || {};
+		const details = {
+			title: m.job_title || job,
+			location: m.location || "",
+			status: m.status || "",
+			published: !!m.publish,
+			salary: "",
+			department: "",
+			recruiter: "",
+		};
+		const money = (value) => (value ? format_number(value, null, 0) : "");
+		if (m.salary_negotiable) details.salary = __("Negotiable");
+		else if (m.lower_range || m.upper_range) {
+			details.salary = [m.currency, [money(m.lower_range), money(m.upper_range)].filter(Boolean).join(" - ")].filter(Boolean).join(" ");
+		}
+		const lookups = [];
+		if (m.job_owner) {
+			lookups.push(
+				frappe.db.get_value("User", m.job_owner, "full_name").then((r) => (details.recruiter = (r.message && r.message.full_name) || m.job_owner)),
+			);
+		}
+		if (m.department) {
+			lookups.push(
+				frappe.db.get_value("Department", m.department, "department_name").then((r) => (details.department = (r.message && r.message.department_name) || m.department)),
+			);
+		}
+		return Promise.all(lookups).then(() => (job_details[job] = details));
+	});
+}
+
+// all-jobs board: a picker that opens a job's board (and with it, the job's header)
+function open_job_board(job) {
+	frappe.xcall("hrms.ats.board.get_job_board", { job }).then((board) => {
+		frappe.route_options = { job_title: job };
+		frappe.set_route("List", "Job Applicant", "Kanban", board);
+	});
 }
 
 function fill_job_header() {
@@ -318,27 +345,42 @@ function fill_job_header() {
 	const head = wrapper.querySelector(".page-head");
 	if (!head) return;
 	const job = filtered_job();
+	const wanted = job || "*all";
 	const existing = wrapper.querySelector(".ats-job-bar");
-	if ((job || "") === ((existing && existing.dataset.atsJob) || "")) return;
+	if (existing && existing.dataset.atsJob === wanted) return;
 
 	if (existing) existing.remove();
-	if (!job) return;
-
-	// a row of its own under the page title (which stays as it is)
 	const bar = document.createElement("div");
 	bar.className = "ats-job-bar";
-	bar.dataset.atsJob = job;
+	bar.dataset.atsJob = wanted;
 	head.insertAdjacentElement("afterend", bar);
+	const e = frappe.utils.escape_html;
+
+	if (!job) {
+		bar.innerHTML =
+			`<div class="ats-job-title">${__("All jobs")}</div>` +
+			`<div class="ats-job-meta"><select class="ats-job-picker"><option value="">${__("Open a job's board…")}</option></select></div>`;
+		frappe.db.get_list("Job Opening", { fields: ["name", "job_title"], order_by: "job_title asc", limit: 500 }).then((jobs) => {
+			if (!bar.isConnected) return;
+			const picker = bar.querySelector(".ats-job-picker");
+			jobs.forEach((j) => picker.insertAdjacentHTML("beforeend", `<option value="${e(j.name)}">${e(j.job_title)}</option>`));
+			picker.addEventListener("change", () => picker.value && open_job_board(picker.value));
+		});
+		return;
+	}
 
 	load_job_details(job).then((d) => {
 		if (bar.dataset.atsJob !== job || !bar.isConnected) return; // the board changed while this was loading
-		const e = frappe.utils.escape_html;
 		bar.innerHTML =
-			`<div class="ats-job-title" title="${e(d.title)}">${e(d.title)}</div>` +
+			`<div class="ats-job-line"><span class="ats-job-title" title="${e(d.title)}">${e(d.title)}</span>` +
+			(d.published ? `<span class="ats-job-badge ats-badge-green">${__("PUBLISHED")}</span>` : "") +
+			(d.status ? `<span class="ats-job-badge ${d.status === "Open" ? "ats-badge-blue" : "ats-badge-grey"}">${e(d.status.toUpperCase())}</span>` : "") +
+			(d.recruiter ? `<span class="ats-job-badge ats-badge-soft">${ICON_USER}${e(d.recruiter)}</span>` : "") +
+			`</div>` +
 			`<div class="ats-job-meta">` +
-			(d.recruiter ? `<span>${ICON_USER}${e(d.recruiter)}</span>` : "") +
 			(d.department ? `<span class="ats-job-tag">${e(d.department)}</span>` : "") +
 			(d.location ? `<span>${ICON_PIN}${e(d.location)}</span>` : "") +
+			(d.salary ? `<span>${e(d.salary)}</span>` : "") +
 			`</div>`;
 	});
 }
