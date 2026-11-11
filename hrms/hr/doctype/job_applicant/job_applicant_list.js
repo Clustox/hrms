@@ -456,6 +456,8 @@ function fill_card_info() {
 		.finally(() => {
 			card_fetch_running = false;
 			render();
+			// cards drawn while this request was running were skipped: ask for them now (no-op when none are missing)
+			setTimeout(fill_card_info, 0);
 		});
 }
 
