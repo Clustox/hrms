@@ -272,12 +272,14 @@ function card_html(row) {
 		const employer = "@ " + row.candidate_employer;
 		lines.push(`<div class="ats-info-line" title="${frappe.utils.escape_html(employer)}">${frappe.utils.escape_html(employer)}</div>`);
 	}
-	const applied = short_age(row.applied_on || row.creation);
+	const applied_on = row.applied_on || row.creation;
+	const applied = short_age(applied_on);
 	const in_stage = short_age(row.stage_entered_on);
+	const date_of = (value) => (value ? frappe.datetime.str_to_user(String(value).split(" ")[0]) : "");
 	lines.push(
 		`<div class="ats-info-times">` +
-			(applied ? `<span title="${__("Time since applied")}">${ICON_CLOCK}${applied}</span>` : "") +
-			(in_stage ? `<span title="${__("Time in this stage")}">${ICON_BOLT}${in_stage}</span>` : "") +
+			(applied ? `<span title="${frappe.utils.escape_html(__("Applied on: {0}", [date_of(applied_on)]))}">${ICON_CLOCK}${applied}</span>` : "") +
+			(in_stage ? `<span title="${frappe.utils.escape_html(__("In stage since: {0}", [date_of(row.stage_entered_on)]))}">${ICON_BOLT}${in_stage}</span>` : "") +
 			`</div>`,
 	);
 	return lines.join("");
