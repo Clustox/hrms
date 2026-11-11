@@ -152,7 +152,7 @@ def setup_job_pipeline(doc, method=None):
 def log_stage_change(applicant: str, from_stage: str | None, to_stage: str | None):
 	"""Append one row to the applicant's stage history."""
 	job_opening = frappe.db.get_value("Job Applicant", applicant, "job_title")
-	return frappe.get_doc(
+	log = frappe.get_doc(
 		{
 			"doctype": "Applicant Stage Log",
 			"job_applicant": applicant,
@@ -161,6 +161,11 @@ def log_stage_change(applicant: str, from_stage: str | None, to_stage: str | Non
 			"to_stage": to_stage,
 		}
 	).insert(ignore_permissions=True)
+
+	from hrms.ats.notifications import stage_changed
+
+	stage_changed(applicant, from_stage, to_stage)
+	return log
 
 
 def delete_applicant_stage_log(doc, method=None):
