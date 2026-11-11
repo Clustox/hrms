@@ -353,6 +353,7 @@ doc_events = {
 	"Candidate": {"on_update": "hrms.ats.candidates.sync_applicant_card_fields"},
 	# ATS: stage history is removed together with its applicant
 	"Job Applicant": {
+		"before_insert": "hrms.ats.candidates.link_candidate",
 		"validate": "hrms.ats.pipeline.validate_applicant",
 		"on_update": [
 			"hrms.ats.pipeline.log_pending_stage_change",
