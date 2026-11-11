@@ -44,3 +44,22 @@ class TestListColumns(IntegrationTestCase):
 
 	def test_applicant_list_keeps_its_own_columns(self):
 		self.assertTrue({"job_title", "applicant_rating", "status"} <= list_columns("Job Applicant"))
+
+
+class TestDefaultView(IntegrationTestCase):
+	def test_job_applicant_opens_on_the_kanban_board_and_the_list_is_still_reachable(self):
+		from hrms.ats.setup import set_default_views
+
+		set_default_views(commit=False)
+		meta = frappe.get_meta("Job Applicant")
+		self.assertEqual(meta.default_view, "Kanban")
+		self.assertFalse(meta.force_re_route_to_default_view)  # the Dropped Candidates list button must keep working
+
+	def test_running_it_again_changes_nothing(self):
+		from hrms.ats.setup import set_default_views
+
+		set_default_views(commit=False)
+		set_default_views(commit=False)
+		self.assertEqual(
+			frappe.db.count("Property Setter", {"doc_type": "Job Applicant", "property": "default_view"}), 1
+		)

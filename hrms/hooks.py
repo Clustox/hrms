@@ -144,6 +144,7 @@ after_migrate = [
 	"hrms.ats.setup.seed_drop_reasons",
 	"hrms.ats.setup.enable_change_history",
 	"hrms.ats.setup.set_list_columns",
+	"hrms.ats.setup.set_default_views",
 	"hrms.ats.roles.apply_roles_and_permissions",
 	"hrms.ats.mail.seed_email_templates",
 	"hrms.setup.update_select_perm_after_install",
