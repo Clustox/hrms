@@ -491,5 +491,46 @@ document.addEventListener(
 	true, // capture phase, so the card does not also open
 );
 
+// ---- column counts after a card is dropped in another column
+//
+// Frappe is meant to adjust the two columns' totals when a card is dropped, but its drop code waits for a
+// ".done" callback that the request no longer has, so the pills keep the old numbers until the board is
+// reloaded. After a drop we ask the server for the real totals (the same call the board loads with, with
+// the board's own filters) and put them back.
+
+function sync_column_counts() {
+	const list = window.cur_list;
+	if (!list || list.doctype !== "Job Applicant" || !list.get_kanban_api_args || !list.kanban_column_state) return;
+
+	frappe
+		.xcall("frappe.desk.doctype.kanban_board.kanban_board.get_kanban_board_data", list.get_kanban_api_args({ kanban_page_length: 1 }))
+		.then((result) => {
+			Object.entries(result.columns || {}).forEach(([column, data]) => {
+				const state = list.kanban_column_state[column];
+				if (state) state.total_count = data.total;
+				document.querySelectorAll(".kanban-column").forEach((el) => {
+					if (el.dataset.columnValue !== column) return;
+					const badge = el.querySelector(".kanban-column-count");
+					if (badge) badge.textContent = data.total;
+				});
+			});
+		})
+		.catch(() => {});
+}
+
+let counts_timers = [];
+document.addEventListener(
+	"pointerup",
+	(e) => {
+		if (!e.target.closest || !e.target.closest(".kanban-column")) return;
+		const route = frappe.get_route();
+		if (route[0] !== "List" || route[1] !== "Job Applicant" || route[2] !== "Kanban") return;
+		counts_timers.forEach(clearTimeout);
+		// the move is saved a moment after the drop: look again once it has, and once more to be sure
+		counts_timers = [setTimeout(sync_column_counts, 1200), setTimeout(sync_column_counts, 3500)];
+	},
+	true,
+);
+
 // started here, not in onload: onload does not run when the board is opened directly
 add_candidate_avatars_to_kanban_cards();
