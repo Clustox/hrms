@@ -191,6 +191,14 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-info .ats-info-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
 		".ats-card-info .ats-info-times{display:flex;gap:12px;margin-top:6px;align-items:center}" +
 		".ats-card-info .ats-info-times span{display:inline-flex;align-items:center;gap:3px}" +
+		".ats-card-actions{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--text-muted);position:relative}" +
+		".ats-card-actions .ats-act,.ats-card-info .ats-act{cursor:pointer;display:inline-flex;align-items:center;color:var(--text-muted)}" +
+		".ats-card-actions .ats-act:hover,.ats-card-info .ats-act:hover{color:var(--text-color)}" +
+		".ats-card-actions svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
+		".ats-card-info .ats-info-times .ats-act{margin-left:auto}" +
+		".ats-card-menu{position:absolute;right:0;top:20px;z-index:20;background:var(--card-bg,#fff);border:1px solid var(--border-color);" +
+		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
+		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
 		".ats-card-info svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
 		".ats-applicant-board .kanban-column-header{display:flex;align-items:center;gap:8px}" +
 		".ats-applicant-board .kanban-column-title{display:flex;align-items:center;flex:1;min-width:0;gap:8px}" +
@@ -252,6 +260,9 @@ const card_cache = {};
 let card_fetch_running = false;
 
 const ICON_CLOCK = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const ICON_EYE = '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICON_FILE = '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+const ICON_DOTS = '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg>';
 const ICON_BOLT = '<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>';
 
 function short_age(value) {
@@ -280,6 +291,7 @@ function card_html(row) {
 		`<div class="ats-info-times">` +
 			(applied ? `<span title="${frappe.utils.escape_html(__("Applied on: {0}", [date_of(applied_on)]))}">${ICON_CLOCK}${applied}</span>` : "") +
 			(in_stage ? `<span title="${frappe.utils.escape_html(__("In stage since: {0}", [date_of(row.stage_entered_on)]))}">${ICON_BOLT}${in_stage}</span>` : "") +
+			`<span class="ats-act" data-ats-action="view" title="${__("Open")}">${ICON_EYE}</span>` +
 			`</div>`,
 	);
 	return lines.join("");
@@ -299,6 +311,15 @@ function fill_card_info() {
 			const entry = card_cache[decodeURIComponent(card.dataset.name || "")];
 			const area = card.querySelector(".kanban-title-area");
 			if (!entry || !entry.row || !area) return;
+			const header = card.querySelector(".kanban-card-header");
+			if (header && !header.querySelector(".ats-card-actions")) {
+				const actions = document.createElement("span");
+				actions.className = "ats-card-actions";
+				actions.innerHTML =
+					`<span class="ats-act" data-ats-action="attach" title="${__("Attach file")}">${ICON_FILE}</span>` +
+					`<span class="ats-act" data-ats-action="menu" title="${__("More")}">${ICON_DOTS}</span>`;
+				header.appendChild(actions);
+			}
 			const html = card_html(entry.row);
 			let info = card.querySelector(".ats-card-info");
 			if (info) {
@@ -333,6 +354,50 @@ function fill_card_info() {
 			render();
 		});
 }
+
+document.addEventListener(
+	"click",
+	function (e) {
+		const button = e.target.closest("[data-ats-action]");
+		const open_menu = document.querySelector(".ats-card-menu");
+		if (open_menu && !e.target.closest(".ats-card-menu")) open_menu.remove();
+		if (!button || !button.closest(".kanban-card-wrapper")) return;
+
+		e.stopImmediatePropagation();
+		e.preventDefault();
+		const name = decodeURIComponent(button.closest(".kanban-card-wrapper").dataset.name);
+		const action = button.dataset.atsAction;
+
+		if (action === "view") {
+			frappe.set_route("Form", "Job Applicant", name);
+		} else if (action === "attach") {
+			new frappe.ui.FileUploader({ doctype: "Job Applicant", docname: name, make_attachments_public: false });
+		} else if (action === "menu") {
+			if (open_menu) return;
+			const menu = document.createElement("div");
+			menu.className = "ats-card-menu";
+			menu.innerHTML = `<div data-item="open">${__("Open")}</div><div data-item="email">${__("Send Email")}</div>`;
+			button.closest(".ats-card-actions").appendChild(menu);
+			menu.addEventListener("click", (ev) => {
+				const item = ev.target.closest("[data-item]");
+				if (!item) return;
+				ev.stopPropagation();
+				menu.remove();
+				if (item.dataset.item === "open") return frappe.set_route("Form", "Job Applicant", name);
+				frappe.prompt(
+					{ label: __("Template"), fieldname: "template", fieldtype: "Link", options: "Email Template", reqd: 1 },
+					(values) =>
+						frappe
+							.xcall("hrms.ats.mail.send_template_email", { job_applicant: name, template: values.template })
+							.then(() => frappe.show_alert({ message: __("Email queued"), indicator: "green" })),
+					__("Send Email to Candidate"),
+					__("Send"),
+				);
+			});
+		}
+	},
+	true, // capture phase, so the card does not also open
+);
 
 // started here, not in onload: onload does not run when the board is opened directly
 add_candidate_avatars_to_kanban_cards();
