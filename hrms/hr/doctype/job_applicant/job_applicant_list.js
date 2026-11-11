@@ -90,7 +90,7 @@ document.addEventListener(
 // Allow rating stars to be clicked directly on kanban cards.
 // Clicking the same value again toggles the rating back to 0 (matches desk behaviour).
 document.addEventListener("click", function (e) {
-	const star_svg = e.target.closest(".kanban .kanban-card-doc .rating svg");
+	const star_svg = e.target.closest(".kanban .kanban-card-doc .rating svg, .kanban .ats-info-rating .rating svg");
 	if (!star_svg) return;
 
 	const route = frappe.get_route();
@@ -207,11 +207,8 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-job-meta span{display:inline-flex;align-items:center;gap:4px}" +
 		".ats-job-meta svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
 		".ats-job-tag{background:var(--control-bg,#f3f3f3);color:var(--text-color);border-radius:6px;padding:1px 8px}" +
-		".ats-info-rating{display:flex;gap:1px;margin-top:3px}" +
-		".ats-star{position:relative;display:inline-block;width:13px;height:13px;cursor:pointer}" +
-		".ats-star svg{position:absolute;inset:0;width:13px;height:13px;stroke:none}" +
-		".ats-star .ats-star-base{fill:var(--gray-300,#d1d8dd)}.ats-star .ats-star-fill{fill:#f5c518}" +
-		".ats-card-info svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
+		".ats-info-rating{margin-top:2px}.ats-info-rating .rating{display:flex;gap:2px}" +
+		".ats-card-info .ats-info-times svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
 		".ats-applicant-board .kanban-column-header{display:flex;align-items:center;gap:8px}" +
 		".ats-applicant-board .kanban-column-title{display:flex;align-items:center;flex:1;min-width:0;gap:8px}" +
 		".ats-applicant-board .kanban-column-title .kanban-title{flex:1;min-width:0;font-size:13px;font-weight:500}" +
@@ -343,7 +340,6 @@ const card_cache = {};
 let card_fetch_running = false;
 
 const ICON_CLOCK = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
-const ICON_EYE = '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const ICON_FILE = '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
 const ICON_DOTS = '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg>';
 const ICON_BOLT = '<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>';
@@ -358,18 +354,9 @@ function short_age(value) {
 	return "now";
 }
 
-const STAR_PATH = "M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z";
-
-// five stars; rating is a fraction of 1 (0.5 = two and a half stars). Each star is a grey one with a gold copy cut to the filled part.
+// the same stars the rating field has everywhere in Frappe (and the card had before)
 function stars_html(rating) {
-	const value = Math.max(0, Math.min(1, Number(rating) || 0)) * 5;
-	let out = "";
-	for (let i = 1; i <= 5; i++) {
-		const filled = Math.max(0, Math.min(1, value - (i - 1)));
-		const gold = filled > 0 ? `<svg class="ats-star-fill" viewBox="0 0 24 24" style="clip-path:inset(0 ${100 - filled * 100}% 0 0)"><path d="${STAR_PATH}"/></svg>` : "";
-		out += `<span class="ats-star" data-ats-action="rate" data-star="${i}"><svg class="ats-star-base" viewBox="0 0 24 24"><path d="${STAR_PATH}"/></svg>${gold}</span>`;
-	}
-	return `<div class="ats-info-rating" title="${__("Rating")}">${out}</div>`;
+	return `<div class="ats-info-rating">${frappe.format(Number(rating) || 0, { fieldtype: "Rating", options: 5 })}</div>`;
 }
 
 function card_html(row) {
@@ -389,7 +376,6 @@ function card_html(row) {
 		`<div class="ats-info-times">` +
 			(applied ? `<span title="${frappe.utils.escape_html(__("Applied on: {0}", [date_of(applied_on)]))}">${ICON_CLOCK}${applied}</span>` : "") +
 			(in_stage ? `<span title="${frappe.utils.escape_html(__("In stage since: {0}", [date_of(row.stage_entered_on)]))}">${ICON_BOLT}${in_stage}</span>` : "") +
-			`<span class="ats-act" data-ats-action="view" title="${__("Open")}">${ICON_EYE}</span>` +
 			`</div>`,
 	);
 	return lines.join("");
@@ -475,27 +461,7 @@ document.addEventListener(
 		const name = decodeURIComponent(button.closest(".kanban-card-wrapper").dataset.name);
 		const action = button.dataset.atsAction;
 
-		if (action === "rate") {
-			if (!frappe.model.can_write("Job Applicant")) return;
-			const star = button.closest(".ats-star");
-			const rect = star.getBoundingClientRect();
-			const index = parseInt(star.dataset.star, 10);
-			const clicked = (e.clientX - rect.left < rect.width / 2 ? index - 0.5 : index) / 5;
-			const entry = card_cache[name];
-			const current = entry && entry.row ? Number(entry.row.applicant_rating) || 0 : 0;
-			const next = Math.abs(current - clicked) < 0.001 ? 0 : clicked;  // the same value again clears it
-			if (entry && entry.row) {
-				entry.row.applicant_rating = next;
-				const info = button.closest(".ats-card-info");
-				if (info) info.innerHTML = card_html(entry.row);
-			}
-			frappe.db.set_value("Job Applicant", name, "applicant_rating", next).catch(() => {
-				if (entry && entry.row) entry.row.applicant_rating = current;
-				card_cache[name] = { at: 0, row: entry && entry.row };  // fetch the saved value again
-			});
-		} else if (action === "view") {
-			frappe.set_route("Form", "Job Applicant", name);
-		} else if (action === "attach") {
+		if (action === "attach") {
 			new frappe.ui.FileUploader({ doctype: "Job Applicant", docname: name, make_attachments_public: false });
 		} else if (action === "menu") {
 			if (open_menu) return;
