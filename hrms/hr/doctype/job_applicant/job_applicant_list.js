@@ -208,7 +208,7 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-job-meta svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
 		".ats-job-tag{background:var(--control-bg,#f3f3f3);color:var(--text-color);border-radius:6px;padding:1px 8px}" +
 		".ats-info-rating{margin-top:2px}.ats-info-rating .rating{display:flex;gap:0}" +
-		".ats-info-rating .rating svg{width:16px;height:16px;margin:0 -3px 0 0 !important}" +
+		".ats-info-rating .rating svg{width:16px;height:16px;margin:0 -1px 0 0 !important}" +
 		".ats-card-info .ats-info-times svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
 		".ats-applicant-board .kanban-column-header{display:flex;align-items:center;gap:8px}" +
 		".ats-applicant-board .kanban-column-title{display:flex;align-items:center;flex:1;min-width:0;gap:8px}" +
