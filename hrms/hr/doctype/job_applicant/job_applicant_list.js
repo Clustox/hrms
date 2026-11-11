@@ -6,7 +6,6 @@ frappe.listview_settings["Job Applicant"] = {
 
 	onload: function (listview) {
 		patch_kanban_dialog_for_job_applicant();
-		add_candidate_avatars_to_kanban_cards();
 
 		// ATS: bring in candidates from the old system. Always a dry run first.
 		if (frappe.user.has_role(["System Manager", "HR Manager"])) {
@@ -217,3 +216,6 @@ function add_candidate_avatars_to_kanban_cards() {
 		});
 	}).observe(document.body, { childList: true, subtree: true });
 }
+
+// started here, not in onload: onload does not run when the board is opened directly
+add_candidate_avatars_to_kanban_cards();
