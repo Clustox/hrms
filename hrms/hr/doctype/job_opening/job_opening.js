@@ -28,6 +28,12 @@ frappe.ui.form.on("Job Opening", {
 		// ATS: open the Kanban board of this job's candidates
 		if (frm.is_new()) return;
 
+		// dropped candidates of this job, with the stage they were dropped from and the reason
+		frm.add_custom_button(__("Dropped Candidates"), () => {
+			frappe.route_options = { job_title: frm.doc.name, is_dropped: 1 };
+			frappe.set_route("List", "Job Applicant", "List");
+		});
+
 		frm.add_custom_button(__("Pipeline Board"), () => {
 			frappe.xcall("hrms.ats.board.get_job_board", { job: frm.doc.name }).then((board) => {
 				frappe.route_options = { job_title: frm.doc.name };

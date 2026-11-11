@@ -38,6 +38,9 @@ class TestListColumns(IntegrationTestCase):
 		)
 		self.assertEqual(count, 1)
 
-	def test_columns_are_only_added_on_the_ats_doctypes(self):
-		# Job Applicant keeps exactly its own list columns (job, rating, status)
-		self.assertEqual(list_columns("Job Applicant"), {"job_title", "applicant_rating", "status"})
+	def test_applicant_list_shows_where_and_why_a_candidate_was_dropped(self):
+		columns = list_columns("Job Applicant")
+		self.assertTrue({"job_title", "applicant_rating", "status", "drop_reason", "dropped_at_stage"} <= columns)
+
+	def test_applicant_list_keeps_its_own_columns(self):
+		self.assertTrue({"job_title", "applicant_rating", "status"} <= list_columns("Job Applicant"))

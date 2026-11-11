@@ -229,6 +229,7 @@ def job_applicant_custom_fields() -> dict:
 				"mandatory_depends_on": "eval:doc.is_dropped",
 				"no_copy": 1,
 				"insert_after": "is_dropped",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "dropped_at_stage",
@@ -238,6 +239,7 @@ def job_applicant_custom_fields() -> dict:
 				"depends_on": "eval:doc.is_dropped",
 				"no_copy": 1,
 				"insert_after": "drop_reason",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "department",
