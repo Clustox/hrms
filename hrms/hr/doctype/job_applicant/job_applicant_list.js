@@ -186,6 +186,12 @@ function add_candidate_avatars_to_kanban_cards() {
 	style.textContent =
 		".ats-card-avatar{flex:0 0 auto;display:inline-flex}.ats-card-avatar .avatar{margin:0}" +
 		".ats-applicant-board .kanban-col-dot{display:none}" +
+		".ats-applicant-board .kanban-card-doc{display:none}" +
+		".ats-card-info{margin-top:2px;padding-left:46px;color:var(--text-muted);font-size:12px;line-height:1.35}" +
+		".ats-card-info .ats-info-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+		".ats-card-info .ats-info-times{display:flex;gap:12px;margin-top:6px;align-items:center}" +
+		".ats-card-info .ats-info-times span{display:inline-flex;align-items:center;gap:3px}" +
+		".ats-card-info svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
 		".ats-applicant-board .kanban-column-header{display:flex;align-items:center;gap:8px}" +
 		".ats-applicant-board .kanban-column-title{display:flex;align-items:center;flex:1;min-width:0;gap:8px}" +
 		".ats-applicant-board .kanban-column-title .kanban-title{flex:1;min-width:0;font-size:13px;font-weight:500}" +
@@ -223,6 +229,8 @@ function add_candidate_avatars_to_kanban_cards() {
 			holder.innerHTML = frappe.get_avatar("avatar-medium", name);
 			header.insertBefore(holder, header.firstChild);
 		});
+
+		fill_card_info();
 	};
 
 	let scheduled = false;
@@ -234,6 +242,94 @@ function add_candidate_avatars_to_kanban_cards() {
 			add_avatars();
 		});
 	}).observe(document.body, { childList: true, subtree: true });
+}
+
+// ---- what a card shows under the name: job title, @ employer, time since applied, time in this stage
+
+const CARD_FIELDS = ["candidate_title", "candidate_employer", "designation", "applied_on", "creation", "stage_entered_on"];
+const CARD_CACHE_SECONDS = 60;
+const card_cache = {};
+let card_fetch_running = false;
+
+const ICON_CLOCK = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const ICON_BOLT = '<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>';
+
+function short_age(value) {
+	if (!value) return "";
+	const seconds = Math.max(0, (Date.now() - new Date(String(value).replace(" ", "T")).getTime()) / 1000);
+	const units = [["y", 31536000], ["mo", 2592000], ["w", 604800], ["d", 86400], ["h", 3600], ["m", 60]];
+	for (const [label, size] of units) {
+		if (seconds >= size) return Math.floor(seconds / size) + label;
+	}
+	return "now";
+}
+
+function card_html(row) {
+	const title = row.candidate_title || row.designation || "";
+	const lines = [];
+	if (title) lines.push(`<div class="ats-info-line" title="${frappe.utils.escape_html(title)}">${frappe.utils.escape_html(title)}</div>`);
+	if (row.candidate_employer) {
+		const employer = "@ " + row.candidate_employer;
+		lines.push(`<div class="ats-info-line" title="${frappe.utils.escape_html(employer)}">${frappe.utils.escape_html(employer)}</div>`);
+	}
+	const applied = short_age(row.applied_on || row.creation);
+	const in_stage = short_age(row.stage_entered_on);
+	lines.push(
+		`<div class="ats-info-times">` +
+			(applied ? `<span title="${__("Time since applied")}">${ICON_CLOCK}${applied}</span>` : "") +
+			(in_stage ? `<span title="${__("Time in this stage")}">${ICON_BOLT}${in_stage}</span>` : "") +
+			`</div>`,
+	);
+	return lines.join("");
+}
+
+function fill_card_info() {
+	const cards = Array.from(document.querySelectorAll(".kanban-card-wrapper"));
+	const now = Date.now();
+	const wanted = cards.filter((card) => {
+		const name = decodeURIComponent(card.dataset.name || "");
+		const have = card_cache[name];
+		return name && !(have && now - have.at < CARD_CACHE_SECONDS * 1000);  // missing or older than a minute
+	});
+
+	const render = () => {
+		cards.forEach((card) => {
+			const entry = card_cache[decodeURIComponent(card.dataset.name || "")];
+			const area = card.querySelector(".kanban-title-area");
+			if (!entry || !entry.row || !area) return;
+			const html = card_html(entry.row);
+			let info = card.querySelector(".ats-card-info");
+			if (info) {
+				if (info.innerHTML !== html) info.innerHTML = html;  // refreshed: a moved card starts counting again
+				return;
+			}
+			info = document.createElement("div");
+			info.className = "ats-card-info";
+			info.innerHTML = html;
+			area.insertBefore(info, card.querySelector(".kanban-card-doc"));
+		});
+	};
+
+	if (!wanted.length) return render();
+	if (card_fetch_running) return;
+	card_fetch_running = true;
+	const names = [...new Set(wanted.map((card) => decodeURIComponent(card.dataset.name)))];
+	frappe
+		.xcall("frappe.client.get_list", {
+			doctype: "Job Applicant",
+			filters: [["name", "in", names]],
+			fields: ["name", ...CARD_FIELDS],
+			limit_page_length: names.length,
+		})
+		.then((rows) => {
+			names.forEach((name) => (card_cache[name] = { at: Date.now(), row: null }));
+			rows.forEach((row) => (card_cache[row.name] = { at: Date.now(), row }));
+		})
+		.catch(() => names.forEach((name) => (card_cache[name] = { at: Date.now(), row: null })))
+		.finally(() => {
+			card_fetch_running = false;
+			render();
+		});
 }
 
 // started here, not in onload: onload does not run when the board is opened directly
