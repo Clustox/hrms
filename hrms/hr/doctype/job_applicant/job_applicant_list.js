@@ -519,18 +519,16 @@ function sync_column_counts() {
 }
 
 let counts_timers = [];
-document.addEventListener(
-	"pointerup",
-	(e) => {
-		if (!e.target.closest || !e.target.closest(".kanban-column")) return;
-		const route = frappe.get_route();
-		if (route[0] !== "List" || route[1] !== "Job Applicant" || route[2] !== "Kanban") return;
-		counts_timers.forEach(clearTimeout);
-		// the move is saved a moment after the drop: look again once it has, and once more to be sure
-		counts_timers = [setTimeout(sync_column_counts, 1200), setTimeout(sync_column_counts, 3500)];
-	},
-	true,
-);
+function after_card_dropped(e) {
+	if (!e.target.closest || !e.target.closest(".kanban-column")) return;
+	const route = frappe.get_route();
+	if (route[0] !== "List" || route[1] !== "Job Applicant" || route[2] !== "Kanban") return;
+	counts_timers.forEach(clearTimeout);
+	// the move is saved a moment after the drop: look again once it has, and once more to be sure
+	counts_timers = [setTimeout(sync_column_counts, 1200), setTimeout(sync_column_counts, 3500)];
+}
+// the board's drag library uses the browser's own drag and drop, which ends with dragend/drop and sends no pointerup
+["dragend", "drop", "pointerup"].forEach((name) => document.addEventListener(name, after_card_dropped, true));
 
 // started here, not in onload: onload does not run when the board is opened directly
 add_candidate_avatars_to_kanban_cards();
