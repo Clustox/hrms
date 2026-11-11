@@ -6,6 +6,7 @@ frappe.listview_settings["Job Applicant"] = {
 
 	onload: function (listview) {
 		patch_kanban_dialog_for_job_applicant();
+		add_candidate_avatars_to_kanban_cards();
 
 		// ATS: bring in candidates from the old system. Always a dry run first.
 		if (frappe.user.has_role(["System Manager", "HR Manager"])) {
@@ -173,4 +174,46 @@ function patch_kanban_dialog_for_job_applicant() {
 	};
 
 	frappe.views.KanbanView._job_applicant_kanban_patched = true;
+}
+
+
+// ATS: every candidate card on the board gets a round avatar with the candidate's initials in a colour
+// taken from their name (different for different people, the same every time for the same person).
+function add_candidate_avatars_to_kanban_cards() {
+	if (window._ats_kanban_avatars) return;
+	window._ats_kanban_avatars = true;
+
+	const style = document.createElement("style");
+	style.textContent = ".ats-card-avatar{flex:0 0 auto;display:inline-flex}.ats-card-avatar .avatar{margin:0}";
+	document.head.appendChild(style);
+
+	const add_avatars = () => {
+		const route = frappe.get_route();
+		if (route[0] !== "List" || route[1] !== "Job Applicant" || route[2] !== "Kanban") return;
+
+		document.querySelectorAll(".kanban-card-wrapper:not(.ats-avatar-done)").forEach((card) => {
+			const header = card.querySelector(".kanban-card-header");
+			const title = card.querySelector(".kanban-card-title");
+			if (!header || !title) return;
+			card.classList.add("ats-avatar-done");
+			if (header.querySelector(".avatar")) return;
+
+			const name = (title.getAttribute("title") || title.textContent || "").trim();
+			if (!name) return;
+			const holder = document.createElement("span");
+			holder.className = "ats-card-avatar";
+			holder.innerHTML = frappe.get_avatar("avatar-medium", name);
+			header.insertBefore(holder, header.firstChild);
+		});
+	};
+
+	let scheduled = false;
+	new MutationObserver(() => {
+		if (scheduled) return;
+		scheduled = true;
+		requestAnimationFrame(() => {
+			scheduled = false;
+			add_avatars();
+		});
+	}).observe(document.body, { childList: true, subtree: true });
 }
