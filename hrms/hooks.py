@@ -352,6 +352,7 @@ doc_events = {
 	"Interview": {
 		"on_submit": "hrms.telemetry.on_interview_submit",
 		# ATS: the interview's calendar Event follows it
+		"validate": "hrms.ats.interview_calendar.warn_about_conflicts",
 		"on_update": "hrms.ats.interview_calendar.sync_interview_event",
 		"on_cancel": "hrms.ats.interview_calendar.sync_interview_event",
 		"on_discard": "hrms.ats.interview_calendar.sync_interview_event",

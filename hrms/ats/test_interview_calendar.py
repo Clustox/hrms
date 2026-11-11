@@ -210,3 +210,45 @@ class TestGoogleChanges(IntegrationTestCase):
 		with patch("hrms.ats.interview_calendar.fetch_google_event", side_effect=fake_fetch):
 			poll_rsvps()
 		self.assertEqual(frappe.db.get_value("Interview", second_interview.name, "candidate_response"), "Yes")
+
+
+class TestFreeBusy(IntegrationTestCase):
+	def setUp(self):
+		self.job = make_job("_Test Busy Job").insert()
+		self.first = new_applicant(self.job, f"busy.{frappe.generate_hash(length=8)}@example.com")
+		self.second = new_applicant(self.job, f"busy.{frappe.generate_hash(length=8)}@example.com")
+		self.day = add_days(getdate(), 30 + int(frappe.generate_hash(length=4), 16) % 3000)  # tests share a transaction: own day each
+
+	def book(self, applicant, start, end, type_name):
+		return create_interview_and_dependencies(applicant.name, self.day, start, end, type_name=type_name)
+
+	def test_an_interviewer_with_another_interview_at_that_time_is_busy(self):
+		from hrms.ats.interview_calendar import check_interviewers_free
+
+		self.book(self.first, "10:00:00", "11:00:00", "_Test Busy Round 1")
+		busy = check_interviewers_free(INTERVIEWERS, str(self.day), "10:30:00", "11:30:00")
+		self.assertEqual(set(busy), set(INTERVIEWERS))
+
+	def test_back_to_back_is_not_a_clash(self):
+		from hrms.ats.interview_calendar import check_interviewers_free
+
+		self.book(self.first, "10:00:00", "11:00:00", "_Test Busy Round 2")
+		self.assertEqual(check_interviewers_free(INTERVIEWERS, str(self.day), "11:00:00", "12:00:00"), {})
+
+	def test_an_interview_does_not_clash_with_itself(self):
+		from hrms.ats.interview_calendar import check_interviewers_free
+
+		interview = self.book(self.first, "10:00:00", "11:00:00", "_Test Busy Round 3")
+		self.assertEqual(check_interviewers_free(INTERVIEWERS, str(self.day), "10:00:00", "11:00:00", interview.name), {})
+
+	def test_a_clash_warns_but_does_not_block_saving(self):
+		self.book(self.first, "10:00:00", "11:00:00", "_Test Busy Round 4")
+		frappe.clear_messages()
+		second = self.book(self.second, "10:15:00", "10:45:00", "_Test Busy Round 5")
+		self.assertTrue(second.name)
+		self.assertIn("Interviewer not free", str(frappe.message_log))
+
+	def test_nobody_listed_means_nobody_busy(self):
+		from hrms.ats.interview_calendar import check_interviewers_free
+
+		self.assertEqual(check_interviewers_free([], str(self.day), "10:00:00", "11:00:00"), {})

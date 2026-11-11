@@ -39,6 +39,57 @@ def participants(interview) -> list[dict]:
 	return rows
 
 
+def find_conflicts(interviewers: list[str], starts_on, ends_on, ignore_interview: str | None = None) -> dict[str, list[str]]:
+	"""Which of these interviewers already have something on the calendar in that time, and what.
+	Frappe Events cover their other interviews and whatever Frappe's Google sync pulled from their
+	own calendars."""
+	if not interviewers:
+		return {}
+	event = frappe.qb.DocType("Event")
+	part = frappe.qb.DocType("Event Participants")
+	query = (
+		frappe.qb.from_(event)
+		.join(part)
+		.on(part.parent == event.name)
+		.select(part.email, event.subject)
+		.where(part.email.isin(interviewers))
+		.where(event.status == "Open")
+		.where(event.starts_on < ends_on)
+		.where(event.ends_on > starts_on)
+	)
+	if ignore_interview:
+		query = query.where(
+			(event.reference_doctype.isnull()) | (event.reference_doctype != "Interview") | (event.reference_docname != ignore_interview)
+		)
+	busy: dict[str, list[str]] = {}
+	for row in query.run(as_dict=True):
+		busy.setdefault(row.email, []).append(row.subject)
+	return busy
+
+
+@frappe.whitelist()
+def check_interviewers_free(interviewers: str | list, scheduled_on: str, from_time: str, to_time: str, interview: str | None = None) -> dict:
+	"""For the schedule dialog: who is busy at that time."""
+	import json
+
+	names = json.loads(interviewers) if isinstance(interviewers, str) else list(interviewers or [])
+	day = str(scheduled_on)
+	return find_conflicts(names, get_datetime(f"{day} {from_time}"), get_datetime(f"{day} {to_time}"), interview)
+
+
+def warn_about_conflicts(interview, method=None) -> None:
+	"""Interview hook: a warning, not a block, when an interviewer is already busy then."""
+	if not (interview.scheduled_on and interview.from_time and interview.to_time):
+		return
+	starts_on, ends_on = event_times(interview)
+	busy = find_conflicts([d.interviewer for d in interview.interview_details if d.interviewer], starts_on, ends_on, interview.name)
+	if busy:
+		lines = "".join(f"<li>{frappe.utils.escape_html(who)}: {frappe.utils.escape_html(', '.join(what))}</li>" for who, what in busy.items())
+		frappe.msgprint(
+			frappe._("Already busy at this time:") + f"<ul>{lines}</ul>", title=frappe._("Interviewer not free"), indicator="orange"
+		)
+
+
 def sync_interview_event(interview, method=None) -> None:
 	"""Interview hook: create the Event, or move it when the time or the people changed. A cancelled
 	or discarded interview loses its Event."""
