@@ -347,6 +347,8 @@ doc_events = {
 	# the acknowledgement + agent replies reach the employee (see helpdesk_router).
 	"HD Ticket": {"before_validate": "hrms.helpdesk_router.set_requester_from_contact"},
 	"Appraisal": {"on_submit": "hrms.telemetry.on_appraisal_submit"},
+	# ATS: a reschedule made in Google Calendar moves the interview too
+	"Event": {"on_update": "hrms.ats.interview_calendar.follow_event_time"},
 	"Interview": {
 		"on_submit": "hrms.telemetry.on_interview_submit",
 		# ATS: the interview's calendar Event follows it
@@ -411,6 +413,8 @@ scheduler_events = {
 	],
 	"hourly": [
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.trigger_emails",
+		# ATS: candidates' answers to interview invitations
+		"hrms.ats.interview_calendar.poll_rsvps",
 	],
 	"hourly_long": [
 		"hrms.hr.doctype.shift_type.shift_type.update_last_sync_of_checkin",

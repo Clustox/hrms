@@ -8,7 +8,7 @@ cancelling the interview removes it.
 """
 
 import frappe
-from frappe.utils import get_datetime
+from frappe.utils import add_days, get_datetime, now_datetime
 
 ACTIVE_STATUSES = ("Pending", "Under Review")
 
@@ -71,6 +71,7 @@ def sync_interview_event(interview, method=None) -> None:
 	)
 	event.set("event_participants", participants(interview))
 	event.flags.ignore_permissions = True
+	event.flags.ats_from_interview = True  # so follow_event_time does not echo this back
 	event.save() if name else event.insert()
 
 
@@ -78,3 +79,87 @@ def delete_interview_event(interview) -> None:
 	name = get_interview_event(interview.name)
 	if name:
 		frappe.delete_doc("Event", name, ignore_permissions=True)
+
+
+# ---- changes made in Google Calendar
+
+GOOGLE_RESPONSE = {"accepted": "Yes", "declined": "No", "tentative": "Maybe"}
+
+
+def follow_event_time(event, method=None) -> None:
+	"""Event hook: when the time of an interview's Event changes (Frappe's Google sync pulled a
+	reschedule made in Google Calendar), the interview follows it."""
+	if event.reference_doctype != "Interview" or event.flags.get("ats_from_interview") or not event.starts_on:
+		return
+	if not frappe.db.exists("Interview", event.reference_docname):
+		return
+
+	interview = frappe.get_doc("Interview", event.reference_docname)
+	starts_on = get_datetime(event.starts_on)
+	ends_on = get_datetime(event.ends_on) if event.ends_on else starts_on
+	if (starts_on, ends_on) == event_times(interview):
+		return
+	interview.db_set(
+		{"scheduled_on": starts_on.date(), "from_time": starts_on.time(), "to_time": ends_on.time()}
+	)
+	interview.notify_update()
+
+
+def apply_google_event(event_name: str, google_event: dict) -> int:
+	"""Copy the attendees' answers from a Google Calendar event onto the Frappe Event and show the
+	candidate's answer on the interview. Returns how many answers changed."""
+	event = frappe.get_doc("Event", event_name)
+	answers = {
+		(a.get("email") or "").strip().lower(): GOOGLE_RESPONSE.get(a.get("responseStatus"))
+		for a in google_event.get("attendees", [])
+	}
+	changed = 0
+	for row in event.event_participants:
+		answer = answers.get((row.email or "").strip().lower())
+		if answer and row.attending != answer:
+			row.attending = answer
+			changed += 1
+
+	if changed:
+		event.flags.ignore_permissions = True
+		event.flags.ats_from_interview = True
+		event.save()
+
+	if event.reference_doctype == "Interview":
+		candidate = next((r for r in event.event_participants if r.reference_doctype == "Job Applicant"), None)
+		if candidate and frappe.db.exists("Interview", event.reference_docname):
+			frappe.db.set_value("Interview", event.reference_docname, "candidate_response", candidate.attending or "", update_modified=False)
+	return changed
+
+
+def fetch_google_event(event) -> dict | None:
+	"""The event as Google has it (this is the only call out to Google)."""
+	from frappe.integrations.doctype.google_calendar.google_calendar import get_google_calendar_object
+
+	service, _account = get_google_calendar_object(event.google_calendar)
+	return (
+		service.events()
+		.get(calendarId=event.google_calendar_id, eventId=event.google_calendar_event_id)
+		.execute()
+	)
+
+
+def poll_rsvps() -> None:
+	"""Scheduled: read the answers to interview invitations. Only interviews from yesterday on are
+	asked about. One failing event does not stop the rest."""
+	events = frappe.get_all(
+		"Event",
+		filters={
+			"reference_doctype": "Interview",
+			"google_calendar_event_id": ["is", "set"],
+			"starts_on": [">=", add_days(now_datetime(), -1)],
+		},
+		fields=["name", "google_calendar", "google_calendar_id", "google_calendar_event_id"],
+	)
+	for event in events:
+		try:
+			google_event = fetch_google_event(frappe._dict(event))
+			if google_event:
+				apply_google_event(event.name, google_event)
+		except Exception:
+			frappe.log_error(title=f"ATS RSVP poll failed ({event.name})")

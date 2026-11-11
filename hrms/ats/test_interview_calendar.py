@@ -22,23 +22,23 @@ def make_interviewer(email):
 		).insert(ignore_permissions=True)
 
 
-def create_interview_and_dependencies(applicant, scheduled_on, from_time, to_time, status=None):
+def create_interview_and_dependencies(applicant, scheduled_on, from_time, to_time, status=None, type_name="_Test Calendar Round"):
 	for email in INTERVIEWERS:
 		make_interviewer(email)
-	if not frappe.db.exists("Interview Type", "_Test Calendar Round"):
+	if not frappe.db.exists("Interview Type", type_name):
 		if not frappe.db.exists("Skill", "_Test Calendar Skill"):
 			frappe.get_doc({"doctype": "Skill", "skill_name": "_Test Calendar Skill"}).insert(ignore_permissions=True)
 		frappe.get_doc(
 			{
 				"doctype": "Interview Type",
-				"interview_type_name": "_Test Calendar Round",
+				"interview_type_name": type_name,
 				"expected_skill_set": [{"skill": "_Test Calendar Skill"}],
 			}
 		).insert(ignore_permissions=True)
 	doc = frappe.get_doc(
 		{
 			"doctype": "Interview",
-			"interview_type": "_Test Calendar Round",
+			"interview_type": type_name,
 			"job_applicant": applicant,
 			"scheduled_on": scheduled_on,
 			"from_time": from_time,
@@ -122,3 +122,91 @@ class TestInterviewCalendar(IntegrationTestCase):
 		with patch("hrms.ats.interview_calendar.google_calendar_for", return_value=None):
 			event = self.event(self.interview())
 		self.assertEqual({p.email for p in event.event_participants}, {"test_interviewer1@example.com", "test_interviewer2@example.com"})
+
+
+class TestGoogleChanges(IntegrationTestCase):
+	"""What comes back from Google Calendar, simulated: no real Google account is touched."""
+
+	def setUp(self):
+		TestInterviewCalendar.setUp(self)
+
+	interview = TestInterviewCalendar.interview
+	event = TestInterviewCalendar.event
+
+	def with_google_id(self, interview):
+		event = self.event(interview)
+		frappe.db.set_value(
+			"Event",
+			event.name,
+			{"google_calendar_event_id": "g123", "google_calendar_id": "cal"},
+		)
+		return event.name
+
+	def answer(self, who, status):
+		return {"attendees": [{"email": who, "responseStatus": status}]}
+
+	def test_the_candidates_answer_is_copied_to_the_event_and_the_interview(self):
+		from hrms.ats.interview_calendar import apply_google_event
+
+		interview = self.interview()
+		name = self.with_google_id(interview)
+		self.assertEqual(apply_google_event(name, self.answer(self.email.upper(), "accepted")), 1)
+		self.assertEqual(frappe.db.get_value("Interview", interview.name, "candidate_response"), "Yes")
+		rows = {p.email: p.attending for p in frappe.get_doc("Event", name).event_participants}
+		self.assertEqual(rows[self.email], "Yes")
+
+	def test_every_google_answer_maps_and_unanswered_stays_empty(self):
+		from hrms.ats.interview_calendar import apply_google_event
+
+		interview = self.interview()
+		name = self.with_google_id(interview)
+		for status, expected in (("declined", "No"), ("tentative", "Maybe")):
+			apply_google_event(name, self.answer(self.email, status))
+			self.assertEqual(frappe.db.get_value("Interview", interview.name, "candidate_response"), expected)
+		apply_google_event(name, self.answer(self.email, "needsAction"))
+		self.assertEqual(frappe.db.get_value("Interview", interview.name, "candidate_response"), "Maybe")  # no answer yet: unchanged
+
+	def test_the_same_answer_twice_changes_nothing(self):
+		from hrms.ats.interview_calendar import apply_google_event
+
+		name = self.with_google_id(self.interview())
+		apply_google_event(name, self.answer(self.email, "accepted"))
+		self.assertEqual(apply_google_event(name, self.answer(self.email, "accepted")), 0)
+
+	def test_a_time_change_pulled_from_google_moves_the_interview(self):
+		interview = self.interview()
+		event = frappe.get_doc("Event", self.event(interview).name)
+		event.starts_on = f"{add_days(getdate(), 6)} 16:00:00"
+		event.ends_on = f"{add_days(getdate(), 6)} 16:30:00"
+		event.save(ignore_permissions=True)  # what Frappe's own Google sync does
+		interview.reload()
+		self.assertEqual((interview.scheduled_on, str(interview.from_time), str(interview.to_time)), (add_days(getdate(), 6), "16:00:00", "16:30:00"))
+
+	def test_moving_the_interview_does_not_loop_back(self):
+		interview = self.interview()
+		interview.reschedule_interview(add_days(getdate(), 4), datetime.time(9, 0), datetime.time(9, 30))
+		interview.reload()
+		self.assertEqual(str(interview.from_time), "9:00:00")
+
+	def test_the_poll_reads_each_event_and_survives_a_failure(self):
+		from unittest.mock import patch
+
+		from hrms.ats.interview_calendar import poll_rsvps
+
+		first = self.with_google_id(self.interview())
+		other = new_applicant(self.job, f"cal.{frappe.generate_hash(length=8)}@example.com")
+		second_interview = create_interview_and_dependencies(
+			other.name, add_days(getdate(), 3), "11:00:00", "11:30:00", type_name="_Test Calendar Round 2"
+		)
+		second = self.with_google_id(second_interview)
+		answers = {first: RuntimeError("google down"), second: self.answer(other.email_id, "accepted")}
+
+		def fake_fetch(event):
+			result = answers[event.name]
+			if isinstance(result, Exception):
+				raise result
+			return result
+
+		with patch("hrms.ats.interview_calendar.fetch_google_event", side_effect=fake_fetch):
+			poll_rsvps()
+		self.assertEqual(frappe.db.get_value("Interview", second_interview.name, "candidate_response"), "Yes")
