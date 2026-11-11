@@ -218,6 +218,8 @@ def _source(doc) -> str:
 
 def validate_applicant(doc, method=None):
 	"""Job Applicant validate hook: keep stage and status in step, then check dropping."""
+	if doc.is_new() and not doc.get("applied_on"):
+		doc.applied_on = frappe.utils.getdate()
 	sync_stage_and_status(doc)
 	validate_drop(doc)
 
@@ -238,7 +240,7 @@ def sync_stage_and_status(doc):
 			doc.pipeline_stage = stage_for_status(stages, doc.status).stage_name
 		elif doc.pipeline_stage not in by_name:
 			frappe.throw(_("Stage {0} is not part of this job's pipeline.").format(frappe.bold(doc.pipeline_stage)))
-		doc.stage_entered_on = now
+		stamp_stage_entry(doc, now)
 		doc.flags.ats_stage_change = (None, doc.pipeline_stage, "System")
 		return
 
@@ -251,7 +253,7 @@ def sync_stage_and_status(doc):
 		if doc.pipeline_stage not in by_name:
 			frappe.throw(_("Stage {0} is not part of this job's pipeline.").format(frappe.bold(doc.pipeline_stage)))
 		check_required_fields(doc, by_name[doc.pipeline_stage])
-		doc.stage_entered_on = now
+		stamp_stage_entry(doc, now)
 		doc.status = by_name[doc.pipeline_stage].maps_to_status or doc.status
 		doc.flags.ats_stage_change = (old_stage, doc.pipeline_stage, _source(doc))
 		return
@@ -287,7 +289,13 @@ def move(doc, to_stage: str, source: str, stages=None):
 			check_required_fields(doc, target)
 	doc.flags.ats_stage_change = (doc.pipeline_stage, to_stage, source)
 	doc.pipeline_stage = to_stage
-	doc.stage_entered_on = frappe.utils.now_datetime()
+	stamp_stage_entry(doc, frappe.utils.now_datetime())
+
+
+def stamp_stage_entry(doc, when) -> None:
+	"""Record when the applicant entered their current stage: the exact time, and the date shown on the card."""
+	doc.stage_entered_on = when
+	doc.stage_entered_date = frappe.utils.getdate(when)
 
 
 def log_pending_stage_change(doc, method=None):

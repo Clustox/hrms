@@ -12,15 +12,15 @@ import frappe
 
 BOARD_NAME = "Hiring Pipeline"
 STAGE_FIELD = "pipeline_stage"
-# A card shows the candidate's current title and employer, the rating, when they applied
-# (Created On) and when they entered the current stage.
+# A card shows the candidate's current title and employer, the rating, the date they applied
+# and the date they entered the current stage (dates only: a date and time does not fit a card).
 CARD_FIELDS = [
 	"candidate_title",
 	"candidate_employer",
 	"designation",
 	"applicant_rating",
-	"creation",
-	"stage_entered_on",
+	"applied_on",
+	"stage_entered_date",
 ]
 HIDE_DROPPED_FILTER = [["Job Applicant", "is_dropped", "=", 0]]
 

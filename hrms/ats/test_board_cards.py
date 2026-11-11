@@ -26,8 +26,16 @@ class TestCardFields(IntegrationTestCase):
 			self.assertTrue(meta.get_field(fieldname) or fieldname in default_fields, fieldname)
 
 	def test_card_shows_what_the_ats_document_lists(self):
-		for fieldname in ("candidate_title", "candidate_employer", "creation", "stage_entered_on"):
+		for fieldname in ("candidate_title", "candidate_employer", "applied_on", "stage_entered_date"):
 			self.assertIn(fieldname, CARD_FIELDS)
+
+	def test_card_uses_dates_not_date_times(self):
+		# a date and time is cut off on a card, so the card shows plain dates
+		meta = frappe.get_meta("Job Applicant")
+		for fieldname in ("applied_on", "stage_entered_date"):
+			self.assertEqual(meta.get_field(fieldname).fieldtype, "Date")
+		self.assertNotIn("creation", CARD_FIELDS)
+		self.assertNotIn("stage_entered_on", CARD_FIELDS)
 
 	def test_a_new_board_has_the_card_fields(self):
 		board = create_kanban_board("_Test Card Board")

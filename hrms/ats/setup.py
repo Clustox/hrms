@@ -206,6 +206,23 @@ def job_applicant_custom_fields() -> dict:
 				"insert_after": "pipeline_stage",
 			},
 			{
+				"fieldname": "stage_entered_date",
+				"fieldtype": "Date",
+				"label": _("In Stage Since"),
+				"description": _("Date only, for the board card. The exact time is in Stage Entered On."),
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "stage_entered_on",
+			},
+			{
+				"fieldname": "applied_on",
+				"fieldtype": "Date",
+				"label": _("Applied On"),
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "stage_entered_date",
+			},
+			{
 				"fieldname": "pipeline_column_break",
 				"fieldtype": "Column Break",
 				"insert_after": "stage_entered_on",

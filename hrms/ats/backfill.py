@@ -88,6 +88,8 @@ def backfill_applicant_stages() -> int:
 		values = {
 			"pipeline_stage": stage.stage_name,
 			"stage_entered_on": applicant.modified or applicant.creation,
+			"stage_entered_date": frappe.utils.getdate(applicant.modified or applicant.creation),
+			"applied_on": frappe.utils.getdate(applicant.creation),
 			"department": frappe.db.get_value("Job Opening", job, "department"),
 		}
 		if applicant.status == "Rejected":
@@ -194,3 +196,19 @@ def upgrade_default_pipeline() -> int:
 				).insert(ignore_permissions=True)
 			count += 1
 	return count
+
+
+def fill_card_dates() -> int:
+	"""Fill Applied On and In Stage Since for applicants that have not got them. Safe to run again."""
+	before = frappe.db.count("Job Applicant", {"applied_on": ["is", "not set"]})
+	frappe.db.sql(
+		"""update `tabJob Applicant`
+		set applied_on = date(creation)
+		where applied_on is null"""
+	)
+	frappe.db.sql(
+		"""update `tabJob Applicant`
+		set stage_entered_date = date(stage_entered_on)
+		where stage_entered_date is null and stage_entered_on is not null"""
+	)
+	return before
