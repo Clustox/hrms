@@ -114,7 +114,7 @@ Job Applicant list, Menu, **Import from old ATS (CSV)**. One row per application
 | dropped_reason | A Drop Reason. Puts the candidate in the dropped state |
 | department, designation, positions | Used when the job has to be created |
 
-Always run the dry run first. It checks every row and then undoes all its work, and shows the problems by row number. Rows with problems are skipped. A row whose legacy_id, or whose email for the same job, is already in the system is skipped, so the same file can be loaded again safely. At most 2,000 rows per file. Nobody is alerted and no stage email is sent while importing.
+Always run the dry run first. It checks every row and then undoes all its work, and shows the problems by row number. Rows with problems are skipped. A row whose legacy_id, or whose email for the same job, is already in the system is skipped, so the same file can be loaded again safely. At most 1,000 rows per file (about 12 rows a second); split larger exports. Nobody is alerted and no stage email is sent while importing.
 
 Resumes are linked (resume_url), not copied. Attach the files to the candidates afterwards if search by resume text is needed.
 
@@ -125,7 +125,11 @@ Resumes are linked (resume_url), not copied. Attach the files to the candidates 
 * After restoring to another address, check `host_name` and reconnect Google (tokens are tied to the redirect URIs).
 * Test a restore on a scratch site before you need it.
 
-## 12. When something goes wrong
+## 12. Speed check
+
+On a development or staging copy: `bench --site <site> execute hrms.ats.stress_test.run --kwargs "{'count': 3000}"`. It builds a job with that many applicants, times the job list, the board and a stage move, and deletes everything it made. Measured on the development site with 3,000 applicants on one job: job list 2 ms, board (15 columns of 20 cards plus counts) 59 ms, stage move 58 ms. The budgets are 500 ms, 1,000 ms and 300 ms.
+
+## 13. When something goes wrong
 
 | Symptom | Cause and fix |
 |---|---|

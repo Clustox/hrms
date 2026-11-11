@@ -20,7 +20,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate
 
-MAX_ROWS = 2000
+MAX_ROWS = 1000  # about 12 rows a second, so a file stays inside a web request's time limit
 REQUIRED = ("job_title", "name", "email")
 ALIASES = {"full_name": "name", "candidate": "name", "email_id": "email", "phone_number": "phone", "job": "job_title"}
 
