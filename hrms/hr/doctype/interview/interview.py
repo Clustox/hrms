@@ -153,6 +153,10 @@ class Interview(Document):
 		self.db_set({"scheduled_on": scheduled_on, "from_time": from_time, "to_time": to_time})
 		self.notify_update()
 
+		from hrms.ats.interview_calendar import sync_interview_event
+
+		sync_interview_event(self)  # move the calendar event (and so the Google invitation) too
+
 		recipients = get_recipients(self.name)
 
 		try:

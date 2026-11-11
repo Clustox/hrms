@@ -347,7 +347,13 @@ doc_events = {
 	# the acknowledgement + agent replies reach the employee (see helpdesk_router).
 	"HD Ticket": {"before_validate": "hrms.helpdesk_router.set_requester_from_contact"},
 	"Appraisal": {"on_submit": "hrms.telemetry.on_appraisal_submit"},
-	"Interview": {"on_submit": "hrms.telemetry.on_interview_submit"},
+	"Interview": {
+		"on_submit": "hrms.telemetry.on_interview_submit",
+		# ATS: the interview's calendar Event follows it
+		"on_update": "hrms.ats.interview_calendar.sync_interview_event",
+		"on_cancel": "hrms.ats.interview_calendar.sync_interview_event",
+		"on_discard": "hrms.ats.interview_calendar.sync_interview_event",
+	},
 	# ---- Activation telemetry: post-install setup funnel (first-time milestones) ----
 	"Shift Type": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Leave Type": {"after_insert": "hrms.telemetry.on_milestone_insert"},
