@@ -14,10 +14,10 @@ def make_candidate(email: str, phone: str | None = None, name: str = "Test Perso
 class TestCandidateNormalization(IntegrationTestCase):
 	def test_email_normalization(self):
 		self.assertEqual(normalize_email("  Ayesha.Khan@Example.COM "), "ayesha.khan@example.com")
-		self.assertEqual(normalize_email("ayesha+jobs@example.com"), "ayesha@example.com")
-		self.assertEqual(normalize_email("a.y.e.s.h.a+x@Gmail.com"), "ayesha@gmail.com")
-		self.assertEqual(normalize_email("a.y@googlemail.com"), "ay@gmail.com")
-		self.assertEqual(normalize_email("a.y@example.com"), "a.y@example.com")  # dots kept off Gmail
+		# only case and spaces are ignored: +tags and Gmail dots make a different address
+		self.assertEqual(normalize_email("ayesha+jobs@example.com"), "ayesha+jobs@example.com")
+		self.assertEqual(normalize_email("a.y.e.s.h.a@Gmail.com"), "a.y.e.s.h.a@gmail.com")
+		self.assertEqual(normalize_email("a.y@googlemail.com"), "a.y@googlemail.com")
 		self.assertEqual(normalize_email(None), "")
 
 	def test_phone_normalization_pakistani_formats(self):
@@ -32,14 +32,20 @@ class TestCandidateNormalization(IntegrationTestCase):
 
 class TestCandidate(IntegrationTestCase):
 	def test_normalized_fields_are_stored(self):
-		candidate = make_candidate("Fresh.Candidate+x@Example.com", "0300 1112223")
+		candidate = make_candidate("Fresh.Candidate@Example.com", "0300 1112223")
 		self.assertEqual(candidate.email_normalized, "fresh.candidate@example.com")
 		self.assertEqual(candidate.phone_normalized, "923001112223")
 
-	def test_same_email_in_other_form_is_a_duplicate(self):
+	def test_same_email_in_other_case_is_a_duplicate(self):
 		make_candidate("dup.email@example.com")
 		with self.assertRaises(frappe.ValidationError):
-			make_candidate("DUP.EMAIL+second@example.com", name="Same Person")
+			make_candidate("  DUP.EMAIL@Example.com ", name="Same Person")
+
+	def test_a_plus_tag_or_gmail_dots_make_a_different_person(self):
+		first = make_candidate("tagged@example.com", name="One")
+		self.assertNotEqual(make_candidate("tagged+jobs@example.com", name="Two").name, first.name)
+		gmail = make_candidate("dotted.name@gmail.com", name="Three")
+		self.assertNotEqual(make_candidate("dottedname@gmail.com", name="Four").name, gmail.name)
 
 	def test_same_phone_in_other_format_is_a_duplicate(self):
 		make_candidate("first.phone@example.com", "+92 301 5550001")

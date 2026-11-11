@@ -59,7 +59,7 @@ class TestBackfill(IntegrationTestCase):
 	def test_same_person_on_two_jobs_shares_one_candidate(self):
 		job_a, job_b = legacy_job("_Test Backfill A"), legacy_job("_Test Backfill B")
 		first = legacy_applicant(job_a, "shared.person@example.com", "Open", "0300 7770001")
-		second = legacy_applicant(job_b, "Shared.Person+jobs@example.com", "Shortlisted", "+92 300 7770001")
+		second = legacy_applicant(job_b, "SHARED.Person@example.com", "Shortlisted", "+92 300 7770001")
 		backfill_pipeline()
 		self.assertEqual(
 			frappe.db.get_value("Job Applicant", first, "candidate"),
