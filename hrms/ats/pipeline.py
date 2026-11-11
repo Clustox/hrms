@@ -302,8 +302,8 @@ def log_pending_stage_change(doc, method=None):
 def send_stage_email(doc, stage_name: str) -> bool:
 	"""Email the candidate when they enter a stage that has an email template.
 
-	A failure here is logged and never stops the stage move.
-	"""
+	Sent as the recruiter when their Gmail is connected, and recorded on the candidate's timeline.
+	A failure is logged and never stops the stage move."""
 	if doc.flags.get("ats_skip_email") or not doc.get("email_id"):
 		return False
 	template_name = frappe.db.get_value(
@@ -315,23 +315,9 @@ def send_stage_email(doc, stage_name: str) -> bool:
 		return False
 
 	try:
-		template = frappe.get_doc("Email Template", template_name)
-		context = {
-			**doc.as_dict(),
-			"candidate_name": doc.applicant_name,
-			"job_name": frappe.db.get_value("Job Opening", doc.job_title, "job_title"),
-			"stage_name": stage_name,
-		}
-		email = template.get_formatted_email(context)
-		frappe.sendmail(
-			recipients=[doc.email_id],
-			sender=frappe.db.get_single_value("HR Settings", "hiring_sender_email") or None,
-			subject=email["subject"],
-			message=email["message"],
-			reference_doctype=doc.doctype,
-			reference_name=doc.name,
-			delayed=True,
-		)
+		from hrms.ats.mail import send_candidate_email
+
+		send_candidate_email(doc.name, template=template_name, system=True)
 		return True
 	except Exception:
 		frappe.log_error(title=f"ATS stage email failed ({doc.name}, {stage_name})")
