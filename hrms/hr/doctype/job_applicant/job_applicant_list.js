@@ -201,6 +201,12 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-menu{position:absolute;right:0;top:20px;z-index:20;background:var(--card-bg,#fff);border:1px solid var(--border-color);" +
 		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
 		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
+		".ats-job-header{display:flex;flex-direction:column;justify-content:center;min-width:0;line-height:1.25}" +
+		".ats-job-title{font-size:16px;font-weight:600;color:var(--text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+		".ats-job-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);white-space:nowrap}" +
+		".ats-job-meta span{display:inline-flex;align-items:center;gap:4px}" +
+		".ats-job-meta svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
+		".ats-job-tag{background:var(--control-bg,#f3f3f3);color:var(--text-color);border-radius:6px;padding:1px 8px}" +
 		".ats-info-rating{display:flex;gap:1px;margin-top:3px}" +
 		".ats-star{position:relative;display:inline-block;width:13px;height:13px;cursor:pointer}" +
 		".ats-star svg{position:absolute;inset:0;width:13px;height:13px;stroke:none}" +
@@ -249,6 +255,7 @@ function add_candidate_avatars_to_kanban_cards() {
 		});
 
 		fill_card_info();
+		fill_job_header();
 	};
 
 	let scheduled = false;
@@ -260,6 +267,72 @@ function add_candidate_avatars_to_kanban_cards() {
 			add_avatars();
 		});
 	}).observe(document.body, { childList: true, subtree: true });
+}
+
+// ---- the header of a job's board: job title, recruiter, department tag and location
+
+const job_details = {};
+const ICON_USER = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>';
+const ICON_PIN = '<svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>';
+
+function filtered_job() {
+	const list = window.cur_list;
+	if (!list || list.doctype !== "Job Applicant" || !list.filter_area) return null;
+	const filter = (list.filter_area.get() || []).find((f) => f[1] === "job_title" && f[2] === "=");
+	return filter ? filter[3] : null;
+}
+
+function load_job_details(job) {
+	if (job_details[job]) return Promise.resolve(job_details[job]);
+	return frappe.db
+		.get_value("Job Opening", job, ["job_title", "job_owner", "department", "location"])
+		.then(({ message }) => {
+			const details = { title: message.job_title || job, location: message.location || "", department: "", recruiter: "" };
+			const lookups = [];
+			if (message.job_owner) {
+				lookups.push(
+					frappe.db.get_value("User", message.job_owner, "full_name").then((r) => (details.recruiter = (r.message && r.message.full_name) || message.job_owner)),
+				);
+			}
+			if (message.department) {
+				lookups.push(
+					frappe.db.get_value("Department", message.department, "department_name").then((r) => (details.department = (r.message && r.message.department_name) || message.department)),
+				);
+			}
+			return Promise.all(lookups).then(() => (job_details[job] = details));
+		});
+}
+
+function fill_job_header() {
+	const list = window.cur_list;
+	if (!list || list.doctype !== "Job Applicant" || !list.page || !list.page.$title_area) return;
+	const area = list.page.$title_area[0];
+	const job = filtered_job();
+	const shown = area.dataset.atsJob || "";
+	if ((job || "") === shown) return;
+
+	area.dataset.atsJob = job || "";
+	area.querySelectorAll(".ats-job-header").forEach((el) => el.remove());
+	const breadcrumbs = area.querySelector(".navbar-breadcrumbs");
+	const pill = area.querySelector(".page-indicator-pill");
+	if (breadcrumbs) breadcrumbs.style.display = job ? "none" : "";
+	if (pill) pill.style.display = job ? "none" : "";
+	if (!job) return;
+
+	load_job_details(job).then((d) => {
+		if (area.dataset.atsJob !== job) return; // the board changed while this was loading
+		const header = document.createElement("div");
+		header.className = "ats-job-header";
+		const e = frappe.utils.escape_html;
+		header.innerHTML =
+			`<div class="ats-job-title" title="${e(d.title)}">${e(d.title)}</div>` +
+			`<div class="ats-job-meta">` +
+			(d.recruiter ? `<span>${ICON_USER}${e(d.recruiter)}</span>` : "") +
+			(d.department ? `<span class="ats-job-tag">${e(d.department)}</span>` : "") +
+			(d.location ? `<span>${ICON_PIN}${e(d.location)}</span>` : "") +
+			`</div>`;
+		area.appendChild(header);
+	});
 }
 
 // ---- what a card shows under the name: job title, @ employer, time since applied, time in this stage
