@@ -212,7 +212,11 @@ function add_candidate_avatars_to_kanban_cards() {
 	const add_avatars = () => {
 		const route = frappe.get_route();
 		const on_board = route[0] === "List" && route[1] === "Job Applicant" && route[2] === "Kanban";
-		document.body.classList.toggle("ats-applicant-board", on_board);  // scopes the styles above to this board
+		const on_other_board = route[0] === "List" && route[2] === "Kanban" && !on_board;
+		// scopes the styles above to this board. They stay on while a form is opening (the board is still
+		// on screen for a moment, and must not flash its old card layout) and go off for any other board.
+		if (on_board) document.body.classList.add("ats-applicant-board");
+		else if (on_other_board) document.body.classList.remove("ats-applicant-board");
 		if (!on_board) return;
 
 		// the number of candidates in each column: a blue pill, "999+" when there are more than that
