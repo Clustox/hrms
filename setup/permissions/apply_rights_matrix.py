@@ -2,7 +2,11 @@
 
 Because a Custom DocPerm on a DocType overrides ALL default perms for it,
 every customized DocType also gets System Manager (full) so admins keep access.
-Export/Print/Import are NOT granted (per the security rules) except to System Manager.
+Import is NOT granted to anyone but System Manager. Export/Print default to OFF
+too, but are honoured when a role lists them explicitly in the matrix -- used to
+let HR Manager / HR User download the standard attendance & leave reports
+(Employee, Attendance, Leave Ledger Entry, Employee Checkin). Keep that list
+tight: export on a DocType also exposes its full list view to Excel.
 
 Run: bench --site <site> execute hrms.apply_rights_matrix.run
 """
