@@ -185,13 +185,17 @@ function add_candidate_avatars_to_kanban_cards() {
 	const style = document.createElement("style");
 	style.textContent =
 		".ats-card-avatar{flex:0 0 auto;display:inline-flex}.ats-card-avatar .avatar{margin:0}" +
+		".ats-applicant-board .kanban-col-dot{display:none}" +
+		".ats-applicant-board .kanban-column-title .kanban-title{font-size:14px}" +
 		".kanban-column-count.ats-count-badge{background:#1a6fd6;color:#fff;font-weight:600;font-size:12px;" +
 		"min-width:26px;height:20px;line-height:20px;padding:0 8px;border-radius:999px;text-align:center;box-shadow:none}";
 	document.head.appendChild(style);
 
 	const add_avatars = () => {
 		const route = frappe.get_route();
-		if (route[0] !== "List" || route[1] !== "Job Applicant" || route[2] !== "Kanban") return;
+		const on_board = route[0] === "List" && route[1] === "Job Applicant" && route[2] === "Kanban";
+		document.body.classList.toggle("ats-applicant-board", on_board);  // scopes the styles above to this board
+		if (!on_board) return;
 
 		// the number of candidates in each column: a blue pill, "999+" when there are more than that
 		document.querySelectorAll(".kanban-column-count").forEach((badge) => {
