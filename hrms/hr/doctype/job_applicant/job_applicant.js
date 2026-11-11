@@ -123,6 +123,37 @@ frappe.ui.form.on("Job Applicant", {
 		// ATS: drop a candidate with a reason, or bring a dropped candidate back
 		if (frm.is_new() || !frm.doc.pipeline_stage) return;
 
+		if (frm.doc.email_id) {
+			frm.add_custom_button(
+				__("Send Email"),
+				() => {
+					frappe.prompt(
+						{
+							label: __("Template"),
+							fieldname: "template",
+							fieldtype: "Link",
+							options: "Email Template",
+							reqd: 1,
+						},
+						(values) => {
+							frappe
+								.xcall("hrms.ats.mail.send_template_email", {
+									job_applicant: frm.doc.name,
+									template: values.template,
+								})
+								.then(() => {
+									frappe.show_alert({ message: __("Email queued"), indicator: "green" });
+									frm.reload_doc();
+								});
+						},
+						__("Send Email to Candidate"),
+						__("Send"),
+					);
+				},
+				__("Pipeline"),
+			);
+		}
+
 		if (frm.doc.is_dropped) {
 			frm.add_custom_button(
 				__("Restore Candidate"),
