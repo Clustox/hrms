@@ -201,6 +201,10 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-menu{position:absolute;right:0;top:20px;z-index:20;background:var(--card-bg,#fff);border:1px solid var(--border-color);" +
 		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
 		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
+		".ats-info-rating{display:flex;gap:1px;margin-top:3px}" +
+		".ats-star{position:relative;display:inline-block;width:13px;height:13px;cursor:pointer}" +
+		".ats-star svg{position:absolute;inset:0;width:13px;height:13px;stroke:none}" +
+		".ats-star .ats-star-base{fill:var(--gray-300,#d1d8dd)}.ats-star .ats-star-fill{fill:#f5c518}" +
 		".ats-card-info svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}" +
 		".ats-applicant-board .kanban-column-header{display:flex;align-items:center;gap:8px}" +
 		".ats-applicant-board .kanban-column-title{display:flex;align-items:center;flex:1;min-width:0;gap:8px}" +
@@ -260,7 +264,7 @@ function add_candidate_avatars_to_kanban_cards() {
 
 // ---- what a card shows under the name: job title, @ employer, time since applied, time in this stage
 
-const CARD_FIELDS = ["candidate_title", "candidate_employer", "designation", "applied_on", "creation", "stage_entered_on"];
+const CARD_FIELDS = ["candidate_title", "candidate_employer", "designation", "applied_on", "creation", "stage_entered_on", "applicant_rating"];
 const CARD_CACHE_SECONDS = 60;
 const card_cache = {};
 let card_fetch_running = false;
@@ -281,6 +285,20 @@ function short_age(value) {
 	return "now";
 }
 
+const STAR_PATH = "M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z";
+
+// five stars; rating is a fraction of 1 (0.5 = two and a half stars). Each star is a grey one with a gold copy cut to the filled part.
+function stars_html(rating) {
+	const value = Math.max(0, Math.min(1, Number(rating) || 0)) * 5;
+	let out = "";
+	for (let i = 1; i <= 5; i++) {
+		const filled = Math.max(0, Math.min(1, value - (i - 1)));
+		const gold = filled > 0 ? `<svg class="ats-star-fill" viewBox="0 0 24 24" style="clip-path:inset(0 ${100 - filled * 100}% 0 0)"><path d="${STAR_PATH}"/></svg>` : "";
+		out += `<span class="ats-star" data-ats-action="rate" data-star="${i}"><svg class="ats-star-base" viewBox="0 0 24 24"><path d="${STAR_PATH}"/></svg>${gold}</span>`;
+	}
+	return `<div class="ats-info-rating" title="${__("Rating")}">${out}</div>`;
+}
+
 function card_html(row) {
 	const title = row.candidate_title || row.designation || "";
 	const lines = [];
@@ -289,6 +307,7 @@ function card_html(row) {
 		const employer = "@ " + row.candidate_employer;
 		lines.push(`<div class="ats-info-line" title="${frappe.utils.escape_html(employer)}">${frappe.utils.escape_html(employer)}</div>`);
 	}
+	lines.push(stars_html(row.applicant_rating));
 	const applied_on = row.applied_on || row.creation;
 	const applied = short_age(applied_on);
 	const in_stage = short_age(row.stage_entered_on);
@@ -383,7 +402,25 @@ document.addEventListener(
 		const name = decodeURIComponent(button.closest(".kanban-card-wrapper").dataset.name);
 		const action = button.dataset.atsAction;
 
-		if (action === "view") {
+		if (action === "rate") {
+			if (!frappe.model.can_write("Job Applicant")) return;
+			const star = button.closest(".ats-star");
+			const rect = star.getBoundingClientRect();
+			const index = parseInt(star.dataset.star, 10);
+			const clicked = (e.clientX - rect.left < rect.width / 2 ? index - 0.5 : index) / 5;
+			const entry = card_cache[name];
+			const current = entry && entry.row ? Number(entry.row.applicant_rating) || 0 : 0;
+			const next = Math.abs(current - clicked) < 0.001 ? 0 : clicked;  // the same value again clears it
+			if (entry && entry.row) {
+				entry.row.applicant_rating = next;
+				const info = button.closest(".ats-card-info");
+				if (info) info.innerHTML = card_html(entry.row);
+			}
+			frappe.db.set_value("Job Applicant", name, "applicant_rating", next).catch(() => {
+				if (entry && entry.row) entry.row.applicant_rating = current;
+				card_cache[name] = { at: 0, row: entry && entry.row };  // fetch the saved value again
+			});
+		} else if (action === "view") {
 			frappe.set_route("Form", "Job Applicant", name);
 		} else if (action === "attach") {
 			new frappe.ui.FileUploader({ doctype: "Job Applicant", docname: name, make_attachments_public: false });
