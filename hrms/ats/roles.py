@@ -71,6 +71,12 @@ SALARY_FIELDS = {"Job Opening": ("lower_range", "upper_range"), "Job Applicant":
 SALARY_LEVEL = 1
 SALARY_ROLES = ("System Manager", "HR Manager", "HR User", RECRUITER)
 
+# job counters (Hired / In pipeline / Dropped / headcount) count every candidate, including the ones a
+# guest may not see, so they sit on a staff-only level 2
+COUNTER_FIELDS = ("hired_count", "in_pipeline_count", "dropped_count", "headcount")
+COUNTER_LEVEL = 2
+STAFF_ROLES = ("System Manager", "HR Manager", "HR User", RECRUITER)
+
 
 def ensure_permission(doctype: str, role: str, ptypes: dict, permlevel: int = 0, if_owner: int = 0) -> None:
 	"""Make sure the role has exactly these rights on the doctype at this level. Safe to repeat."""
@@ -126,6 +132,24 @@ def protect_salary_fields() -> None:
 		ensure_permission(doctype, SALARY_VIEWER, READ, permlevel=SALARY_LEVEL)
 
 
+def protect_counters() -> None:
+	"""Put the job counters on permission level 2, readable by staff only."""
+	for fieldname in COUNTER_FIELDS:
+		frappe.make_property_setter(
+			{
+				"doctype": "Job Opening",
+				"doctype_or_field": "DocField",
+				"fieldname": fieldname,
+				"property": "permlevel",
+				"value": str(COUNTER_LEVEL),
+				"property_type": "Int",
+			},
+			is_system_generated=False,
+		)
+	for role in STAFF_ROLES:
+		ensure_permission("Job Opening", role, READ, permlevel=COUNTER_LEVEL)
+
+
 def apply_roles_and_permissions(commit: bool = True) -> None:
 	"""after_migrate hook: create the ATS roles and give them their permissions."""
 	create_roles()
@@ -136,6 +160,7 @@ def apply_roles_and_permissions(commit: bool = True) -> None:
 	for doctype, ptypes in GUEST_OWN_RECORDS.items():
 		ensure_permission(doctype, GUEST, ptypes, if_owner=1)
 	protect_salary_fields()
+	protect_counters()
 	if commit:
 		frappe.db.commit()
 	frappe.clear_cache()

@@ -192,6 +192,13 @@ before_app_uninstall = "hrms.setup.before_app_uninstall"
 # Team-lead visibility: employee request doctypes are scoped to the owning
 # employee + their direct reports (HR/admin see all). See request_visibility.py.
 permission_query_conditions = {
+	# ATS: guests only see what is shared with them (hrms/ats/permissions.py)
+	"Job Opening": "hrms.ats.permissions.job_opening_query",
+	"Job Applicant": "hrms.ats.permissions.job_applicant_query",
+	"Candidate": "hrms.ats.permissions.candidate_query",
+	"Interview": "hrms.ats.permissions.interview_query",
+	"Interview Feedback": "hrms.ats.permissions.interview_feedback_query",
+	"Kanban Board": "hrms.ats.permissions.kanban_board_query",
 	"Leave Application": "hrms.request_visibility.leave_application_query",
 	"Attendance Request": "hrms.request_visibility.attendance_request_query",
 	"Shift Request": "hrms.request_visibility.shift_request_query",
@@ -200,6 +207,12 @@ permission_query_conditions = {
 }
 
 has_permission = {
+	"Job Opening": "hrms.ats.permissions.job_opening_has_permission",
+	"Job Applicant": "hrms.ats.permissions.job_applicant_has_permission",
+	"Candidate": "hrms.ats.permissions.candidate_has_permission",
+	"Interview": "hrms.ats.permissions.interview_has_permission",
+	"Interview Feedback": "hrms.ats.permissions.interview_feedback_has_permission",
+	"Kanban Board": "hrms.ats.permissions.kanban_board_has_permission",
 	"Leave Application": "hrms.request_visibility.has_permission",
 	"Attendance Request": "hrms.request_visibility.has_permission",
 	"Shift Request": "hrms.request_visibility.has_permission",
@@ -480,6 +493,9 @@ global_search_doctypes = {
 override_doctype_dashboards = {
 	"Employee": "hrms.overrides.dashboard_overrides.get_dashboard_for_employee",
 	"Department": "hrms.overrides.dashboard_overrides.get_dashboard_for_department",
+	"Job Opening": "hrms.overrides.dashboard_overrides.hide_connections_from_guests",
+	"Job Applicant": "hrms.overrides.dashboard_overrides.hide_connections_from_guests",
+	"Candidate": "hrms.overrides.dashboard_overrides.hide_connections_from_guests",
 	"Holiday List": "hrms.overrides.dashboard_overrides.get_dashboard_for_holiday_list",
 	"Task": "hrms.overrides.dashboard_overrides.get_dashboard_for_project",
 	"Project": "hrms.overrides.dashboard_overrides.get_dashboard_for_project",

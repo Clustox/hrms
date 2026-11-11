@@ -122,3 +122,14 @@ def get_dashboard_for_department(data):
 	data["fieldname"] = data.get("fieldname") or "department"
 	data["transactions"].append({"label": _("Recruitment"), "items": ["Job Opening"]})
 	return data
+
+
+def hide_connections_from_guests(data):
+	# ATS: the counts on a form's Connections tab count every record, including the ones a guest may
+	# not see (hidden candidates, an offer that exists), so a guest gets no connections at all
+	from hrms.ats.permissions import is_restricted_guest
+
+	if is_restricted_guest():
+		data["transactions"] = []
+		data["internal_links"] = {}
+	return data

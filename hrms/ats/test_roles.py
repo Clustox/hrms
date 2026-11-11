@@ -12,7 +12,10 @@ from hrms.ats.roles import (
 	SALARY_VIEWER,
 	apply_roles_and_permissions,
 )
+from hrms.ats.guest_access import grant_access
+from hrms.ats.test_permissions import make_interview
 from hrms.ats.test_pipeline import make_job
+from hrms.ats.test_stage_logic import new_applicant
 
 
 def make_user(*roles):
@@ -103,20 +106,27 @@ class TestGuestRole(IntegrationTestCase):
 			self.assertFalse(can(self.user, doctype, "read"), doctype)
 
 	def test_can_write_feedback_of_their_own_only(self):
+		job = make_job("_Test Feedback Rights").insert()
+		grant_access(self.user, job.name)
+		applicant = new_applicant(job, f"fb.{frappe.generate_hash(length=6)}@example.com").name
+		interview = make_interview(applicant, job.name, self.user)
 		self.assertTrue(can(self.user, "Interview Feedback", "create"))
-		own = frappe.get_doc({"doctype": "Interview Feedback", "owner": self.user})
-		theirs = frappe.get_doc({"doctype": "Interview Feedback", "owner": "Administrator"})
+		own = frappe.get_doc({"doctype": "Interview Feedback", "interview": interview, "owner": self.user})
+		theirs = frappe.get_doc({"doctype": "Interview Feedback", "interview": interview, "owner": "Administrator"})
 		self.assertTrue(can(self.user, "Interview Feedback", "write", doc=own))
 		self.assertFalse(can(self.user, "Interview Feedback", "read", doc=theirs))
 		self.assertFalse(can(self.user, "Interview Feedback", "write", doc=theirs))
 
 	def test_does_not_see_the_salary_range(self):
 		job = make_job("_Test Salary Guest", lower_range=111000, upper_range=222000).insert()
+		grant_access(self.user, job.name)  # the guest may open the job, but not its salary
 		self.assertEqual(salary_seen_by(self.user, job.name), (0, 0))
 
 	def test_gets_the_salary_only_with_the_salary_viewer_role(self):
-		viewer = make_user(GUEST, SALARY_VIEWER)
+		viewer = make_user(GUEST)
 		job = make_job("_Test Salary Viewer", lower_range=111000, upper_range=222000).insert()
+		grant_access(viewer, job.name, can_view_salary=1)  # a grant that allows salary gives the role
+		self.assertIn(SALARY_VIEWER, frappe.get_roles(viewer))
 		self.assertEqual(salary_seen_by(viewer, job.name), (111000, 222000))
 
 
@@ -134,7 +144,9 @@ class TestSalaryProtection(IntegrationTestCase):
 
 	def test_other_job_fields_stay_visible_to_a_guest(self):
 		job = make_job("_Test Salary Other Fields").insert()
-		frappe.set_user(make_user(GUEST))
+		guest = make_user(GUEST)
+		grant_access(guest, job.name)
+		frappe.set_user(guest)
 		try:
 			frappe.response.docs = []
 			getdoc("Job Opening", job.name)
