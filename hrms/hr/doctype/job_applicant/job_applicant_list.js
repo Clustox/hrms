@@ -183,12 +183,25 @@ function add_candidate_avatars_to_kanban_cards() {
 	window._ats_kanban_avatars = true;
 
 	const style = document.createElement("style");
-	style.textContent = ".ats-card-avatar{flex:0 0 auto;display:inline-flex}.ats-card-avatar .avatar{margin:0}";
+	style.textContent =
+		".ats-card-avatar{flex:0 0 auto;display:inline-flex}.ats-card-avatar .avatar{margin:0}" +
+		".kanban-column-count.ats-count-badge{background:#1a6fd6;color:#fff;font-weight:600;font-size:12px;" +
+		"min-width:26px;height:20px;line-height:20px;padding:0 8px;border-radius:999px;text-align:center;box-shadow:none}";
 	document.head.appendChild(style);
 
 	const add_avatars = () => {
 		const route = frappe.get_route();
 		if (route[0] !== "List" || route[1] !== "Job Applicant" || route[2] !== "Kanban") return;
+
+		// the number of candidates in each column: a blue pill, "999+" when there are more than that
+		document.querySelectorAll(".kanban-column-count").forEach((badge) => {
+			badge.classList.add("ats-count-badge");
+			const shown = badge.textContent.trim();
+			if (/^\d+$/.test(shown) && parseInt(shown, 10) > 999) {
+				badge.setAttribute("title", shown);
+				badge.textContent = "999+";
+			}
+		});
 
 		document.querySelectorAll(".kanban-card-wrapper:not(.ats-avatar-done)").forEach((card) => {
 			const header = card.querySelector(".kanban-card-header");
