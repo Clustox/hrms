@@ -64,3 +64,4 @@ hrms.patches.v16_0.upgrade_ats_hiring_pipeline_board #2026-11-10
 hrms.patches.v16_0.backfill_ats_job_counters #2026-11-10
 hrms.patches.v16_0.refresh_ats_board_cards #2026-11-10
 hrms.patches.v16_0.fill_ats_card_dates #2026-11-11
+hrms.patches.v16_0.extract_ats_resume_text #2026-11-11
