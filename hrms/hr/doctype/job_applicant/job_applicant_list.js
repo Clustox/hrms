@@ -187,6 +187,7 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-avatar{flex:0 0 auto;display:inline-flex}.ats-card-avatar .avatar{margin:0}" +
 		".ats-applicant-board .kanban-col-dot{display:none}" +
 		".ats-applicant-board .kanban-card-doc{display:none !important}" +
+		".ats-applicant-board .kanban-card-wrapper .kanban-card{min-height:190px}" +
 		".ats-applicant-board .kanban-card-header{height:auto !important;overflow:visible !important;align-items:flex-start}" +
 		".ats-card-text{flex:1 1 auto;min-width:0}" +
 		".ats-card-info{margin-top:1px;padding-left:0;color:var(--text-muted);font-size:12px;line-height:1.35}" +
@@ -256,9 +257,13 @@ function add_candidate_avatars_to_kanban_cards() {
 			header.insertBefore(holder, header.firstChild);
 		});
 
-		fill_card_info();
-		fill_job_header();
-		fill_dropped_footers();
+		[fill_card_info, fill_job_header, fill_dropped_footers].forEach((fill) => {
+			try {
+				fill();
+			} catch (error) {
+				console.error("ATS board:", fill.name, error);
+			}
+		});
 	};
 
 	let scheduled = false;
