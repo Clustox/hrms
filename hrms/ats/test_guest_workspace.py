@@ -63,7 +63,7 @@ class TestGuestWorkspace(IntegrationTestCase):
 		labels = {item["label"] for shell in shells(self.guest).values() for item in shell["items"]}
 		for label in ("Job Opening", "Job Applicant", "Candidate", "Interview"):
 			self.assertIn(label, labels)
-		for label in ("Job Offer", "Staffing Plan", "Job Requisition", "Employee", "Leave Application", "Pipeline Template", "Drop Reason"):
+		for label in ("Job Offer", "Staffing Plan", "Job Requisition", "Employee", "Leave Application", "Pipeline Template", "Drop Reason", "Inbox"):
 			self.assertNotIn(label, labels, label)
 
 	def test_staff_keep_their_full_menu(self):
