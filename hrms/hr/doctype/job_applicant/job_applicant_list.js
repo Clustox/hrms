@@ -186,9 +186,11 @@ function add_candidate_avatars_to_kanban_cards() {
 	style.textContent =
 		".ats-card-avatar{flex:0 0 auto;display:inline-flex}.ats-card-avatar .avatar{margin:0}" +
 		".ats-applicant-board .kanban-col-dot{display:none}" +
-		".ats-applicant-board .kanban-column-title .kanban-title{font-size:14px}" +
-		".kanban-column-count.ats-count-badge{background:#1a6fd6;color:#fff;font-weight:600;font-size:12px;" +
-		"min-width:26px;height:20px;line-height:20px;padding:0 8px;border-radius:999px;text-align:center;box-shadow:none}";
+		".ats-applicant-board .kanban-column-header{display:flex;align-items:center;gap:8px}" +
+		".ats-applicant-board .kanban-column-title{display:flex;align-items:center;flex:1;min-width:0;gap:8px}" +
+		".ats-applicant-board .kanban-column-title .kanban-title{flex:1;min-width:0;font-size:13px;font-weight:500}" +
+		".kanban-column-count.ats-count-badge{flex:0 0 auto;margin-left:auto;background:#1a6fd6;color:#fff;font-weight:600;" +
+		"font-size:11px;min-width:22px;height:18px;line-height:18px;padding:0 7px;border-radius:999px;text-align:center;box-shadow:none}";
 	document.head.appendChild(style);
 
 	const add_avatars = () => {
