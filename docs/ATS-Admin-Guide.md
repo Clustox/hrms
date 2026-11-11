@@ -123,6 +123,9 @@ Resumes are linked (resume_url), not copied. Attach the files to the candidates 
 * Back up: `bench --site <site> backup --with-files` (database and files).
 * Restore to a new or existing site: `bench --site <site> restore <database.sql.gz> --with-public-files <files.tar> --with-private-files <private-files.tar>`, then `bench --site <site> migrate`.
 * After restoring to another address, check `host_name` and reconnect Google (tokens are tied to the redirect URIs).
+* Give `restore` **absolute paths** for the backup files; it runs from inside the `sites` folder, so relative paths are not found.
+* Tested on the development site: backup, `new-site`, `restore` of the database and both file archives, then `migrate`. Every ATS table matched the source exactly (jobs, applicants, candidates, stage log, pipeline stages, templates, drop reasons, interviews, email templates, notifications, versions).
+* On a restored copy, stop it from sending mail or running jobs before you start it: `bench --site <copy> set-config mute_emails 1`, `set-config pause_scheduler 1`, `disable-scheduler`. Queued emails and Google tokens are copied with the database.
 * Test a restore on a scratch site before you need it.
 
 ## 12. Speed check
