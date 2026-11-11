@@ -245,6 +245,43 @@ def _ensure_interviews(interview_types, users):
 	return count
 
 
+CURRENT_TITLES = [
+	"Software Engineer", "Senior Software Engineer", "QA Engineer", "Software Quality Assurance Intern",
+	"Backend Developer", "Frontend Web Developer", "Business Analyst", "WordPress Developer",
+	"Mobile App Developer", "DevOps Engineer", "Data Analyst", "UI/UX Designer",
+]
+CURRENT_EMPLOYERS = [
+	"Brightway Technologies", "Nexora Systems", "Devlynk", "Cloudnine Labs", "Pixelforge Studio",
+	"Datavine Solutions", "Orbit Software House", "Kernel Works", "Bluepeak Digital", "Silverline IT",
+]
+
+
+def fill_candidate_details() -> int:
+	"""Give every candidate that has no current job title or employer a made-up one, so the board
+	cards have something to show on a development site. Only blanks are filled, the same person always
+	gets the same values, and the cards follow (the candidate's save updates the applicants).
+
+	    bench --site <site> execute hrms.ats.demo_data.fill_candidate_details
+	"""
+	import hashlib
+
+	frappe.set_user("Administrator")
+	changed = 0
+	for name, title, employer in frappe.get_all(
+		"Candidate", fields=["name", "current_title", "current_employer"], as_list=True
+	):
+		if title and employer:
+			continue
+		digest = int(hashlib.md5(name.encode()).hexdigest(), 16)
+		doc = frappe.get_doc("Candidate", name)
+		doc.current_title = title or CURRENT_TITLES[digest % len(CURRENT_TITLES)]
+		doc.current_employer = employer or CURRENT_EMPLOYERS[(digest // 7) % len(CURRENT_EMPLOYERS)]
+		doc.save(ignore_permissions=True)
+		changed += 1
+	frappe.db.commit()
+	return changed
+
+
 def delete_demo_data():
 	"""Remove everything create_demo_data added."""
 	frappe.set_user("Administrator")
