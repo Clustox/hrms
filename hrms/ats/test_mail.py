@@ -58,6 +58,28 @@ class TestCandidateMail(IntegrationTestCase):
 			frappe.db.set_single_value("HR Settings", "hiring_sender_email", "hiring@example.com")
 			self.assertEqual(pick_sender("Administrator"), "hiring@example.com")
 
+	def test_the_account_connected_to_the_user_is_their_sender_even_with_another_address(self):
+		from hrms.ats.mail import connected_sender
+
+		user = frappe.get_doc(
+			{"doctype": "User", "email": email(), "first_name": "Conn", "send_welcome_email": 0, "enabled": 1, "roles": [{"role": "Employee"}]}
+		).insert(ignore_permissions=True)
+		account = frappe.get_doc(
+			{
+				"doctype": "Email Account",
+				"email_account_name": "_Test Connected",
+				"email_id": f"recruiter.{frappe.generate_hash(length=6)}@example.com",
+				"enable_outgoing": 1,
+				"smtp_server": "localhost",
+				"password": "x",
+				"connected_user": user.name,
+			}
+		)
+		account.flags.ignore_validate = True
+		account.insert(ignore_permissions=True)
+		self.assertEqual(connected_sender(user.name), account.email_id)
+		self.assertIsNone(connected_sender("Guest"))
+
 	def test_a_real_send_lands_on_the_candidates_timeline(self):
 		if not frappe.db.exists("Email Account", {"default_outgoing": 1}):  # the dev site has none
 			account = frappe.get_doc(

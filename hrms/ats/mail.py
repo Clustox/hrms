@@ -111,8 +111,12 @@ def render_template(template: str, applicant, interview: str | None = None) -> t
 
 
 def connected_sender(user: str) -> str | None:
-	"""The user's own address when they have connected it to send from (Email Account or User Email),
-	else None."""
+	"""The address the user sends from: the outgoing Email Account they connected with their Google
+	sign-in (its Connected User), else the one that carries their own address, else one they list under
+	User Email."""
+	mine = frappe.db.get_value("Email Account", {"connected_user": user, "enable_outgoing": 1}, "email_id")
+	if mine:
+		return mine
 	address = frappe.db.get_value("User", user, "email")
 	if address and frappe.db.exists("Email Account", {"email_id": address, "enable_outgoing": 1}):
 		return address
