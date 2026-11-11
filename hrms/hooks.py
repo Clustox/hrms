@@ -358,13 +358,18 @@ doc_events = {
 			"hrms.ats.pipeline.setup_job_pipeline",
 			"hrms.ats.pipeline.guard_stage_changes",
 		],
+		"onload": "hrms.ats.activity.log_guest_view",
 		"on_update": [
 			"hrms.ats.pipeline.apply_stage_renames",
 			"hrms.ats.board.sync_job_board_on_save",
 			"hrms.ats.counters.refresh_for_job",
 		],
 	},
+	# ATS: what guests write is logged (hrms/ats/activity.py)
+	"Comment": {"after_insert": "hrms.ats.activity.log_guest_note"},
+	"Interview Feedback": {"after_insert": "hrms.ats.activity.log_guest_feedback"},
 	"Candidate": {
+		"onload": "hrms.ats.activity.log_guest_view",
 		"on_update": [
 			"hrms.ats.candidates.sync_applicant_card_fields",
 			"hrms.ats.resume.queue_resume_text",
@@ -372,6 +377,7 @@ doc_events = {
 	},
 	# ATS: stage history is removed together with its applicant
 	"Job Applicant": {
+		"onload": "hrms.ats.activity.log_guest_view",
 		"before_insert": "hrms.ats.candidates.link_candidate",
 		"validate": "hrms.ats.pipeline.validate_applicant",
 		"on_update": [

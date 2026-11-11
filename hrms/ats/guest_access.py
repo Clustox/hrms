@@ -209,4 +209,8 @@ def move_stage(job_applicant: str, stage: str) -> str:
 
 	doc.pipeline_stage = stage
 	doc.save(ignore_permissions=True)  # a guest has no write role; the checks above decide
+	if is_restricted_guest():
+		from hrms.ats.activity import log_activity
+
+		log_activity("Moved Candidate", "Job Applicant", doc.name, doc.job_title)
 	return doc.pipeline_stage
