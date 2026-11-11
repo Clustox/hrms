@@ -282,6 +282,19 @@ def fill_candidate_details() -> int:
 	return changed
 
 
+def fill_job_locations(location: str = "Lahore, Pakistan") -> int:
+	"""Give jobs that have no location one, so the board header has something to show on a development
+	site. Only blanks are filled.
+
+	    bench --site <site> execute hrms.ats.demo_data.fill_job_locations
+	"""
+	jobs = frappe.get_all("Job Opening", filters={"location": ["in", ["", None]]}, pluck="name")
+	for job in jobs:
+		frappe.db.set_value("Job Opening", job, "location", location, update_modified=False)
+	frappe.db.commit()
+	return len(jobs)
+
+
 def delete_demo_data():
 	"""Remove everything create_demo_data added."""
 	frappe.set_user("Administrator")
