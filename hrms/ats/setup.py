@@ -24,12 +24,14 @@ def department_custom_fields() -> dict:
 				"fieldtype": "Data",
 				"label": _("Industry"),
 				"insert_after": "ats_section",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "department_location",
 				"fieldtype": "Data",
 				"label": _("Location"),
 				"insert_after": "industry",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "ats_column_break",
@@ -42,6 +44,7 @@ def department_custom_fields() -> dict:
 				"label": _("Department Owner"),
 				"options": "User",
 				"insert_after": "ats_column_break",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "department_team",
@@ -69,6 +72,7 @@ def job_opening_custom_fields() -> dict:
 				"label": _("Job Owner"),
 				"options": "User",
 				"insert_after": "ats_section",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "job_team",
@@ -99,6 +103,45 @@ def job_opening_custom_fields() -> dict:
 				"insert_after": "pipeline_template",
 			},
 			{
+				"fieldname": "counters_column_break",
+				"fieldtype": "Column Break",
+				"insert_after": "pipeline_stages",
+			},
+			{
+				"fieldname": "headcount",
+				"fieldtype": "Data",
+				"label": _("Headcount"),
+				"description": _("Positions - filled, for example 3 - 1."),
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "counters_column_break",
+				"in_list_view": 1,
+			},
+			{
+				"fieldname": "hired_count",
+				"fieldtype": "Int",
+				"label": _("Hired"),
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "headcount",
+			},
+			{
+				"fieldname": "in_pipeline_count",
+				"fieldtype": "Int",
+				"label": _("In Pipeline"),
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "hired_count",
+			},
+			{
+				"fieldname": "dropped_count",
+				"fieldtype": "Int",
+				"label": _("Dropped"),
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "in_pipeline_count",
+			},
+			{
 				"fieldname": "salary_negotiable",
 				"fieldtype": "Check",
 				"label": _("Salary Negotiable"),
@@ -123,6 +166,24 @@ def job_applicant_custom_fields() -> dict:
 				"insert_after": "email_id",
 			},
 			{
+				"fieldname": "candidate_title",
+				"fieldtype": "Data",
+				"label": _("Current Job Title"),
+				"fetch_from": "candidate.current_title",
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "candidate",
+			},
+			{
+				"fieldname": "candidate_employer",
+				"fieldtype": "Data",
+				"label": _("Current Employer"),
+				"fetch_from": "candidate.current_employer",
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "candidate_title",
+			},
+			{
 				"fieldname": "pipeline_section",
 				"fieldtype": "Section Break",
 				"label": _("Pipeline"),
@@ -143,6 +204,23 @@ def job_applicant_custom_fields() -> dict:
 				"read_only": 1,
 				"no_copy": 1,
 				"insert_after": "pipeline_stage",
+			},
+			{
+				"fieldname": "stage_entered_date",
+				"fieldtype": "Date",
+				"label": _("In Stage Since"),
+				"description": _("Date only, for the board card. The exact time is in Stage Entered On."),
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "stage_entered_on",
+			},
+			{
+				"fieldname": "applied_on",
+				"fieldtype": "Date",
+				"label": _("Applied On"),
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "stage_entered_date",
 			},
 			{
 				"fieldname": "pipeline_column_break",
@@ -168,6 +246,7 @@ def job_applicant_custom_fields() -> dict:
 				"mandatory_depends_on": "eval:doc.is_dropped",
 				"no_copy": 1,
 				"insert_after": "is_dropped",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "dropped_at_stage",
@@ -177,6 +256,7 @@ def job_applicant_custom_fields() -> dict:
 				"depends_on": "eval:doc.is_dropped",
 				"no_copy": 1,
 				"insert_after": "drop_reason",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "department",
@@ -286,6 +366,33 @@ def enable_change_history(commit: bool = True):
 			},
 			is_system_generated=False,
 		)
+	if commit:
+		frappe.db.commit()
+	frappe.clear_cache()
+
+
+# Standard Job Opening fields the ATS Jobs list also shows (salary range and location)
+LIST_COLUMN_FIELDS = {"Job Opening": ("location", "lower_range", "upper_range")}
+
+
+def set_list_columns(commit: bool = True):
+	"""after_migrate hook: show location and salary range as columns of the Job Opening list.
+
+	A property setter, so the standard doctype is not edited. The Department and the other
+	Job Opening columns come from the custom field definitions above."""
+	for doctype, fieldnames in LIST_COLUMN_FIELDS.items():
+		for fieldname in fieldnames:
+			frappe.make_property_setter(
+				{
+					"doctype": doctype,
+					"doctype_or_field": "DocField",
+					"fieldname": fieldname,
+					"property": "in_list_view",
+					"value": "1",
+					"property_type": "Check",
+				},
+				is_system_generated=False,
+			)
 	if commit:
 		frappe.db.commit()
 	frappe.clear_cache()

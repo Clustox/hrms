@@ -26,8 +26,13 @@ DEFAULT_STAGES = [
 	# onboarding flow (gated on Accepted) keeps working before the offer is accepted.
 	("Ready to Offer", "Active", "Accepted", 0),
 	("Offer Placed", "Active", "Accepted", 0),
-	("Offer Accepted", "Hired", "Accepted", 0),
+	("Offer Accepted", "Active", "Accepted", 0),
+	# Hired is its own stage after Offer Accepted (the candidate has joined / is onboarding);
+	# the Hired counter counts the people in it.
+	("Hired", "Hired", "Accepted", 0),
 	("Offer Rejected", "Rejected", "Rejected", 0),
+	# On Hold is a stage of its own, kept at the end so "next stage" never lands on it.
+	("On Hold", "Active", "Hold", 0),
 ]
 
 
@@ -213,6 +218,8 @@ def _source(doc) -> str:
 
 def validate_applicant(doc, method=None):
 	"""Job Applicant validate hook: keep stage and status in step, then check dropping."""
+	if doc.is_new() and not doc.get("applied_on"):
+		doc.applied_on = frappe.utils.getdate()
 	sync_stage_and_status(doc)
 	validate_drop(doc)
 
@@ -233,7 +240,7 @@ def sync_stage_and_status(doc):
 			doc.pipeline_stage = stage_for_status(stages, doc.status).stage_name
 		elif doc.pipeline_stage not in by_name:
 			frappe.throw(_("Stage {0} is not part of this job's pipeline.").format(frappe.bold(doc.pipeline_stage)))
-		doc.stage_entered_on = now
+		stamp_stage_entry(doc, now)
 		doc.flags.ats_stage_change = (None, doc.pipeline_stage, "System")
 		return
 
@@ -246,7 +253,7 @@ def sync_stage_and_status(doc):
 		if doc.pipeline_stage not in by_name:
 			frappe.throw(_("Stage {0} is not part of this job's pipeline.").format(frappe.bold(doc.pipeline_stage)))
 		check_required_fields(doc, by_name[doc.pipeline_stage])
-		doc.stage_entered_on = now
+		stamp_stage_entry(doc, now)
 		doc.status = by_name[doc.pipeline_stage].maps_to_status or doc.status
 		doc.flags.ats_stage_change = (old_stage, doc.pipeline_stage, _source(doc))
 		return
@@ -282,7 +289,13 @@ def move(doc, to_stage: str, source: str, stages=None):
 			check_required_fields(doc, target)
 	doc.flags.ats_stage_change = (doc.pipeline_stage, to_stage, source)
 	doc.pipeline_stage = to_stage
-	doc.stage_entered_on = frappe.utils.now_datetime()
+	stamp_stage_entry(doc, frappe.utils.now_datetime())
+
+
+def stamp_stage_entry(doc, when) -> None:
+	"""Record when the applicant entered their current stage: the exact time, and the date shown on the card."""
+	doc.stage_entered_on = when
+	doc.stage_entered_date = frappe.utils.getdate(when)
 
 
 def log_pending_stage_change(doc, method=None):
@@ -382,17 +395,27 @@ def set_applicant_status(job_applicant: str, status: str, source: str = "System"
 	"""Set an applicant's status from code outside the pipeline (Job Offer, Employee creation).
 
 	The change goes through a normal save, so the stage follows the status and the move
-	is logged. An accepted offer or a created employee always ends in the hired stage, and a
-	declined offer in the last rejected stage, even when the applicant's current stage
-	already maps to the same status (Offer Placed maps to Accepted). Required-field rules
-	are skipped because the decision has already been made.
+	is logged. An accepted offer moves the candidate to the last accepted stage (Offer
+	Accepted), a created employee moves them to the Hired stage, and a declined offer to
+	the last rejected stage, even when the current stage already maps to the same status
+	(Offer Placed maps to Accepted). A candidate is never moved backwards out of Hired.
+	Required-field rules are skipped because the decision has already been made.
 	"""
 	doc = frappe.get_doc("Job Applicant", job_applicant)
 	stages = get_job_stages(doc.job_title) if doc.job_title else []
+	current = next((s for s in stages if s.stage_name == doc.pipeline_stage), None)
 
 	target = None
 	if status == "Accepted":
-		target = next((s for s in stages if s.stage_type == "Hired"), None)
+		hired = next((s for s in stages if s.stage_type == "Hired"), None)
+		if source == "Offer":
+			target = next(
+				(s for s in reversed(stages) if s.stage_type == "Active" and s.maps_to_status == "Accepted"), hired
+			)
+		else:
+			target = hired
+		if current and current.stage_type == "Hired":
+			target = None  # already hired: do not move them back to Offer Accepted
 	elif status == "Rejected" and source == "Offer":
 		target = next((s for s in reversed(stages) if s.stage_type == "Rejected"), None)
 
@@ -409,9 +432,14 @@ def set_applicant_status(job_applicant: str, status: str, source: str = "System"
 	return doc
 
 
+def is_forward_stage(stage) -> bool:
+	"""A stage a candidate can be advanced into: not a rejected stage and not On Hold."""
+	return stage.stage_type != "Rejected" and stage.maps_to_status != "Hold"
+
+
 @frappe.whitelist()
 def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
-	"""Move a candidate to the next active stage of their job's pipeline."""
+	"""Move a candidate to the next stage of their job's pipeline (never a rejected or On Hold stage)."""
 	doc = frappe.get_doc("Job Applicant", job_applicant)
 	doc.check_permission("write")
 	if doc.is_dropped:
@@ -422,16 +450,65 @@ def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
 	if not current:
 		frappe.throw(_("{0} is not in a pipeline stage.").format(doc.applicant_name or doc.name))
 
-	target = next((s for s in stages if s.idx > current.idx and s.stage_type == "Active"), None)
+	target = next((s for s in stages if s.idx > current.idx and is_forward_stage(s)), None)
 	if not target:
-		frappe.throw(
-			_("{0} is already in the last active stage. Use the Job Offer to finish the hire.").format(
-				doc.applicant_name or doc.name
-			)
-		)
+		frappe.throw(_("{0} is already in the last stage.").format(doc.applicant_name or doc.name))
 
 	doc.pipeline_stage = target.stage_name
 	doc.flags.ats_source = source
 	doc.save()
 	return target.stage_name
 
+
+
+def guard_stage_changes(doc, method=None):
+	"""Job Opening validate hook: a stage that still holds candidates cannot be deleted, and
+	renamed stages are remembered so their candidates can follow (see apply_stage_renames)."""
+	before = doc.get_doc_before_save()
+	if not before:
+		return
+
+	current = {row.name: row.stage_name for row in doc.get("pipeline_stages") or []}
+	for old in before.get("pipeline_stages") or []:
+		if old.name not in current:
+			holding = frappe.db.count("Job Applicant", {"job_title": doc.name, "pipeline_stage": old.stage_name})
+			if holding:
+				frappe.throw(
+					_("Stage {0} still has {1} candidate(s). Move them to another stage before deleting it.").format(
+						frappe.bold(old.stage_name), holding
+					),
+					title=_("Stage Not Empty"),
+				)
+
+	doc.flags.ats_stage_renames = [
+		(old.stage_name, current[old.name])
+		for old in before.get("pipeline_stages") or []
+		if old.name in current and current[old.name] != old.stage_name
+	]
+
+
+def apply_stage_renames(doc, method=None):
+	"""Job Opening on_update hook: candidates keep their place when a stage is renamed.
+
+	Done in two steps through temporary names so swapping two names does not mix people up."""
+	renames = doc.flags.pop("ats_stage_renames", None)
+	if not renames:
+		return
+
+	for field in ("pipeline_stage", "dropped_at_stage"):
+		for index, (old_name, _new) in enumerate(renames):
+			frappe.db.set_value(
+				"Job Applicant",
+				{"job_title": doc.name, field: old_name},
+				field,
+				f"@@rename-{index}@@",
+				update_modified=False,
+			)
+		for index, (_old, new_name) in enumerate(renames):
+			frappe.db.set_value(
+				"Job Applicant",
+				{"job_title": doc.name, field: f"@@rename-{index}@@"},
+				field,
+				new_name,
+				update_modified=False,
+			)

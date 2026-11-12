@@ -13,6 +13,33 @@ frappe.ui.form.on("Job Opening", {
 	},
 	refresh: function (frm) {
 		frm.trigger("add_status_toggle_button");
+		frm.trigger("add_pipeline_board_button");
+		frm.trigger("show_pipeline_counters");
+	},
+	show_pipeline_counters: function (frm) {
+		// ATS: Hired / In pipeline / Dropped at the top of the job
+		if (frm.is_new()) return;
+
+		frm.dashboard.add_indicator(__("Hired: {0}", [frm.doc.hired_count || 0]), "green");
+		frm.dashboard.add_indicator(__("In pipeline: {0}", [frm.doc.in_pipeline_count || 0]), "blue");
+		frm.dashboard.add_indicator(__("Dropped: {0}", [frm.doc.dropped_count || 0]), "gray");
+	},
+	add_pipeline_board_button: function (frm) {
+		// ATS: open the Kanban board of this job's candidates
+		if (frm.is_new()) return;
+
+		// dropped candidates of this job, with the stage they were dropped from and the reason
+		frm.add_custom_button(__("Dropped Candidates"), () => {
+			frappe.route_options = { job_title: frm.doc.name, is_dropped: 1 };
+			frappe.set_route("List", "Job Applicant", "List");
+		});
+
+		frm.add_custom_button(__("Pipeline Board"), () => {
+			frappe.xcall("hrms.ats.board.get_job_board", { job: frm.doc.name }).then((board) => {
+				frappe.route_options = { job_title: frm.doc.name };
+				frappe.set_route("List", "Job Applicant", "Kanban", board);
+			});
+		});
 	},
 	add_status_toggle_button: function (frm) {
 		if (frm.is_new()) return;

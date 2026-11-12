@@ -143,6 +143,7 @@ after_migrate = [
 	"hrms.ats.setup.seed_defaults",
 	"hrms.ats.setup.seed_drop_reasons",
 	"hrms.ats.setup.enable_change_history",
+	"hrms.ats.setup.set_list_columns",
 	"hrms.setup.update_select_perm_after_install",
 	"hrms.cx360.setup.place_cx360_workspace",
 ]
@@ -339,12 +340,25 @@ doc_events = {
 	"Job Opening": {
 		"after_insert": "hrms.telemetry.on_milestone_insert",
 		# ATS: give every job its pipeline stages (copied from a template)
-		"validate": "hrms.ats.pipeline.setup_job_pipeline",
+		"validate": [
+			"hrms.ats.pipeline.setup_job_pipeline",
+			"hrms.ats.pipeline.guard_stage_changes",
+		],
+		"on_update": [
+			"hrms.ats.pipeline.apply_stage_renames",
+			"hrms.ats.board.sync_job_board_on_save",
+			"hrms.ats.counters.refresh_for_job",
+		],
 	},
+	"Candidate": {"on_update": "hrms.ats.candidates.sync_applicant_card_fields"},
 	# ATS: stage history is removed together with its applicant
 	"Job Applicant": {
 		"validate": "hrms.ats.pipeline.validate_applicant",
-		"on_update": "hrms.ats.pipeline.log_pending_stage_change",
+		"on_update": [
+			"hrms.ats.pipeline.log_pending_stage_change",
+			"hrms.ats.counters.refresh_for_applicant",
+		],
+		"after_delete": "hrms.ats.counters.refresh_for_applicant",
 		"on_trash": "hrms.ats.pipeline.delete_applicant_stage_log",
 	},
 	"Appraisal Cycle": {"after_insert": "hrms.telemetry.on_milestone_insert"},
@@ -456,6 +470,7 @@ global_search_doctypes = {
 # along with any modifications made in other Frappe apps
 override_doctype_dashboards = {
 	"Employee": "hrms.overrides.dashboard_overrides.get_dashboard_for_employee",
+	"Department": "hrms.overrides.dashboard_overrides.get_dashboard_for_department",
 	"Holiday List": "hrms.overrides.dashboard_overrides.get_dashboard_for_holiday_list",
 	"Task": "hrms.overrides.dashboard_overrides.get_dashboard_for_project",
 	"Project": "hrms.overrides.dashboard_overrides.get_dashboard_for_project",

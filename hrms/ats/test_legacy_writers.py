@@ -70,16 +70,23 @@ class TestEmployeeHookWriter(IntegrationTestCase):
 		move_stage(name, "Final Interview")
 		update_job_applicant_and_offer(SimpleNamespace(job_applicant=name))
 		doc = frappe.get_doc("Job Applicant", name)
-		self.assertEqual((doc.pipeline_stage, doc.status), ("Offer Accepted", "Accepted"))
-		self.assertEqual(history(name)[-1], ("Final Interview", "Offer Accepted", "System"))
+		self.assertEqual((doc.pipeline_stage, doc.status), ("Hired", "Accepted"))
+		self.assertEqual(history(name)[-1], ("Final Interview", "Hired", "System"))
 
 	def test_hook_without_an_applicant_does_nothing(self):
 		update_job_applicant_and_offer(SimpleNamespace(job_applicant=None))
 
-	def test_already_accepted_applicant_is_untouched(self):
+	def test_applicant_with_accepted_status_still_moves_on_to_hired(self):
 		job = make_job("_Test Employee Hook 2").insert()
 		name = new_applicant(job, "employee.hook2@example.com").name
-		move_stage(name, "Ready to Offer")  # maps to Accepted
+		move_stage(name, "Ready to Offer")  # maps to Accepted already
+		update_job_applicant_and_offer(SimpleNamespace(job_applicant=name))
+		self.assertEqual(frappe.db.get_value("Job Applicant", name, "pipeline_stage"), "Hired")
+
+	def test_already_hired_applicant_is_untouched(self):
+		job = make_job("_Test Employee Hook 3").insert()
+		name = new_applicant(job, "employee.hook3@example.com").name
+		move_stage(name, "Hired")
 		count = len(history(name))
 		update_job_applicant_and_offer(SimpleNamespace(job_applicant=name))
 		self.assertEqual(len(history(name)), count)
@@ -91,3 +98,39 @@ class TestSetApplicantStatus(IntegrationTestCase):
 		name = new_applicant(job, "set.status@example.com").name
 		set_applicant_status(name, "Open")
 		self.assertEqual(len(history(name)), 1)
+
+
+class TestHiredAndOnHoldStages(IntegrationTestCase):
+	def setUp(self):
+		self.job = make_job("_Test Hired Hold").insert()
+
+	def test_offer_accepted_then_employee_created_ends_in_hired(self):
+		name = new_applicant(self.job, "hired.flow@example.com").name
+		move_stage(name, "Offer Placed")
+		update_job_applicant("Accepted", name)
+		self.assertEqual(frappe.db.get_value("Job Applicant", name, "pipeline_stage"), "Offer Accepted")
+		update_job_applicant_and_offer(SimpleNamespace(job_applicant=name))
+		self.assertEqual(frappe.db.get_value("Job Applicant", name, "pipeline_stage"), "Hired")
+		self.assertEqual(history(name)[-1], ("Offer Accepted", "Hired", "System"))
+
+	def test_offer_accepted_never_moves_a_hired_candidate_backwards(self):
+		name = new_applicant(self.job, "hired.back@example.com").name
+		move_stage(name, "Hired")
+		update_job_applicant("Accepted", name)
+		self.assertEqual(frappe.db.get_value("Job Applicant", name, "pipeline_stage"), "Hired")
+
+	def test_offer_accepted_from_an_early_stage_goes_to_offer_accepted(self):
+		name = new_applicant(self.job, "hired.early@example.com").name
+		move_stage(name, "Final Interview")
+		update_job_applicant("Accepted", name)
+		self.assertEqual(frappe.db.get_value("Job Applicant", name, "pipeline_stage"), "Offer Accepted")
+
+	def test_on_hold_is_a_stage_that_sets_the_hold_status(self):
+		name = new_applicant(self.job, "on.hold@example.com").name
+		doc = move_stage(name, "On Hold")
+		self.assertEqual((doc.pipeline_stage, doc.status), ("On Hold", "Hold"))
+
+	def test_hired_stage_counts_as_accepted(self):
+		name = new_applicant(self.job, "hired.status@example.com").name
+		doc = move_stage(name, "Hired")
+		self.assertEqual((doc.pipeline_stage, doc.status), ("Hired", "Accepted"))
