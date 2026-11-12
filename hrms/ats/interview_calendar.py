@@ -94,6 +94,10 @@ def sync_interview_event(interview, method=None) -> None:
 	"""Interview hook: create the Event, or move it when the time or the people changed. A cancelled
 	or discarded interview loses its Event."""
 	if interview.docstatus == 2 or interview.status == "Cancelled":
+		if get_interview_event(interview.name):
+			from hrms.ats.notifications import interview_changed
+
+			interview_changed(interview, "cancelled")
 		delete_interview_event(interview)
 		return
 	if not (interview.scheduled_on and interview.from_time and interview.to_time):
@@ -103,9 +107,14 @@ def sync_interview_event(interview, method=None) -> None:
 	starts_on, ends_on = event_times(interview)
 
 	name = get_interview_event(interview.name)
+	from hrms.ats.notifications import interview_changed
+
 	if name:
 		event = frappe.get_doc("Event", name)
+		if (get_datetime(event.starts_on), get_datetime(event.ends_on)) != (starts_on, ends_on):
+			interview_changed(interview, "rescheduled")
 	else:
+		interview_changed(interview, "scheduled")
 		event = frappe.new_doc("Event")
 		event.update({"event_type": "Private", "reference_doctype": "Interview", "reference_docname": interview.name})
 		calendar = google_calendar_for(frappe.session.user)
@@ -154,6 +163,10 @@ def follow_event_time(event, method=None) -> None:
 		{"scheduled_on": starts_on.date(), "from_time": starts_on.time(), "to_time": ends_on.time()}
 	)
 	interview.notify_update()
+
+	from hrms.ats.notifications import interview_changed
+
+	interview_changed(interview, "rescheduled")
 
 
 def apply_google_event(event_name: str, google_event: dict) -> int:

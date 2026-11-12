@@ -7,6 +7,29 @@ frappe.listview_settings["Job Applicant"] = {
 	onload: function (listview) {
 		patch_kanban_dialog_for_job_applicant();
 
+		// ATS: bring in candidates from the old system. Always a dry run first.
+		if (frappe.user.has_role(["System Manager", "HR Manager"])) {
+			listview.page.add_menu_item(__("Import from old ATS (CSV)"), () => {
+				new frappe.ui.FileUploader({
+					restrictions: { allowed_file_types: [".csv"] },
+					make_attachments_public: false,
+					on_success: (file) => {
+						const run = (dry_run) =>
+							frappe.xcall("hrms.ats.importer.import_csv_file", { file_url: file.file_url, dry_run });
+						run(1).then((r) => {
+							const errors = r.errors.slice(0, 20).map((e) => `<li>${__("Row")} ${e.row}: ${frappe.utils.escape_html(e.reason)}</li>`).join("");
+							const more = r.errors.length > 20 ? `<p>${__("…and {0} more", [r.errors.length - 20])}</p>` : "";
+							const summary = __("Checked {0} rows: {1} would be created ({2} new jobs), {3} already there, {4} with problems.", [r.rows, r.created, r.jobs_created, r.skipped, r.errors.length]);
+							frappe.confirm(
+								`<p>${summary}</p>${errors ? `<ul>${errors}</ul>${more}` : ""}<p>${__("Nothing has been imported yet. Import the rows without problems now?")}</p>`,
+								() => run(0).then((d) => { frappe.msgprint(__("Imported {0} candidates.", [d.created])); listview.refresh(); }),
+							);
+						});
+					},
+				});
+			});
+		}
+
 		// ATS: email the selected candidates from a template, one message each
 		listview.page.add_actions_menu_item(__("Send Email"), () => {
 			const names = listview.get_checked_items(true);

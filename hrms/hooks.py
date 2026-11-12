@@ -376,7 +376,7 @@ doc_events = {
 		],
 	},
 	# ATS: what guests write is logged (hrms/ats/activity.py)
-	"Comment": {"after_insert": "hrms.ats.activity.log_guest_note"},
+	"Comment": {"after_insert": ["hrms.ats.activity.log_guest_note", "hrms.ats.notifications.new_note"]},
 	"Interview Feedback": {"after_insert": "hrms.ats.activity.log_guest_feedback"},
 	"Candidate": {
 		"onload": "hrms.ats.activity.log_guest_view",
@@ -389,6 +389,7 @@ doc_events = {
 	"Job Applicant": {
 		"onload": "hrms.ats.activity.log_guest_view",
 		"before_insert": "hrms.ats.candidates.link_candidate",
+		"after_insert": "hrms.ats.notifications.new_candidate",
 		"validate": "hrms.ats.pipeline.validate_applicant",
 		"on_update": [
 			"hrms.ats.pipeline.log_pending_stage_change",
