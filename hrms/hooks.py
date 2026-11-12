@@ -138,6 +138,11 @@ jinja = {
 # before_install = "hrms.install.before_install"
 after_install = "hrms.install.after_install"
 after_migrate = [
+	# ATS: custom fields on Department / Job Opening / Job Applicant (idempotent)
+	"hrms.ats.setup.apply_custom_fields",
+	"hrms.ats.setup.seed_defaults",
+	"hrms.ats.setup.seed_drop_reasons",
+	"hrms.ats.setup.enable_change_history",
 	"hrms.setup.update_select_perm_after_install",
 	"hrms.cx360.setup.place_cx360_workspace",
 ]
@@ -331,7 +336,16 @@ doc_events = {
 	"Shift Type": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Leave Type": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Salary Structure": {"after_insert": "hrms.telemetry.on_milestone_insert"},
-	"Job Opening": {"after_insert": "hrms.telemetry.on_milestone_insert"},
+	"Job Opening": {
+		"after_insert": "hrms.telemetry.on_milestone_insert",
+		# ATS: give every job its pipeline stages (copied from a template)
+		"validate": "hrms.ats.pipeline.setup_job_pipeline",
+	},
+	# ATS: stage history is removed together with its applicant
+	"Job Applicant": {
+		"validate": "hrms.ats.pipeline.validate_drop",
+		"on_trash": "hrms.ats.pipeline.delete_applicant_stage_log",
+	},
 	"Appraisal Cycle": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Employee Onboarding": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Salary Slip": {"on_submit": "hrms.telemetry.on_milestone_submit"},

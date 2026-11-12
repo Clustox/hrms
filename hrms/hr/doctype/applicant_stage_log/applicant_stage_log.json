@@ -1,0 +1,119 @@
+{
+ "actions": [],
+ "autoname": "format:ASL-{#####}",
+ "creation": "2026-11-10 10:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "job_applicant",
+  "job_opening",
+  "from_stage",
+  "to_stage",
+  "moved_by",
+  "moved_on",
+  "trigger_source",
+  "reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "job_applicant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Job Applicant",
+   "options": "Job Applicant",
+   "reqd": 1,
+   "search_index": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "job_opening",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Job Opening",
+   "options": "Job Opening",
+   "search_index": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "from_stage",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "From Stage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "to_stage",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "To Stage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "moved_by",
+   "fieldtype": "Link",
+   "label": "Moved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "moved_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Moved On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trigger_source",
+   "fieldtype": "Select",
+   "label": "Trigger",
+   "options": "Manual\nBoard\nInterview\nOffer\nBulk\nImport\nSystem",
+   "default": "Manual",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason",
+   "read_only": 1
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-11-10 10:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "HR",
+ "name": "Applicant Stage Log",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 0
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 0
+  }
+ ],
+ "sort_field": "moved_on",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "job_applicant"
+}
