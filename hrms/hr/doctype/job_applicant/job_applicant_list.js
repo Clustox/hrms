@@ -205,10 +205,10 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-menu{position:absolute;right:0;top:20px;z-index:20;background:var(--card-bg,#fff);border:1px solid var(--border-color);" +
 		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
 		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
-		".ats-dropped-bar{position:fixed;bottom:0;height:36px;z-index:5;overflow:hidden;background:var(--control-bg,#eef1f4);border-top:1px solid var(--border-color)}" +
-		".ats-dropped-item{position:absolute;top:0;height:36px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font-size:12px;color:#1a6fd6;white-space:nowrap}" +
-		".ats-dropped-item:hover{text-decoration:underline}.ats-dropped-item.ats-dropped-none{color:var(--text-muted)}" +
-		".ats-dropped-item svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}" +
+		".ats-dropped-bar{position:fixed;bottom:0;height:36px;z-index:5;overflow:hidden;background:#e8f0fb;border-top:1px solid #cddcf3;box-shadow:0 -2px 6px rgba(26,111,214,.08)}" +
+		".ats-dropped-item{position:absolute;top:0;height:36px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font-size:12.5px;font-weight:500;color:#1a6fd6;white-space:nowrap}" +
+		".ats-dropped-item:hover{text-decoration:underline}.ats-dropped-item.ats-dropped-none{opacity:.65}" +
+		".ats-dropped-item svg{width:16px;height:16px;flex:0 0 auto}" +
 		".ats-applicant-board .kanban{padding-bottom:40px}" +
 		".ats-job-bar{display:flex;flex-direction:column;gap:2px;padding:8px var(--padding-lg,24px);background:var(--bg-color,#fff);border-bottom:1px solid var(--border-color);line-height:1.3}" +
 		".ats-job-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}" +
@@ -566,7 +566,7 @@ document.addEventListener(
 
 // ---- "N Dropped Candidates" under each column: the people dropped while they were in that stage
 
-const ICON_DROPPED = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>';
+const ICON_DROPPED = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#1a6fd6"/><path d="M7 12h10" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>';
 const dropped = { key: "", at: 0, loading: false, counts: {} };
 const DROPPED_CACHE_SECONDS = 30;
 
