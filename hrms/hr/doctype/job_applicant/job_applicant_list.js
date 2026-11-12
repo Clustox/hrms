@@ -205,14 +205,11 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-menu{position:absolute;right:0;top:20px;z-index:20;background:var(--card-bg,#fff);border:1px solid var(--border-color);" +
 		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
 		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
-		"body.ats-board-active{overflow:hidden}" +
-		"body.ats-board-active .kanban{overflow-x:auto;overflow-y:hidden}" +
-		"body.ats-board-active .kanban-column{display:flex;flex-direction:column;height:100%;min-height:0}" +
-		"body.ats-board-active .kanban-column .kanban-cards{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto}" +
 		".ats-dropped-bar{position:fixed;bottom:0;height:36px;z-index:5;overflow:hidden;background:#e8f0fb;border-top:1px solid #cddcf3;box-shadow:0 -2px 6px rgba(26,111,214,.08)}" +
 		".ats-dropped-item{position:absolute;top:0;height:36px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font-size:12.5px;font-weight:500;color:#1a6fd6;white-space:nowrap}" +
 		".ats-dropped-item:hover{text-decoration:underline}.ats-dropped-item.ats-dropped-none{opacity:.65}" +
 		".ats-dropped-item svg{width:16px;height:16px;flex:0 0 auto}" +
+		".ats-applicant-board .kanban{padding-bottom:40px}" +
 		".ats-job-bar{display:flex;flex-direction:column;gap:2px;padding:8px var(--padding-lg,24px);background:var(--bg-color,#fff);border-bottom:1px solid var(--border-color);line-height:1.3}" +
 		".ats-job-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}" +
 		".ats-job-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 10px;line-height:1.4}" +
@@ -238,8 +235,6 @@ function add_candidate_avatars_to_kanban_cards() {
 		const route = frappe.get_route();
 		const on_board = route[0] === "List" && route[1] === "Job Applicant" && route[2] === "Kanban";
 		const on_other_board = route[0] === "List" && route[2] === "Kanban" && !on_board;
-		document.body.classList.toggle("ats-board-active", on_board);  // page scroll is off only while this board shows
-		if (on_board) fit_board();
 		// scopes the styles above to this board. They stay on while a form is opening (the board is still
 		// on screen for a moment, and must not flash its old card layout) and go off for any other board.
 		if (on_board) document.body.classList.add("ats-applicant-board");
@@ -581,19 +576,6 @@ function board_filters(list) {
 	const own = (list.board && list.board.filters_array) || [];
 	return [...page, ...own].filter((f) => f[1] !== "is_dropped");
 }
-
-// the board takes exactly the screen that is left under the header (and above the dropped bar), so the page
-// never scrolls: only the cards inside each column do
-function fit_board() {
-	const board = document.querySelector(".kanban");
-	if (!board) return;
-	window.scrollTo(0, 0);
-	const top = board.getBoundingClientRect().top;
-	const room = Math.max(240, window.innerHeight - top - 40);
-	if (board.style.height !== room + "px") board.style.height = room + "px";
-}
-
-window.addEventListener("resize", () => requestAnimationFrame(fit_board));
 
 // one bar fixed to the bottom of the screen, with the count of each column centred under that column
 function place_dropped_bar() {
