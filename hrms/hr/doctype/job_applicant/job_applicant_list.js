@@ -205,10 +205,11 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-menu{position:absolute;right:0;top:20px;z-index:20;background:var(--card-bg,#fff);border:1px solid var(--border-color);" +
 		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
 		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
-		".ats-dropped-footer{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 6px;cursor:pointer;" +
-		"font-size:12px;color:#1a6fd6;border-top:1px solid var(--border-color);flex:0 0 auto}" +
-		".ats-dropped-footer:hover{text-decoration:underline}.ats-dropped-footer.ats-dropped-none{color:var(--text-muted)}" +
-		".ats-dropped-footer svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}" +
+		".ats-dropped-bar{position:fixed;bottom:0;height:36px;z-index:5;overflow:hidden;background:var(--control-bg,#eef1f4);border-top:1px solid var(--border-color)}" +
+		".ats-dropped-item{position:absolute;top:0;height:36px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font-size:12px;color:#1a6fd6;white-space:nowrap}" +
+		".ats-dropped-item:hover{text-decoration:underline}.ats-dropped-item.ats-dropped-none{color:var(--text-muted)}" +
+		".ats-dropped-item svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}" +
+		".ats-applicant-board .kanban{padding-bottom:40px}" +
 		".ats-job-bar{display:flex;flex-direction:column;gap:2px;padding:8px var(--padding-lg,24px);background:var(--bg-color,#fff);border-bottom:1px solid var(--border-color);line-height:1.3}" +
 		".ats-job-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}" +
 		".ats-job-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 10px;line-height:1.4}" +
@@ -238,7 +239,11 @@ function add_candidate_avatars_to_kanban_cards() {
 		// on screen for a moment, and must not flash its old card layout) and go off for any other board.
 		if (on_board) document.body.classList.add("ats-applicant-board");
 		else if (on_other_board) document.body.classList.remove("ats-applicant-board");
-		if (!on_board) return;
+		if (!on_board) {
+			const bar = document.querySelector(".ats-dropped-bar");
+			if (bar) bar.remove();  // the bar belongs to this board only
+			return;
+		}
 
 		// the number of candidates in each column: a blue pill, "999+" when there are more than that
 		document.querySelectorAll(".kanban-column-count").forEach((badge) => {
@@ -572,30 +577,65 @@ function board_filters(list) {
 	return [...page, ...own].filter((f) => f[1] !== "is_dropped");
 }
 
+// one bar fixed to the bottom of the screen, with the count of each column centred under that column
+function place_dropped_bar() {
+	const route = frappe.get_route();
+	const on_board = route[0] === "List" && route[1] === "Job Applicant" && route[2] === "Kanban";
+	let bar = document.querySelector(".ats-dropped-bar");
+	const board = document.querySelector(".kanban");
+	if (!on_board || !board) {
+		if (bar) bar.remove();
+		return;
+	}
+	if (!bar) {
+		bar = document.createElement("div");
+		bar.className = "ats-dropped-bar";
+		document.body.appendChild(bar);
+	}
+
+	const frame = board.getBoundingClientRect();
+	bar.style.left = frame.left + "px";
+	bar.style.width = frame.width + "px";
+
+	const columns = Array.from(document.querySelectorAll(".kanban-column"));
+	const seen = new Set();
+	columns.forEach((column) => {
+		const stage = column.dataset.columnValue;
+		if (!stage) return;
+		seen.add(stage);
+		let item = Array.from(bar.children).find((el) => el.dataset.stage === stage);
+		if (!item) {
+			item = document.createElement("div");
+			item.className = "ats-dropped-item";
+			item.dataset.stage = stage;
+			bar.appendChild(item);
+		}
+		const rect = column.getBoundingClientRect();
+		item.style.left = rect.left - frame.left + "px";
+		item.style.width = rect.width + "px";
+		const n = dropped.counts[stage] || 0;
+		const label = n === 1 ? __("{0} Dropped Candidate", [n]) : __("{0} Dropped Candidates", [n]);
+		const html = `${ICON_DROPPED}<span>${frappe.utils.escape_html(label)}</span>`;
+		if (item.innerHTML !== html) item.innerHTML = html;
+		item.classList.toggle("ats-dropped-none", !n);
+	});
+	Array.from(bar.children).forEach((el) => {
+		if (!seen.has(el.dataset.stage)) el.remove();
+	});
+}
+
+// the items follow the columns when the board is scrolled sideways or the window changes
+["scroll", "resize"].forEach((name) =>
+	window.addEventListener(name, () => requestAnimationFrame(place_dropped_bar), true),
+);
+
 function fill_dropped_footers() {
 	const list = window.cur_list;
 	if (!list || list.doctype !== "Job Applicant" || !list.board) return;
 	const filters = board_filters(list);
 	const key = JSON.stringify(filters);
 
-	const render = () => {
-		document.querySelectorAll(".kanban-column").forEach((column) => {
-			const stage = column.dataset.columnValue;
-			if (!stage) return;
-			let footer = column.querySelector(".ats-dropped-footer");
-			if (!footer) {
-				footer = document.createElement("div");
-				footer.className = "ats-dropped-footer";
-				footer.dataset.stage = stage;
-				column.appendChild(footer);
-			}
-			const n = dropped.counts[stage] || 0;
-			const label = n === 1 ? __("{0} Dropped Candidate", [n]) : __("{0} Dropped Candidates", [n]);
-			const html = `${ICON_DROPPED}<span>${frappe.utils.escape_html(label)}</span>`;
-			if (footer.innerHTML !== html) footer.innerHTML = html;
-			footer.classList.toggle("ats-dropped-none", !n);
-		});
-	};
+	const render = () => place_dropped_bar();
 
 	const stale = Date.now() - dropped.at > DROPPED_CACHE_SECONDS * 1000;
 	if ((key !== dropped.key || stale) && !dropped.loading) {
@@ -627,7 +667,7 @@ function fill_dropped_footers() {
 document.addEventListener(
 	"click",
 	function (e) {
-		const footer = e.target.closest && e.target.closest(".ats-dropped-footer");
+		const footer = e.target.closest && e.target.closest(".ats-dropped-item");
 		if (!footer || !window.cur_list) return;
 		e.preventDefault();
 		e.stopPropagation();
