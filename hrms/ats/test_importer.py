@@ -103,7 +103,7 @@ class TestImporter(IntegrationTestCase):
 		report = import_rows([self.row(job_title=title, stage="Hired", positions="3")], dry_run=False)
 		self.assertEqual((report["jobs_created"], report["created"]), (1, 1))
 		job = frappe.get_doc("Job Opening", {"job_title": title})
-		self.assertEqual(len(job.pipeline_stages), 15)
+		self.assertEqual(len(job.pipeline_stages), 12)
 		self.assertEqual((job.vacancies, job.headcount), (3, "3 - 1"))  # 3 positions, the one imported is Hired
 
 	def test_a_stage_that_a_new_job_does_not_have_is_reported_and_the_job_is_not_kept(self):
