@@ -1,6 +1,25 @@
 pipeline {
     agent any
     options { timeout(time: 30, unit: 'MINUTES') }
+    triggers {
+        // Auto-deploy on merges to develop. The pipeline's "Sync deploy checkout to
+        // develop" stage always resets the deploy tree to origin/develop, so every run
+        // deploys develop regardless of what triggered it; this makes a merge to develop
+        // actually fire a run.
+        //
+        // SCM polling (outbound) is used instead of a GitHub push webhook because the
+        // agent's inbound reachability is unreliable since the firewalld migration (the
+        // same root cause the Sonar and deploy-checkout stages work around with
+        // --network=host); polling needs no inbound hole punched to the Jenkins host.
+        // Polling is cheap -- it only `git ls-remote`s each interval and builds ONLY when
+        // develop's head actually moved. The job's SCM must track develop (branch spec
+        // */develop) for this to watch the right branch.
+        //
+        // NOTE: Jenkins registers a declarative `triggers` block on the FIRST build after
+        // this Jenkinsfile lands on the built branch -- run one manual build once to arm
+        // the poll; it auto-fires thereafter.
+        pollSCM('H/5 * * * *')
+    }
     environment {
         COMPOSE_FILE = '/opt/app/hrms/docker/docker-compose.yml'
         PROJECT = 'docker'
