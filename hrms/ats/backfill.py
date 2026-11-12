@@ -189,6 +189,82 @@ def upgrade_default_pipeline() -> int:
 	return count
 
 
+# the rejected stages the default pipeline used to have: the reason their candidates are dropped with,
+# and the stage they are dropped at (when the job has it; else the nearest ordinary stage before)
+REMOVED_REJECTED_STAGES = {
+	"Rejected after Technical Interview": ("Rejected by recruiter", "2nd Technical Interview"),
+	"Rejected after Final Interview": ("Rejected by recruiter", "Final Interview"),
+	"Offer Rejected": ("Candidate withdrew", "Offer Placed"),
+}
+
+
+def remove_default_rejected_stages() -> int:
+	"""Take the default "Rejected ..." stages out of every pipeline. The candidates in them are dropped
+	(reason: rejected by recruiter, or withdrew for a declined offer) at the stage just before, and
+	dropped candidates that were dropped at a removed stage are moved to that stage too. Stages with
+	other names, or of another type, are left alone. Returns how many candidates were moved. Safe to
+	run again."""
+	moved = 0
+	touched_jobs = set()
+	for parent_doctype, child_doctype, _fieldname in STAGE_TABLES:
+		parents = frappe.get_all(child_doctype, filters={"parenttype": parent_doctype}, pluck="parent", distinct=True)
+		for parent in parents:
+			rows = frappe.get_all(
+				child_doctype,
+				filters={"parent": parent, "parenttype": parent_doctype},
+				fields=["name", "stage_name", "stage_type", "idx"],
+				order_by="idx asc",
+			)
+			removable = [r for r in rows if r.stage_name in REMOVED_REJECTED_STAGES and r.stage_type == "Rejected"]
+			if not removable:
+				continue
+
+			for row in removable:
+				preferred = REMOVED_REJECTED_STAGES[row.stage_name][1]
+				ordinary = [r for r in rows if r not in removable and r.stage_type == "Active"]
+				before = [r for r in ordinary if r.idx < row.idx]
+				target = preferred if any(r.stage_name == preferred for r in ordinary) else (before[-1] if before else rows[0]).stage_name
+				if parent_doctype == "Job Opening":
+					moved += _drop_candidates_of_stage(parent, row.stage_name, target)
+					touched_jobs.add(parent)
+				frappe.db.delete(child_doctype, {"name": row.name})
+
+			keep = [r for r in rows if r not in removable]
+			for position, row in enumerate(keep, start=1):
+				if row.idx != position:
+					frappe.db.set_value(child_doctype, row.name, "idx", position, update_modified=False)
+
+	from hrms.ats.board import sync_hiring_pipeline_columns, sync_job_board
+	from hrms.ats.counters import refresh_counters
+
+	for job in touched_jobs:
+		refresh_counters(job)
+		sync_job_board(job)
+	sync_hiring_pipeline_columns()  # the shared board keeps its own copy of the column list
+	return moved
+
+
+def _drop_candidates_of_stage(job: str, stage: str, target: str) -> int:
+	reason = REMOVED_REJECTED_STAGES[stage][0]
+	moved = 0
+	for name, dropped in frappe.get_all(
+		"Job Applicant", filters={"job_title": job, "pipeline_stage": stage}, fields=["name", "is_dropped"], as_list=True
+	):
+		values = {"pipeline_stage": target, "status": "Rejected"}
+		if not dropped:
+			values.update({"is_dropped": 1, "drop_reason": reason, "dropped_at_stage": target})
+		else:
+			values["dropped_at_stage"] = target
+		frappe.db.set_value("Job Applicant", name, values, update_modified=False)
+		moved += 1
+	# people dropped at that stage while they were still in an earlier one: keep the history readable
+	frappe.db.sql(
+		"update `tabJob Applicant` set dropped_at_stage=%s where job_title=%s and dropped_at_stage=%s",
+		(target, job, stage),
+	)
+	return moved
+
+
 def fill_card_dates() -> int:
 	"""Fill Applied On and In Stage Since for applicants that have not got them. Safe to run again."""
 	before = frappe.db.count("Job Applicant", {"applied_on": ["is", "not set"]})

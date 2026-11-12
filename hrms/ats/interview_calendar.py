@@ -39,32 +39,116 @@ def participants(interview) -> list[dict]:
 	return rows
 
 
-def find_conflicts(interviewers: list[str], starts_on, ends_on, ignore_interview: str | None = None) -> dict[str, list[str]]:
-	"""Which of these interviewers already have something on the calendar in that time, and what.
-	Frappe Events cover their other interviews and whatever Frappe's Google sync pulled from their
-	own calendars."""
+def google_freebusy(emails: list[str], start, end, user: str | None = None) -> dict:
+	"""What Google Calendar says about these people between two moments (site time): {"busy": {email: [(from,
+	to), ...]}, "hidden": [emails whose calendar Google would not show us]}. It uses the signed-in
+	recruiter's own connected Google Calendar. Nothing is returned (and nothing fails) when they have
+	none, or when Google cannot be reached."""
+	user = user or frappe.session.user
+	calendar = google_calendar_for(user)
+	if not calendar or not emails:
+		return {"busy": {}, "hidden": []}
+	try:
+		from datetime import datetime
+		from zoneinfo import ZoneInfo
+
+		from frappe.integrations.doctype.google_calendar.google_calendar import get_google_calendar_object
+		from frappe.utils import get_system_timezone
+
+		tz = ZoneInfo(get_system_timezone())
+		service, _account = get_google_calendar_object(calendar)
+		body = {
+			"timeMin": start.replace(tzinfo=tz).isoformat(),
+			"timeMax": end.replace(tzinfo=tz).isoformat(),
+			"timeZone": tz.key,
+			"items": [{"id": email} for email in emails],
+		}
+		result = service.freebusy().query(body=body).execute()
+
+		def local(value: str):
+			return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(tz).replace(tzinfo=None)
+
+		busy, hidden = {}, []
+		for email, data in (result.get("calendars") or {}).items():
+			if data.get("errors"):
+				hidden.append(email)
+				continue
+			busy[email] = [(local(b["start"]), local(b["end"])) for b in data.get("busy", [])]
+		return {"busy": busy, "hidden": hidden}
+	except Exception:
+		frappe.log_error(title="ATS Google free/busy failed")
+		return {"busy": {}, "hidden": []}
+
+
+def busy_slots(interviewers: list[str], starts_on, ends_on, ignore_interview: str | None = None) -> dict:
+	"""When these interviewers are busy between two moments: {"slots": [...], "hidden": [...]}. Each slot
+	is {who, source, title, from, to}. Frappe's own events cover their other interviews and anything Frappe
+	synced from their calendars; Google's free/busy adds what is in their Google Calendar."""
 	if not interviewers:
-		return {}
+		return {"slots": [], "hidden": []}
 	event = frappe.qb.DocType("Event")
 	part = frappe.qb.DocType("Event Participants")
 	query = (
 		frappe.qb.from_(event)
 		.join(part)
 		.on(part.parent == event.name)
-		.select(part.email, event.subject)
+		.select(part.email, event.subject, event.starts_on, event.ends_on)
 		.where(part.email.isin(interviewers))
 		.where(event.status == "Open")
 		.where(event.starts_on < ends_on)
 		.where(event.ends_on > starts_on)
 	)
+	own = None
 	if ignore_interview:
 		query = query.where(
 			(event.reference_doctype.isnull()) | (event.reference_doctype != "Interview") | (event.reference_docname != ignore_interview)
 		)
+		own_name = get_interview_event(ignore_interview)
+		if own_name:
+			own = tuple(get_datetime(v) for v in frappe.db.get_value("Event", own_name, ["starts_on", "ends_on"]))
+
+	slots = [
+		{"who": r.email, "source": "ATS", "title": r.subject, "from": r.starts_on, "to": r.ends_on}
+		for r in query.run(as_dict=True)
+	]
+	google = google_freebusy(interviewers, starts_on, ends_on)
+	for who, blocks in google["busy"].items():
+		for block_from, block_to in blocks:
+			if own and (block_from, block_to) == own:
+				continue  # this interview's own event, as Google has it
+			slots.append({"who": who, "source": "Google Calendar", "title": frappe._("Busy"), "from": block_from, "to": block_to})
+	slots.sort(key=lambda slot: (slot["who"], slot["from"]))
+	return {"slots": slots, "hidden": google["hidden"]}
+
+
+def find_conflicts(interviewers: list[str], starts_on, ends_on, ignore_interview: str | None = None) -> dict[str, list[str]]:
+	"""Which of these interviewers are busy at that time, and with what (their other interviews, what
+	Frappe synced from their calendars, and what Google Calendar shows as busy)."""
 	busy: dict[str, list[str]] = {}
-	for row in query.run(as_dict=True):
-		busy.setdefault(row.email, []).append(row.subject)
+	for slot in busy_slots(interviewers, starts_on, ends_on, ignore_interview)["slots"]:
+		span = f"{slot['from']:%H:%M}-{slot['to']:%H:%M}"
+		busy.setdefault(slot["who"], []).append(f"{slot['title']} ({span}, {slot['source']})")
 	return busy
+
+
+@frappe.whitelist()
+def get_availability(interviewers: str | list, scheduled_on: str, interview: str | None = None) -> dict:
+	"""For the Check Availability button: every busy slot of these interviewers on that day, from Frappe
+	and from Google, so the free time between is visible."""
+	import json
+
+	frappe.has_permission("Interview", "read", throw=True)
+	names = json.loads(interviewers) if isinstance(interviewers, str) else list(interviewers or [])
+	day = str(scheduled_on)
+	result = busy_slots(names, get_datetime(f"{day} 00:00:00"), get_datetime(f"{day} 23:59:59"), interview)
+	return {
+		"google_connected": bool(google_calendar_for(frappe.session.user)),
+		"hidden": result["hidden"],
+		"slots": [
+			{"who": s["who"], "source": s["source"], "title": s["title"], "from": f"{s['from']:%H:%M}", "to": f"{s['to']:%H:%M}"}
+			for s in result["slots"]
+		],
+	}
 
 
 @frappe.whitelist()

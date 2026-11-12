@@ -394,6 +394,30 @@ def enable_change_history(commit: bool = True):
 LIST_COLUMN_FIELDS = {"Job Opening": ("location", "lower_range", "upper_range")}
 
 
+DEFAULT_VIEWS = {"Job Applicant": "Kanban"}
+
+
+def set_default_views(commit: bool = True):
+	"""after_migrate hook: opening Job Applicant from the menu lands on the Kanban board, not the list.
+
+	A property setter on the doctype's Default View. Re-routing is not forced, so the list stays
+	reachable (the job's Dropped Candidates button opens it)."""
+	for doctype, view in DEFAULT_VIEWS.items():
+		frappe.make_property_setter(
+			{
+				"doctype": doctype,
+				"doctype_or_field": "DocType",
+				"property": "default_view",
+				"value": view,
+				"property_type": "Select",
+			},
+			is_system_generated=False,
+		)
+	if commit:
+		frappe.db.commit()
+	frappe.clear_cache()
+
+
 def set_list_columns(commit: bool = True):
 	"""after_migrate hook: show location and salary range as columns of the Job Opening list.
 

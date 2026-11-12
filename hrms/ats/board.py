@@ -21,6 +21,9 @@ CARD_FIELDS = [
 	"applicant_rating",
 	"applied_on",
 	"stage_entered_date",
+	# not shown as text: the card badges (time since applied, time in stage) are worked out from these
+	"stage_entered_on",
+	"creation",
 ]
 HIDE_DROPPED_FILTER = [["Job Applicant", "is_dropped", "=", 0]]
 
@@ -60,6 +63,25 @@ def upgrade_hiring_pipeline_board() -> bool:
 	if board.field_name == STAGE_FIELD:
 		return False
 	apply_pipeline_definition(board)
+	board.save(ignore_permissions=True)
+	return True
+
+
+def sync_hiring_pipeline_columns() -> bool:
+	"""Make the shared Hiring Pipeline board's columns the stages of the default pipeline again (after the
+	default changed). Only the columns are touched, not the board's filters or card fields. Returns True
+	when something changed."""
+	if not frappe.db.exists("Kanban Board", BOARD_NAME):
+		return False
+	board = frappe.get_doc("Kanban Board", BOARD_NAME)
+	if board.field_name != STAGE_FIELD:
+		return False
+	wanted = default_columns()
+	if [c.column_name for c in board.columns] == wanted:
+		return False
+	board.set("columns", [])
+	for column_name in wanted:
+		board.append("columns", {"column_name": column_name, "status": "Active"})
 	board.save(ignore_permissions=True)
 	return True
 

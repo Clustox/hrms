@@ -34,8 +34,9 @@ class TestCardFields(IntegrationTestCase):
 		meta = frappe.get_meta("Job Applicant")
 		for fieldname in ("applied_on", "stage_entered_date"):
 			self.assertEqual(meta.get_field(fieldname).fieldtype, "Date")
-		self.assertNotIn("creation", CARD_FIELDS)
-		self.assertNotIn("stage_entered_on", CARD_FIELDS)
+		# the exact times are loaded too, but only to work out the "2w" / "5d" badges: the card never prints them
+		for fieldname in ("creation", "stage_entered_on"):
+			self.assertIn(fieldname, CARD_FIELDS)
 
 	def test_a_new_board_has_the_card_fields(self):
 		board = create_kanban_board("_Test Card Board")

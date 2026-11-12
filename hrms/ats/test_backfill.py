@@ -54,7 +54,7 @@ class TestBackfill(IntegrationTestCase):
 		stages = frappe.get_all("Job Pipeline Stage", filters={"parent": job.name}, order_by="idx asc", pluck="stage_name")
 		self.assertEqual(stages[0], "New Candidates")
 		self.assertEqual(stages[-1], "On Hold")
-		self.assertEqual(len(stages), 15)
+		self.assertEqual(len(stages), 12)
 
 	def test_same_person_on_two_jobs_shares_one_candidate(self):
 		job_a, job_b = legacy_job("_Test Backfill A"), legacy_job("_Test Backfill B")

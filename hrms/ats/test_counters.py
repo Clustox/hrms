@@ -37,12 +37,12 @@ class TestJobCounters(IntegrationTestCase):
 		self.assertEqual((c.hired_count, c.in_pipeline_count), (1, 1))
 		self.assertEqual(c.headcount, "3 - 1")
 
-	def test_dropped_counts_flagged_and_rejected_stage_candidates(self):
+	def test_dropped_counts_everyone_dropped_whatever_the_reason(self):
 		flagged = new_applicant(self.job, "count.flagged@example.com").name
 		rejected = new_applicant(self.job, "count.rejected@example.com").name
 		new_applicant(self.job, "count.live@example.com")
 		drop_applicant(flagged, "Candidate withdrew")
-		move_stage(rejected, "Rejected after Final Interview")
+		drop_applicant(rejected, "Rejected by recruiter")
 		c = counters(self.job.name)
 		self.assertEqual((c.dropped_count, c.in_pipeline_count), (2, 1))
 

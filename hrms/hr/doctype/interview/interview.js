@@ -16,12 +16,52 @@ frappe.ui.form.on("Interview", {
 		});
 
 		frm.trigger("add_custom_buttons");
+		frm.trigger("add_availability_button");
 		if (frm.doc.__islocal) return;
 
 		frappe.run_serially([
 			() => frm.trigger("load_skills_average_rating"),
 			() => frm.trigger("load_feedback"),
 		]);
+	},
+
+	add_availability_button: function (frm) {
+		// ATS: who is busy on the interview's day, from Frappe and from Google Calendar
+		if (frm.doc.docstatus === 2) return;
+		frm.add_custom_button(__("Check Availability"), () => {
+			const interviewers = (frm.doc.interview_details || []).map((row) => row.interviewer).filter(Boolean);
+			if (!frm.doc.scheduled_on || !interviewers.length) {
+				return frappe.msgprint(__("Set the date and add the interviewers first."));
+			}
+			frappe
+				.xcall("hrms.ats.interview_calendar.get_availability", {
+					interviewers,
+					scheduled_on: frm.doc.scheduled_on,
+					interview: frm.is_new() ? null : frm.doc.name,
+				})
+				.then((r) => {
+					const e = frappe.utils.escape_html;
+					const rows = interviewers
+						.map((who) => {
+							const slots = r.slots.filter((s) => s.who === who);
+							const hidden = r.hidden.includes(who);
+							const body = slots.length
+								? slots.map((s) => `<div>${e(s.from)} - ${e(s.to)} &nbsp; <span class="text-muted">${e(s.title)} · ${e(s.source)}</span></div>`).join("")
+								: `<span class="text-success">${__("Free all day")}</span>`;
+							const note = hidden ? `<br><span class="text-muted small">${__("Google would not show this calendar")}</span>` : "";
+							return `<tr><td style="padding:6px 12px 6px 0;vertical-align:top"><b>${e(who)}</b>${note}</td><td style="padding:6px 0">${body}</td></tr>`;
+						})
+						.join("");
+					const warning = r.google_connected
+						? ""
+						: `<p class="text-muted small">${__("Your Google Calendar is not connected, so only Frappe events are shown.")}</p>`;
+					frappe.msgprint({
+						title: __("Availability on {0}", [frappe.datetime.str_to_user(frm.doc.scheduled_on)]),
+						message: `${warning}<table>${rows}</table>`,
+						wide: true,
+					});
+				});
+		});
 	},
 
 	add_custom_buttons: async function (frm) {

@@ -67,7 +67,7 @@ class TestGuestMovesCandidates(GuestFixture):
 
 	def test_moving_out_of_the_visible_stages_makes_the_candidate_disappear_for_the_guest(self):
 		self.allow_moving()
-		as_user(self.guest, move_stage, self.visible, "Rejected after Final Interview")
+		as_user(self.guest, move_stage, self.visible, "On Hold")  # a stage that is not ticked for guests
 		self.assertEqual(names_or_denied(self.guest, "Job Applicant"), [])
 
 	def test_stage_rules_still_apply_to_a_guest(self):
@@ -90,7 +90,7 @@ class TestMoveOptions(GuestFixture):
 		options = as_user(self.guest, get_move_options, self.visible)
 		self.assertNotIn("Technical Assessment", options)  # where they already are
 		self.assertIn("Final Interview", options)
-		self.assertEqual(len(options), 14)  # 15 stages, minus the current one
+		self.assertEqual(len(options), 11)  # 12 stages, minus the current one
 
 	def test_a_guest_without_the_right_is_offered_nothing(self):
 		self.assertEqual(as_user(self.guest, get_move_options, self.visible), [])

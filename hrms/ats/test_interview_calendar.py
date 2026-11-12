@@ -252,3 +252,120 @@ class TestFreeBusy(IntegrationTestCase):
 		from hrms.ats.interview_calendar import check_interviewers_free
 
 		self.assertEqual(check_interviewers_free([], str(self.day), "10:00:00", "11:00:00"), {})
+
+
+GOOGLE = "hrms.ats.interview_calendar.google_freebusy"
+
+
+def at(day, hhmm):
+	import datetime as dt
+
+	hour, minute = map(int, hhmm.split(":"))
+	return dt.datetime.combine(day, dt.time(hour, minute))
+
+
+class TestGoogleFreeBusy(IntegrationTestCase):
+	def setUp(self):
+		self.job = make_job("_Test GFB Job").insert()
+		self.applicant = new_applicant(self.job, f"gfb.{frappe.generate_hash(length=8)}@example.com")
+		self.day = add_days(getdate(), 50 + int(frappe.generate_hash(length=4), 16) % 3000)  # tests share a transaction
+
+	def test_google_busy_time_is_part_of_the_conflicts(self):
+		from unittest.mock import patch
+
+		from hrms.ats.interview_calendar import check_interviewers_free
+
+		busy = {"busy": {"test_interviewer1@example.com": [(at(self.day, "10:15"), at(self.day, "10:45"))]}, "hidden": []}
+		with patch(GOOGLE, return_value=busy):
+			result = check_interviewers_free(INTERVIEWERS, str(self.day), "10:00:00", "11:00:00")
+		self.assertEqual(list(result), ["test_interviewer1@example.com"])
+		self.assertIn("Google Calendar", result["test_interviewer1@example.com"][0])
+		self.assertIn("10:15-10:45", result["test_interviewer1@example.com"][0])
+
+	def test_the_day_view_lists_both_sources_in_time_order_and_names_hidden_calendars(self):
+		from unittest.mock import patch
+
+		from hrms.ats.interview_calendar import get_availability
+
+		create_interview_and_dependencies(self.applicant.name, self.day, "09:00:00", "09:30:00", type_name="_Test GFB Round")
+		google = {
+			"busy": {"test_interviewer1@example.com": [(at(self.day, "13:00"), at(self.day, "14:00"))]},
+			"hidden": ["test_interviewer2@example.com"],
+		}
+		with patch(GOOGLE, return_value=google):
+			result = get_availability(INTERVIEWERS, str(self.day))
+		mine = [s for s in result["slots"] if s["who"] == "test_interviewer1@example.com"]
+		self.assertEqual([(s["source"], s["from"], s["to"]) for s in mine], [("ATS", "09:00", "09:30"), ("Google Calendar", "13:00", "14:00")])
+		self.assertEqual(result["hidden"], ["test_interviewer2@example.com"])
+
+	def test_the_interviews_own_google_event_does_not_count_against_it(self):
+		from unittest.mock import patch
+
+		from hrms.ats.interview_calendar import get_availability
+
+		interview = create_interview_and_dependencies(self.applicant.name, self.day, "11:00:00", "11:30:00", type_name="_Test GFB Round 2")
+		own = {"busy": {"test_interviewer1@example.com": [(at(self.day, "11:00"), at(self.day, "11:30"))]}, "hidden": []}
+		with patch(GOOGLE, return_value=own):
+			result = get_availability(INTERVIEWERS, str(self.day), interview.name)
+		self.assertEqual([s for s in result["slots"] if s["source"] == "Google Calendar"], [])
+
+	def test_without_a_connected_google_calendar_only_frappe_events_show(self):
+		from unittest.mock import patch
+
+		from hrms.ats.interview_calendar import get_availability, google_freebusy
+
+		with patch("hrms.ats.interview_calendar.google_calendar_for", return_value=None):
+			self.assertEqual(google_freebusy(INTERVIEWERS, at(self.day, "00:00"), at(self.day, "23:59")), {"busy": {}, "hidden": []})
+			self.assertFalse(get_availability(INTERVIEWERS, str(self.day))["google_connected"])
+
+	def test_google_being_unreachable_never_breaks_scheduling(self):
+		from unittest.mock import patch
+
+		from hrms.ats.interview_calendar import google_freebusy
+
+		with patch("hrms.ats.interview_calendar.google_calendar_for", return_value="Some Calendar"), patch(
+			"frappe.integrations.doctype.google_calendar.google_calendar.get_google_calendar_object", side_effect=Exception("token expired")
+		):
+			self.assertEqual(google_freebusy(INTERVIEWERS, at(self.day, "00:00"), at(self.day, "23:59")), {"busy": {}, "hidden": []})
+		interview = create_interview_and_dependencies(self.applicant.name, self.day, "15:00:00", "15:30:00", type_name="_Test GFB Round 3")
+		self.assertTrue(interview.name)  # saving still works
+
+	def test_google_times_are_converted_to_site_time_and_unseen_calendars_are_reported(self):
+		from unittest.mock import MagicMock, patch
+		from zoneinfo import ZoneInfo
+
+		from frappe.utils import get_system_timezone
+
+		from hrms.ats.interview_calendar import google_freebusy
+
+		tz = ZoneInfo(get_system_timezone())
+		start_utc = at(self.day, "09:30").replace(tzinfo=tz).astimezone(ZoneInfo("UTC"))
+		end_utc = at(self.day, "10:00").replace(tzinfo=tz).astimezone(ZoneInfo("UTC"))
+		service = MagicMock()
+		service.freebusy.return_value.query.return_value.execute.return_value = {
+			"calendars": {
+				"test_interviewer1@example.com": {"busy": [{"start": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"), "end": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")}]},
+				"test_interviewer2@example.com": {"errors": [{"reason": "notFound"}]},
+			}
+		}
+		with patch("hrms.ats.interview_calendar.google_calendar_for", return_value="Some Calendar"), patch(
+			"frappe.integrations.doctype.google_calendar.google_calendar.get_google_calendar_object", return_value=(service, MagicMock())
+		):
+			result = google_freebusy(INTERVIEWERS, at(self.day, "00:00"), at(self.day, "23:59"))
+		self.assertEqual(result["busy"], {"test_interviewer1@example.com": [(at(self.day, "09:30"), at(self.day, "10:00"))]})
+		self.assertEqual(result["hidden"], ["test_interviewer2@example.com"])
+		asked = service.freebusy.return_value.query.call_args.kwargs["body"]
+		self.assertEqual([i["id"] for i in asked["items"]], INTERVIEWERS)
+
+	def test_only_someone_who_can_read_interviews_may_ask(self):
+		from hrms.ats.interview_calendar import get_availability
+
+		user = frappe.get_doc(
+			{"doctype": "User", "email": f"gfb.noperm.{frappe.generate_hash(length=6)}@example.com", "first_name": "N", "send_welcome_email": 0, "enabled": 1, "roles": [{"role": "Employee"}]}
+		).insert(ignore_permissions=True)
+		frappe.set_user(user.name)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_availability(INTERVIEWERS, str(self.day))
+		finally:
+			frappe.set_user("Administrator")

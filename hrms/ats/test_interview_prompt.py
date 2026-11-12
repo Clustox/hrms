@@ -40,7 +40,7 @@ class TestAdvanceApplicant(IntegrationTestCase):
 	def test_never_advances_into_on_hold_or_out_of_hired(self):
 		move_stage(self.name, "Hired")
 		with self.assertRaises(frappe.ValidationError):
-			advance_applicant(self.name)  # On Hold and Offer Rejected are not forward stages
+			advance_applicant(self.name)  # On Hold is not a forward stage
 
 	def test_dropped_candidate_cannot_advance(self):
 		frappe.db.set_value("Job Applicant", self.name, {"is_dropped": 1, "drop_reason": "Position filled"})
