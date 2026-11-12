@@ -206,8 +206,8 @@ function add_candidate_avatars_to_kanban_cards() {
 		"border-radius:8px;box-shadow:var(--shadow-md);min-width:130px;padding:4px 0}" +
 		".ats-card-menu div{padding:6px 12px;cursor:pointer;color:var(--text-color);font-size:12px}.ats-card-menu div:hover{background:var(--control-bg)}" +
 		".ats-dropped-footer{display:flex;align-items:center;justify-content:center;gap:6px;padding:5px 6px;margin:6px calc(var(--padding-md) * -1) calc(var(--padding-md) * -1);cursor:pointer;" +
-		"font-size:12.5px;font-weight:500;color:#1a6fd6;background:#e8f0fb;border-top:1px solid #cddcf3;border-radius:0 0 var(--radius) var(--radius);flex:0 0 auto}" +
-		".ats-dropped-footer:hover{background:#dbe8fa}.ats-dropped-footer.ats-dropped-none{opacity:.65}" +
+		"font-size:13px;font-weight:600;color:#0f5fc2;background:#d6e6fb;border-top:1px solid #b9d2f4;border-radius:0 0 var(--radius) var(--radius);flex:0 0 auto}" +
+		".ats-dropped-footer:hover{background:#c8def8}.ats-dropped-footer.ats-dropped-none{background:#e6eefa;color:#5b87c5}" +
 		".ats-dropped-footer svg{width:16px;height:16px;flex:0 0 auto}" +
 		".ats-job-bar{display:flex;flex-direction:column;gap:2px;padding:8px var(--padding-lg,24px);background:var(--bg-color,#fff);border-bottom:1px solid var(--border-color);line-height:1.3}" +
 		".ats-job-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}" +
