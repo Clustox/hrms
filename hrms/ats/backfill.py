@@ -7,7 +7,7 @@
 
 import frappe
 
-from hrms.ats.candidates import find_duplicate, normalize_email, normalize_phone
+from hrms.ats.candidates import get_or_create_candidate
 from hrms.ats.pipeline import (
 	DEFAULT_TEMPLATE_NAME,
 	STAGE_COPY_FIELDS,
@@ -115,24 +115,15 @@ def backfill_candidates() -> int:
 		order_by="creation asc",
 	)
 	for applicant in applicants:
-		if not (normalize_email(applicant.email_id) or normalize_phone(applicant.phone_number)):
-			continue
-		candidate = find_duplicate(applicant.email_id, applicant.phone_number)
+		candidate = get_or_create_candidate(
+			applicant.email_id,
+			applicant.phone_number,
+			applicant.applicant_name,
+			applicant.source,
+			applicant.resume_attachment,
+		)
 		if not candidate:
-			candidate = (
-				frappe.get_doc(
-					{
-						"doctype": "Candidate",
-						"full_name": applicant.applicant_name or applicant.email_id,
-						"email": applicant.email_id,
-						"phone": applicant.phone_number,
-						"source": applicant.source,
-						"resume": applicant.resume_attachment,
-					}
-				)
-				.insert(ignore_permissions=True)
-				.name
-			)
+			continue
 		frappe.db.set_value("Job Applicant", applicant.name, "candidate", candidate, update_modified=False)
 		count += 1
 	return count

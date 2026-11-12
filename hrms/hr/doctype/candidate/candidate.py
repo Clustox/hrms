@@ -36,6 +36,10 @@ class Candidate(Document):
 		source: DF.Link | None
 	# end: auto-generated types
 
+	def onload(self):
+		if not self.is_new():
+			self.set_onload("applications", get_applications(self.name))
+
 	def validate(self):
 		self.full_name = (self.full_name or "").strip()
 		self.email_normalized = normalize_email(self.email)
@@ -50,3 +54,16 @@ class Candidate(Document):
 				exc=DuplicateCandidateError,
 				title=_("Duplicate Candidate"),
 			)
+
+
+def get_applications(candidate: str) -> list[dict]:
+	"""The person's applications: job, stage and status of each, newest first."""
+	applications = frappe.get_list(
+		"Job Applicant",
+		filters={"candidate": candidate},
+		fields=["name", "job_title", "pipeline_stage", "status", "is_dropped", "drop_reason", "applied_on"],
+		order_by="creation desc",
+	)
+	for application in applications:
+		application.job_name = frappe.db.get_value("Job Opening", application.job_title, "job_title")
+	return applications
