@@ -4,8 +4,31 @@
 frappe.listview_settings["Job Applicant"] = {
 	add_fields: ["status", "applicant_rating", "designation"],
 
-	onload: function () {
+	onload: function (listview) {
 		patch_kanban_dialog_for_job_applicant();
+
+		// ATS: email the selected candidates from a template, one message each
+		listview.page.add_actions_menu_item(__("Send Email"), () => {
+			const names = listview.get_checked_items(true);
+			if (!names.length) return frappe.msgprint(__("Select candidates first."));
+			frappe.prompt(
+				{ label: __("Template"), fieldname: "template", fieldtype: "Link", options: "Email Template", reqd: 1 },
+				(values) => {
+					frappe
+						.xcall("hrms.ats.mail.send_bulk_email", { template: values.template, applicants: names })
+						.then((r) => {
+							let msg = __("{0} email(s) queued.", [r.sent]);
+							if (r.skipped.length) {
+								msg += "<br>" + __("Skipped:") + "<ul>" + r.skipped.map((s) => `<li>${frappe.utils.escape_html(s.applicant)}: ${frappe.utils.escape_html(s.reason)}</li>`).join("") + "</ul>";
+							}
+							frappe.msgprint(msg);
+							listview.refresh();
+						});
+				},
+				__("Send Email to {0} Candidates", [names.length]),
+				__("Send"),
+			);
+		}, true);
 	},
 
 	get_indicator: function (doc) {

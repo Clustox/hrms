@@ -30,7 +30,7 @@ class TestJobOfferWriter(IntegrationTestCase):
 		update_job_applicant("Accepted", name)
 		doc = frappe.get_doc("Job Applicant", name)
 		self.assertEqual((doc.pipeline_stage, doc.status), ("Offer Accepted", "Accepted"))
-		self.assertEqual(history(name)[-1], ("Offer Placed", "Offer Accepted", "Offer"))
+		self.assertEqual(history(name)[-1], ("Offer Placed", "Offer Accepted"))
 
 	def test_declined_offer_ends_in_offer_rejected_and_is_not_dropped(self):
 		job = make_job("_Test Offer Declined").insert()
@@ -71,7 +71,7 @@ class TestEmployeeHookWriter(IntegrationTestCase):
 		update_job_applicant_and_offer(SimpleNamespace(job_applicant=name))
 		doc = frappe.get_doc("Job Applicant", name)
 		self.assertEqual((doc.pipeline_stage, doc.status), ("Hired", "Accepted"))
-		self.assertEqual(history(name)[-1], ("Final Interview", "Hired", "System"))
+		self.assertEqual(history(name)[-1], ("Final Interview", "Hired"))
 
 	def test_hook_without_an_applicant_does_nothing(self):
 		update_job_applicant_and_offer(SimpleNamespace(job_applicant=None))
@@ -111,7 +111,7 @@ class TestHiredAndOnHoldStages(IntegrationTestCase):
 		self.assertEqual(frappe.db.get_value("Job Applicant", name, "pipeline_stage"), "Offer Accepted")
 		update_job_applicant_and_offer(SimpleNamespace(job_applicant=name))
 		self.assertEqual(frappe.db.get_value("Job Applicant", name, "pipeline_stage"), "Hired")
-		self.assertEqual(history(name)[-1], ("Offer Accepted", "Hired", "System"))
+		self.assertEqual(history(name)[-1], ("Offer Accepted", "Hired"))
 
 	def test_offer_accepted_never_moves_a_hired_candidate_backwards(self):
 		name = new_applicant(self.job, "hired.back@example.com").name

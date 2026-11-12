@@ -10,9 +10,7 @@
   "from_stage",
   "to_stage",
   "moved_by",
-  "moved_on",
-  "trigger_source",
-  "reason"
+  "moved_on"
  ],
  "fields": [
   {
@@ -61,26 +59,12 @@
    "in_list_view": 1,
    "label": "Moved On",
    "read_only": 1
-  },
-  {
-   "fieldname": "trigger_source",
-   "fieldtype": "Select",
-   "label": "Trigger",
-   "options": "Manual\nBoard\nInterview\nOffer\nBulk\nImport\nSystem",
-   "default": "Manual",
-   "read_only": 1
-  },
-  {
-   "fieldname": "reason",
-   "fieldtype": "Small Text",
-   "label": "Reason",
-   "read_only": 1
   }
  ],
  "in_create": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-11-10 10:30:00.000000",
+ "modified": "2026-11-12 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Applicant Stage Log",

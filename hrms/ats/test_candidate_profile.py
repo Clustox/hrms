@@ -18,7 +18,7 @@ class TestCandidateProfile(IntegrationTestCase):
 
 	def apply_to_both(self):
 		first = new_applicant(self.jobs[0], self.email).name
-		second = new_applicant(self.jobs[1], self.email.replace("@", "+second@")).name  # same person
+		second = new_applicant(self.jobs[1], self.email.upper()).name  # same person, other case
 		return first, second
 
 	def candidate(self, applicant):

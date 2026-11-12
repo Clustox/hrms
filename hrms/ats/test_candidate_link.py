@@ -37,7 +37,7 @@ class TestNewApplicantGetsACandidate(IntegrationTestCase):
 	def test_same_person_on_a_second_job_shares_the_candidate(self):
 		other = make_job("_Test Link Job 2").insert()
 		first = apply(self.job, "twice.apply@example.com")
-		second = apply(other, "Twice.Apply+jobs@Example.com")  # same email in another form
+		second = apply(other, "Twice.Apply@Example.com")  # same email in another case
 		self.assertEqual(candidate_of(first), candidate_of(second))
 		self.assertEqual(frappe.db.count("Candidate", {"email_normalized": "twice.apply@example.com"}), 1)
 

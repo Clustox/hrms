@@ -145,6 +145,7 @@ after_migrate = [
 	"hrms.ats.setup.enable_change_history",
 	"hrms.ats.setup.set_list_columns",
 	"hrms.ats.roles.apply_roles_and_permissions",
+	"hrms.ats.mail.seed_email_templates",
 	"hrms.setup.update_select_perm_after_install",
 	"hrms.cx360.setup.place_cx360_workspace",
 ]
@@ -346,7 +347,16 @@ doc_events = {
 	# the acknowledgement + agent replies reach the employee (see helpdesk_router).
 	"HD Ticket": {"before_validate": "hrms.helpdesk_router.set_requester_from_contact"},
 	"Appraisal": {"on_submit": "hrms.telemetry.on_appraisal_submit"},
-	"Interview": {"on_submit": "hrms.telemetry.on_interview_submit"},
+	# ATS: a reschedule made in Google Calendar moves the interview too
+	"Event": {"on_update": "hrms.ats.interview_calendar.follow_event_time"},
+	"Interview": {
+		"on_submit": "hrms.telemetry.on_interview_submit",
+		# ATS: the interview's calendar Event follows it
+		"validate": "hrms.ats.interview_calendar.warn_about_conflicts",
+		"on_update": "hrms.ats.interview_calendar.sync_interview_event",
+		"on_cancel": "hrms.ats.interview_calendar.sync_interview_event",
+		"on_discard": "hrms.ats.interview_calendar.sync_interview_event",
+	},
 	# ---- Activation telemetry: post-install setup funnel (first-time milestones) ----
 	"Shift Type": {"after_insert": "hrms.telemetry.on_milestone_insert"},
 	"Leave Type": {"after_insert": "hrms.telemetry.on_milestone_insert"},
@@ -404,6 +414,8 @@ scheduler_events = {
 	],
 	"hourly": [
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.trigger_emails",
+		# ATS: candidates' answers to interview invitations
+		"hrms.ats.interview_calendar.poll_rsvps",
 	],
 	"hourly_long": [
 		"hrms.hr.doctype.shift_type.shift_type.update_last_sync_of_checkin",

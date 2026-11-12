@@ -37,28 +37,28 @@ class TestStageEmail(IntegrationTestCase):
 		template = make_template()
 		job = job_with_email("_Test Email Job A", "Technical Assessment", template.name)
 		applicant = new_applicant(job, "mail.a@example.com")
-		with patch("hrms.ats.pipeline.frappe.sendmail") as sendmail:
+		with patch("hrms.ats.mail.make_system_communication") as sendmail:
 			move_stage(applicant.name, "Technical Assessment")
 		sendmail.assert_called_once()
 		kwargs = sendmail.call_args.kwargs
 		self.assertEqual(kwargs["recipients"], ["mail.a@example.com"])
 		self.assertIn("Update on _Test Email Job A", kwargs["subject"])
-		self.assertIn("Stage Tester", kwargs["message"])
-		self.assertIn("Technical Assessment", kwargs["message"])
-		self.assertEqual((kwargs["reference_doctype"], kwargs["reference_name"]), ("Job Applicant", applicant.name))
+		self.assertIn("Stage Tester", kwargs["content"])
+		self.assertIn("Technical Assessment", kwargs["content"])
+		self.assertEqual((kwargs["doctype"], kwargs["name"]), ("Job Applicant", applicant.name))
 
 	def test_no_email_for_a_stage_without_a_template(self):
 		template = make_template()
 		job = job_with_email("_Test Email Job B", "Technical Assessment", template.name)
 		applicant = new_applicant(job, "mail.b@example.com")
-		with patch("hrms.ats.pipeline.frappe.sendmail") as sendmail:
+		with patch("hrms.ats.mail.make_system_communication") as sendmail:
 			move_stage(applicant.name, "Final Interview")
 		sendmail.assert_not_called()
 
 	def test_new_applicant_gets_the_first_stage_email(self):
 		template = make_template()
 		job = job_with_email("_Test Email Job C", "New Candidates", template.name)
-		with patch("hrms.ats.pipeline.frappe.sendmail") as sendmail:
+		with patch("hrms.ats.mail.make_system_communication") as sendmail:
 			new_applicant(job, "mail.c@example.com")
 		sendmail.assert_called_once()
 
@@ -66,7 +66,7 @@ class TestStageEmail(IntegrationTestCase):
 		template = make_template()
 		job = job_with_email("_Test Email Job D", "Technical Assessment", template.name)
 		applicant = new_applicant(job, "mail.d@example.com")
-		with patch("hrms.ats.pipeline.frappe.sendmail", side_effect=Exception("smtp down")):
+		with patch("hrms.ats.mail.make_system_communication", side_effect=Exception("smtp down")):
 			moved = move_stage(applicant.name, "Technical Assessment")
 		self.assertEqual(moved.pipeline_stage, "Technical Assessment")
 
@@ -77,16 +77,16 @@ class TestStageEmail(IntegrationTestCase):
 		doc = frappe.get_doc("Job Applicant", applicant.name)
 		doc.pipeline_stage = "Technical Assessment"
 		doc.flags.ats_skip_email = True
-		with patch("hrms.ats.pipeline.frappe.sendmail") as sendmail:
+		with patch("hrms.ats.mail.make_system_communication") as sendmail:
 			doc.save()
 		sendmail.assert_not_called()
 
 	def test_no_email_when_stage_does_not_change(self):
 		template = make_template()
 		job = job_with_email("_Test Email Job F", "New Candidates", template.name)
-		with patch("hrms.ats.pipeline.frappe.sendmail"):
+		with patch("hrms.ats.mail.make_system_communication"):
 			applicant = new_applicant(job, "mail.f@example.com")
-		with patch("hrms.ats.pipeline.frappe.sendmail") as sendmail:
+		with patch("hrms.ats.mail.make_system_communication") as sendmail:
 			applicant.reload()
 			applicant.applicant_rating = 0.4
 			applicant.save()

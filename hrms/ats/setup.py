@@ -284,9 +284,27 @@ def job_applicant_custom_fields() -> dict:
 	}
 
 
+def interview_custom_fields() -> dict:
+	return {
+		"Interview": [
+			{
+				"fieldname": "candidate_response",
+				"fieldtype": "Select",
+				"label": _("Candidate Response"),
+				"options": chr(10).join(["", "Yes", "No", "Maybe"]),
+				"read_only": 1,
+				"no_copy": 1,
+				"allow_on_submit": 1,
+				"insert_after": "job_applicant",
+				"description": _("The candidate's answer to the calendar invitation."),
+			}
+		]
+	}
+
+
 def get_ats_custom_fields() -> dict:
 	fields: dict[str, list] = {}
-	for getter in (department_custom_fields, job_opening_custom_fields, job_applicant_custom_fields):
+	for getter in (department_custom_fields, job_opening_custom_fields, job_applicant_custom_fields, interview_custom_fields):
 		for doctype, items in getter().items():
 			fields.setdefault(doctype, []).extend(items)
 	return fields

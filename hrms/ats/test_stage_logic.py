@@ -22,9 +22,9 @@ def move_stage(name, stage):
 
 def history(name):
 	return [
-		(r.from_stage, r.to_stage, r.trigger_source)
+		(r.from_stage, r.to_stage)
 		for r in frappe.get_all(
-			"Applicant Stage Log", filters={"job_applicant": name}, fields=["from_stage", "to_stage", "trigger_source"], order_by="creation asc"
+			"Applicant Stage Log", filters={"job_applicant": name}, fields=["from_stage", "to_stage"], order_by="creation asc"
 		)
 	]
 
@@ -38,7 +38,7 @@ class TestStagePlacementAndMoves(IntegrationTestCase):
 		self.assertEqual(applicant.pipeline_stage, "New Candidates")
 		self.assertEqual(applicant.status, "Open")
 		self.assertTrue(applicant.stage_entered_on)
-		self.assertEqual(history(applicant.name), [(None, "New Candidates", "System")])
+		self.assertEqual(history(applicant.name), [(None, "New Candidates")])
 
 	def test_new_applicant_with_status_is_placed_by_status(self):
 		applicant = new_applicant(self.job, "place.status@example.com", status="Shortlisted")
@@ -54,7 +54,7 @@ class TestStagePlacementAndMoves(IntegrationTestCase):
 		moved = move_stage(applicant.name, "Technical Assessment")
 		self.assertEqual(moved.status, "Shortlisted")
 		self.assertEqual(moved.pipeline_stage, "Technical Assessment")
-		self.assertEqual(history(applicant.name)[-1], ("New Candidates", "Technical Assessment", "Manual"))
+		self.assertEqual(history(applicant.name)[-1], ("New Candidates", "Technical Assessment"))
 
 		self.assertEqual(move_stage(applicant.name, "Offer Accepted").status, "Accepted")
 		self.assertEqual(move_stage(applicant.name, "Offer Rejected").status, "Rejected")
@@ -93,7 +93,7 @@ class TestLegacyStatusWrites(IntegrationTestCase):
 		name = new_applicant(self.job, "legacy.short@example.com").name
 		doc = self.set_status(name, "Shortlisted")
 		self.assertEqual(doc.pipeline_stage, "Shortlisted (Phone Screening)")
-		self.assertEqual(history(name)[-1], ("New Candidates", "Shortlisted (Phone Screening)", "System"))
+		self.assertEqual(history(name)[-1], ("New Candidates", "Shortlisted (Phone Screening)"))
 
 	def test_shortlist_when_already_in_a_shortlisted_stage_does_not_move(self):
 		name = new_applicant(self.job, "legacy.stay@example.com").name
@@ -128,7 +128,7 @@ class TestLegacyStatusWrites(IntegrationTestCase):
 		doc = self.set_status(name, "Rejected", source="Offer")
 		self.assertEqual(doc.pipeline_stage, "Offer Rejected")
 		self.assertEqual(doc.is_dropped, 0)
-		self.assertEqual(history(name)[-1], ("Offer Placed", "Offer Rejected", "Offer"))
+		self.assertEqual(history(name)[-1], ("Offer Placed", "Offer Rejected"))
 
 	def test_hold_and_replied_never_move_the_candidate(self):
 		name = new_applicant(self.job, "legacy.hold@example.com").name

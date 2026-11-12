@@ -4,20 +4,11 @@ import re
 
 import frappe
 
-GMAIL_DOMAINS = ("gmail.com", "googlemail.com")
-
 
 def normalize_email(email: str | None) -> str:
-	"""Lower-case, trim and drop a +tag. Dots are ignored only for Gmail addresses."""
-	email = (email or "").strip().lower()
-	if "@" not in email:
-		return email
-	local, domain = email.rsplit("@", 1)
-	local = local.split("+", 1)[0]
-	if domain in GMAIL_DOMAINS:
-		local = local.replace(".", "")
-		domain = "gmail.com"
-	return f"{local}@{domain}"
+	"""Trim spaces and ignore upper/lower case. Nothing else: a+tag@x.com and a@x.com are different
+	addresses, so two different people are never merged by accident."""
+	return (email or "").strip().lower()
 
 
 def normalize_phone(phone: str | None) -> str:

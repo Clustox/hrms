@@ -20,15 +20,14 @@ class TestApplicantStageLog(IntegrationTestCase):
 		self.applicant = make_applicant(self.job, "stage.log.test@example.com")
 
 	def test_log_records_user_time_and_stages(self):
-		log = log_stage_change(self.applicant.name, "New Candidates", "Final Interview", source="Board", reason="fast track")
+		log = log_stage_change(self.applicant.name, "New Candidates", "Final Interview")
 		self.assertEqual(log.job_opening, self.job.name)
 		self.assertEqual((log.from_stage, log.to_stage), ("New Candidates", "Final Interview"))
 		self.assertEqual(log.moved_by, frappe.session.user)
 		self.assertTrue(log.moved_on)
-		self.assertEqual(log.trigger_source, "Board")
 
 	def test_first_entry_has_no_from_stage(self):
-		log = log_stage_change(self.applicant.name, None, "New Candidates", source="System")
+		log = log_stage_change(self.applicant.name, None, "New Candidates")
 		self.assertFalse(log.from_stage)
 
 	def test_log_cannot_be_deleted_directly(self):

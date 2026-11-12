@@ -149,7 +149,7 @@ def setup_job_pipeline(doc, method=None):
 		validate_stages(doc.pipeline_stages)
 
 
-def log_stage_change(applicant: str, from_stage: str | None, to_stage: str | None, source: str = "Manual", reason: str | None = None):
+def log_stage_change(applicant: str, from_stage: str | None, to_stage: str | None):
 	"""Append one row to the applicant's stage history."""
 	job_opening = frappe.db.get_value("Job Applicant", applicant, "job_title")
 	return frappe.get_doc(
@@ -159,8 +159,6 @@ def log_stage_change(applicant: str, from_stage: str | None, to_stage: str | Non
 			"job_opening": job_opening,
 			"from_stage": from_stage,
 			"to_stage": to_stage,
-			"trigger_source": source,
-			"reason": reason,
 		}
 	).insert(ignore_permissions=True)
 
@@ -210,12 +208,6 @@ def stage_for_status(stages, status: str | None):
 	return first  # Open, Replied, Hold and Rejected start at the first stage
 
 
-def _source(doc) -> str:
-	if doc.flags.get("ats_source"):
-		return doc.flags.ats_source
-	return "Board" if "kanban_board" in (frappe.form_dict.get("cmd") or "") else "Manual"
-
-
 def validate_applicant(doc, method=None):
 	"""Job Applicant validate hook: keep stage and status in step, then check dropping."""
 	if doc.is_new() and not doc.get("applied_on"):
@@ -241,7 +233,7 @@ def sync_stage_and_status(doc):
 		elif doc.pipeline_stage not in by_name:
 			frappe.throw(_("Stage {0} is not part of this job's pipeline.").format(frappe.bold(doc.pipeline_stage)))
 		stamp_stage_entry(doc, now)
-		doc.flags.ats_stage_change = (None, doc.pipeline_stage, "System")
+		doc.flags.ats_stage_change = (None, doc.pipeline_stage)
 		return
 
 	before = doc.get_doc_before_save()
@@ -255,7 +247,7 @@ def sync_stage_and_status(doc):
 		check_required_fields(doc, by_name[doc.pipeline_stage])
 		stamp_stage_entry(doc, now)
 		doc.status = by_name[doc.pipeline_stage].maps_to_status or doc.status
-		doc.flags.ats_stage_change = (old_stage, doc.pipeline_stage, _source(doc))
+		doc.flags.ats_stage_change = (old_stage, doc.pipeline_stage)
 		return
 
 	if doc.status != old_status and doc.status in RECONCILED_STATUSES:
@@ -268,7 +260,7 @@ def reconcile_status(doc, stages, by_name):
 		declined_offer = doc.flags.get("ats_source") == "Offer"
 		last_rejected = next((s for s in reversed(stages) if s.stage_type == "Rejected"), None)
 		if declined_offer and last_rejected:
-			move(doc, last_rejected.stage_name, "Offer", stages)  # an offer turned down ends in the last rejected stage
+			move(doc, last_rejected.stage_name, stages)  # an offer turned down ends in the last rejected stage
 		elif not doc.is_dropped:
 			doc.is_dropped = 1
 			doc.drop_reason = doc.drop_reason or DEFAULT_REJECT_REASON
@@ -279,15 +271,15 @@ def reconcile_status(doc, stages, by_name):
 		return  # the current stage already stands for this status
 	target = stage_for_status(stages, doc.status)
 	if target.stage_name != doc.pipeline_stage:
-		move(doc, target.stage_name, doc.flags.get("ats_source") or "System", stages)
+		move(doc, target.stage_name, stages)
 
 
-def move(doc, to_stage: str, source: str, stages=None):
+def move(doc, to_stage: str, stages=None):
 	if stages:
 		target = next((s for s in stages if s.stage_name == to_stage), None)
 		if target:
 			check_required_fields(doc, target)
-	doc.flags.ats_stage_change = (doc.pipeline_stage, to_stage, source)
+	doc.flags.ats_stage_change = (doc.pipeline_stage, to_stage)
 	doc.pipeline_stage = to_stage
 	stamp_stage_entry(doc, frappe.utils.now_datetime())
 
@@ -302,16 +294,16 @@ def log_pending_stage_change(doc, method=None):
 	"""Job Applicant on_update hook: write the stage history row for a move made in validate."""
 	change = doc.flags.pop("ats_stage_change", None)
 	if change:
-		from_stage, to_stage, source = change
-		log_stage_change(doc.name, from_stage, to_stage, source=source)
+		from_stage, to_stage = change
+		log_stage_change(doc.name, from_stage, to_stage)
 		send_stage_email(doc, to_stage)
 
 
 def send_stage_email(doc, stage_name: str) -> bool:
 	"""Email the candidate when they enter a stage that has an email template.
 
-	A failure here is logged and never stops the stage move.
-	"""
+	Sent as the recruiter when their Gmail is connected, and recorded on the candidate's timeline.
+	A failure is logged and never stops the stage move."""
 	if doc.flags.get("ats_skip_email") or not doc.get("email_id"):
 		return False
 	template_name = frappe.db.get_value(
@@ -323,23 +315,9 @@ def send_stage_email(doc, stage_name: str) -> bool:
 		return False
 
 	try:
-		template = frappe.get_doc("Email Template", template_name)
-		context = {
-			**doc.as_dict(),
-			"candidate_name": doc.applicant_name,
-			"job_name": frappe.db.get_value("Job Opening", doc.job_title, "job_title"),
-			"stage_name": stage_name,
-		}
-		email = template.get_formatted_email(context)
-		frappe.sendmail(
-			recipients=[doc.email_id],
-			sender=frappe.db.get_single_value("HR Settings", "hiring_sender_email") or None,
-			subject=email["subject"],
-			message=email["message"],
-			reference_doctype=doc.doctype,
-			reference_name=doc.name,
-			delayed=True,
-		)
+		from hrms.ats.mail import send_candidate_email
+
+		send_candidate_email(doc.name, template=template_name, system=True)
 		return True
 	except Exception:
 		frappe.log_error(title=f"ATS stage email failed ({doc.name}, {stage_name})")
@@ -372,7 +350,6 @@ def drop_applicant(job_applicant: str, reason: str) -> str:
 	doc.drop_reason = reason
 	doc.dropped_at_stage = doc.pipeline_stage
 	doc.save()
-	log_stage_change(doc.name, doc.pipeline_stage, doc.pipeline_stage, source="Manual", reason=f"Dropped: {reason}")
 	return doc.name
 
 
@@ -384,10 +361,8 @@ def restore_applicant(job_applicant: str) -> str:
 	if not doc.is_dropped:
 		frappe.throw(_("{0} is not dropped.").format(doc.applicant_name or doc.name))
 
-	previous_reason = doc.drop_reason
 	doc.is_dropped = 0
 	doc.save()
-	log_stage_change(doc.name, doc.pipeline_stage, doc.pipeline_stage, source="Manual", reason=f"Restored (was dropped: {previous_reason})")
 	return doc.name
 
 
@@ -438,7 +413,7 @@ def is_forward_stage(stage) -> bool:
 
 
 @frappe.whitelist()
-def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
+def advance_applicant(job_applicant: str) -> str:
 	"""Move a candidate to the next stage of their job's pipeline (never a rejected or On Hold stage)."""
 	doc = frappe.get_doc("Job Applicant", job_applicant)
 	doc.check_permission("write")
@@ -455,7 +430,6 @@ def advance_applicant(job_applicant: str, source: str = "Manual") -> str:
 		frappe.throw(_("{0} is already in the last stage.").format(doc.applicant_name or doc.name))
 
 	doc.pipeline_stage = target.stage_name
-	doc.flags.ats_source = source
 	doc.save()
 	return target.stage_name
 

@@ -28,9 +28,9 @@ class TestAdvanceApplicant(IntegrationTestCase):
 		move_stage(self.name, "Final Interview")
 		self.assertEqual(advance_applicant(self.name), "Ready to Offer")
 
-	def test_source_is_recorded_in_the_history(self):
-		advance_applicant(self.name, source="Interview")
-		self.assertEqual(history(self.name)[-1], ("New Candidates", "Technical Profile Review", "Interview"))
+	def test_the_move_is_recorded_in_the_history(self):
+		advance_applicant(self.name)
+		self.assertEqual(history(self.name)[-1], ("New Candidates", "Technical Profile Review"))
 
 	def test_offer_placed_advances_to_offer_accepted_then_hired(self):
 		move_stage(self.name, "Offer Placed")
@@ -61,7 +61,7 @@ class TestInterviewPrompt(IntegrationTestCase):
 	def test_cleared_offers_to_move_to_the_next_stage(self):
 		action = self.prompt("Cleared").call_args.kwargs["primary_action"]
 		self.assertEqual(action["server_action"], "hrms.ats.pipeline.advance_applicant")
-		self.assertEqual(action["args"], {"job_applicant": self.name, "source": "Interview"})
+		self.assertEqual(action["args"], {"job_applicant": self.name})
 
 	def test_rejected_keeps_the_original_prompt(self):
 		action = self.prompt("Rejected").call_args.kwargs["primary_action"]
