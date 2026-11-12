@@ -19,6 +19,8 @@ frappe.ui.form.on("Job Opening", {
 	show_pipeline_counters: function (frm) {
 		// ATS: Hired / In pipeline / Dropped at the top of the job
 		if (frm.is_new()) return;
+		// the counts include candidates a guest may not see, so only staff get them
+		if (!frappe.user.has_role(["System Manager", "HR Manager", "HR User", "ATS Recruiter"])) return;
 
 		frm.dashboard.add_indicator(__("Hired: {0}", [frm.doc.hired_count || 0]), "green");
 		frm.dashboard.add_indicator(__("In pipeline: {0}", [frm.doc.in_pipeline_count || 0]), "blue");

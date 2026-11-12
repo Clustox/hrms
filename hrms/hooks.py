@@ -144,6 +144,7 @@ after_migrate = [
 	"hrms.ats.setup.seed_drop_reasons",
 	"hrms.ats.setup.enable_change_history",
 	"hrms.ats.setup.set_list_columns",
+	"hrms.ats.roles.apply_roles_and_permissions",
 	"hrms.setup.update_select_perm_after_install",
 	"hrms.cx360.setup.place_cx360_workspace",
 ]
@@ -191,6 +192,13 @@ before_app_uninstall = "hrms.setup.before_app_uninstall"
 # Team-lead visibility: employee request doctypes are scoped to the owning
 # employee + their direct reports (HR/admin see all). See request_visibility.py.
 permission_query_conditions = {
+	# ATS: guests only see what is shared with them (hrms/ats/permissions.py)
+	"Job Opening": "hrms.ats.permissions.job_opening_query",
+	"Job Applicant": "hrms.ats.permissions.job_applicant_query",
+	"Candidate": "hrms.ats.permissions.candidate_query",
+	"Interview": "hrms.ats.permissions.interview_query",
+	"Interview Feedback": "hrms.ats.permissions.interview_feedback_query",
+	"Kanban Board": "hrms.ats.permissions.kanban_board_query",
 	"Leave Application": "hrms.request_visibility.leave_application_query",
 	"Attendance Request": "hrms.request_visibility.attendance_request_query",
 	"Shift Request": "hrms.request_visibility.shift_request_query",
@@ -199,6 +207,12 @@ permission_query_conditions = {
 }
 
 has_permission = {
+	"Job Opening": "hrms.ats.permissions.job_opening_has_permission",
+	"Job Applicant": "hrms.ats.permissions.job_applicant_has_permission",
+	"Candidate": "hrms.ats.permissions.candidate_has_permission",
+	"Interview": "hrms.ats.permissions.interview_has_permission",
+	"Interview Feedback": "hrms.ats.permissions.interview_feedback_has_permission",
+	"Kanban Board": "hrms.ats.permissions.kanban_board_has_permission",
 	"Leave Application": "hrms.request_visibility.has_permission",
 	"Attendance Request": "hrms.request_visibility.has_permission",
 	"Shift Request": "hrms.request_visibility.has_permission",
@@ -344,13 +358,18 @@ doc_events = {
 			"hrms.ats.pipeline.setup_job_pipeline",
 			"hrms.ats.pipeline.guard_stage_changes",
 		],
+		"onload": "hrms.ats.activity.log_guest_view",
 		"on_update": [
 			"hrms.ats.pipeline.apply_stage_renames",
 			"hrms.ats.board.sync_job_board_on_save",
 			"hrms.ats.counters.refresh_for_job",
 		],
 	},
+	# ATS: what guests write is logged (hrms/ats/activity.py)
+	"Comment": {"after_insert": "hrms.ats.activity.log_guest_note"},
+	"Interview Feedback": {"after_insert": "hrms.ats.activity.log_guest_feedback"},
 	"Candidate": {
+		"onload": "hrms.ats.activity.log_guest_view",
 		"on_update": [
 			"hrms.ats.candidates.sync_applicant_card_fields",
 			"hrms.ats.resume.queue_resume_text",
@@ -358,6 +377,7 @@ doc_events = {
 	},
 	# ATS: stage history is removed together with its applicant
 	"Job Applicant": {
+		"onload": "hrms.ats.activity.log_guest_view",
 		"before_insert": "hrms.ats.candidates.link_candidate",
 		"validate": "hrms.ats.pipeline.validate_applicant",
 		"on_update": [
@@ -391,6 +411,8 @@ scheduler_events = {
 		"hrms.hr.doctype.shift_schedule_assignment.shift_schedule_assignment.process_auto_shift_creation",
 	],
 	"daily": [
+		# ATS: guests whose access expired lose their guest roles
+		"hrms.ats.guest_access.sync_expired_grants",
 		"hrms.controllers.employee_reminders.send_birthday_reminders",
 		"hrms.controllers.employee_reminders.send_work_anniversary_reminders",
 		# Clustox: personal birthday/anniversary greetings + probation reminders
@@ -477,6 +499,9 @@ global_search_doctypes = {
 override_doctype_dashboards = {
 	"Employee": "hrms.overrides.dashboard_overrides.get_dashboard_for_employee",
 	"Department": "hrms.overrides.dashboard_overrides.get_dashboard_for_department",
+	"Job Opening": "hrms.overrides.dashboard_overrides.hide_connections_from_guests",
+	"Job Applicant": "hrms.overrides.dashboard_overrides.hide_connections_from_guests",
+	"Candidate": "hrms.overrides.dashboard_overrides.hide_connections_from_guests",
 	"Holiday List": "hrms.overrides.dashboard_overrides.get_dashboard_for_holiday_list",
 	"Task": "hrms.overrides.dashboard_overrides.get_dashboard_for_project",
 	"Project": "hrms.overrides.dashboard_overrides.get_dashboard_for_project",

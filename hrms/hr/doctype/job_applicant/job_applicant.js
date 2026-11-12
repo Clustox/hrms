@@ -18,6 +18,7 @@ frappe.ui.form.on("Job Applicant", {
 		frm.events.show_resume(frm);
 		frm.events.create_custom_buttons(frm);
 		frm.events.add_pipeline_buttons(frm);
+		frm.events.add_guest_move_button(frm);
 		frm.events.get_interview_for_dashboard(frm);
 
 		if (!frm.toolbar.page.wrapper.find(".prev-doc").length) {
@@ -95,6 +96,27 @@ frappe.ui.form.on("Job Applicant", {
 				});
 			}
 		}
+	},
+
+	add_guest_move_button: function (frm) {
+		// ATS: a guest whose access allows it can move the candidate to another stage
+		if (frm.is_new() || frappe.user.has_role(["System Manager", "HR Manager", "HR User", "ATS Recruiter"])) return;
+
+		frappe.xcall("hrms.ats.guest_access.get_move_options", { job_applicant: frm.doc.name }).then((stages) => {
+			if (!stages || !stages.length) return;
+			frm.add_custom_button(__("Move to Stage"), () => {
+				frappe.prompt(
+					{ label: __("Stage"), fieldname: "stage", fieldtype: "Select", options: stages, reqd: 1 },
+					(values) => {
+						frappe
+							.xcall("hrms.ats.guest_access.move_stage", { job_applicant: frm.doc.name, stage: values.stage })
+							.then(() => frm.reload_doc());
+					},
+					__("Move Candidate"),
+					__("Move"),
+				);
+			});
+		});
 	},
 
 	add_pipeline_buttons: function (frm) {
