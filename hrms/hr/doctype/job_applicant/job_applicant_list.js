@@ -187,6 +187,9 @@ function add_candidate_avatars_to_kanban_cards() {
 		".ats-card-avatar{flex:0 0 auto;display:inline-flex}.ats-card-avatar .avatar{margin:0}" +
 		".ats-applicant-board .kanban-col-dot{display:none}" +
 		".ats-applicant-board .kanban-card-doc{display:none !important}" +
+		".ats-applicant-board .kanban-column{flex:0 0 300px !important;width:300px;min-width:300px;max-width:300px}" +
+		".ats-applicant-board .kanban-title-area,.ats-applicant-board .kanban-card-body{min-width:0}" +
+		".ats-card-text{min-width:0;overflow:hidden}" +
 		".ats-applicant-board .kanban-card-wrapper .kanban-card{min-height:190px}" +
 		".ats-applicant-board .kanban-card-header{height:auto !important;overflow:visible !important;align-items:flex-start}" +
 		".ats-card-text{flex:1 1 auto;min-width:0}" +
@@ -437,6 +440,17 @@ function card_html(row) {
 function fill_card_info() {
 	const cards = Array.from(document.querySelectorAll(".kanban-card-wrapper"));
 	const now = Date.now();
+
+	// the board already loaded these fields with its cards: use them straight away, no extra request
+	const loaded = new Map(((window.cur_list && window.cur_list.data) || []).map((doc) => [doc.name, doc]));
+	cards.forEach((card) => {
+		const name = decodeURIComponent(card.dataset.name || "");
+		const doc = loaded.get(name);
+		if (!name || card_cache[name] || !doc || !("stage_entered_on" in doc)) return;
+		const row = {};
+		["name", ...CARD_FIELDS].forEach((field) => (row[field] = doc[field]));
+		card_cache[name] = { at: now, row };
+	});
 	const wanted = cards.filter((card) => {
 		const name = decodeURIComponent(card.dataset.name || "");
 		const have = card_cache[name];

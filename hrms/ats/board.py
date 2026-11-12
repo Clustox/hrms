@@ -21,6 +21,9 @@ CARD_FIELDS = [
 	"applicant_rating",
 	"applied_on",
 	"stage_entered_date",
+	# not shown as text: the card badges (time since applied, time in stage) are worked out from these
+	"stage_entered_on",
+	"creation",
 ]
 HIDE_DROPPED_FILTER = [["Job Applicant", "is_dropped", "=", 0]]
 
