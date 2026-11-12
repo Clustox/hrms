@@ -17,6 +17,7 @@ frappe.ui.form.on("Job Applicant", {
 		});
 		frm.events.show_resume(frm);
 		frm.events.create_custom_buttons(frm);
+		frm.events.add_pipeline_buttons(frm);
 		frm.events.get_interview_for_dashboard(frm);
 
 		if (!frm.toolbar.page.wrapper.find(".prev-doc").length) {
@@ -94,6 +95,48 @@ frappe.ui.form.on("Job Applicant", {
 				});
 			}
 		}
+	},
+
+	add_pipeline_buttons: function (frm) {
+		// ATS: drop a candidate with a reason, or bring a dropped candidate back
+		if (frm.is_new() || !frm.doc.pipeline_stage) return;
+
+		if (frm.doc.is_dropped) {
+			frm.add_custom_button(
+				__("Restore Candidate"),
+				() => {
+					frappe.xcall("hrms.ats.pipeline.restore_applicant", { job_applicant: frm.doc.name }).then(() => frm.reload_doc());
+				},
+				__("Pipeline"),
+			);
+			return;
+		}
+
+		frm.add_custom_button(
+			__("Drop Candidate"),
+			() => {
+				frappe.prompt(
+					{
+						label: __("Reason"),
+						fieldname: "reason",
+						fieldtype: "Link",
+						options: "Drop Reason",
+						reqd: 1,
+					},
+					(values) => {
+						frappe
+							.xcall("hrms.ats.pipeline.drop_applicant", {
+								job_applicant: frm.doc.name,
+								reason: values.reason,
+							})
+							.then(() => frm.reload_doc());
+					},
+					__("Drop Candidate"),
+					__("Drop"),
+				);
+			},
+			__("Pipeline"),
+		);
 	},
 
 	get_interview_for_dashboard: function (frm) {

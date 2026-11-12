@@ -85,6 +85,9 @@ class Interview(Document):
 			self.designation = applicant_designation
 
 	def show_job_applicant_update_dialog(self):
+		if self.show_pipeline_dialog():
+			return
+
 		job_applicant_status = self.get_job_applicant_status()
 		if not job_applicant_status:
 			return
@@ -102,6 +105,32 @@ class Interview(Document):
 				"args": {"job_applicant": self.job_applicant, "status": job_applicant_status},
 			},
 		)
+
+	def show_pipeline_dialog(self) -> bool:
+		"""ATS: for an applicant in a pipeline, a cleared interview offers to move them to the next
+		stage instead of marking them Accepted. Returns False when the original prompt applies:
+		an applicant outside a pipeline, or a rejected interview (the original Mark as Rejected
+		prompt then drops the candidate through the pipeline status rules)."""
+		if self.status != "Cleared":
+			return False
+		applicant = frappe.db.get_value(
+			"Job Applicant", self.job_applicant, ["applicant_name", "pipeline_stage", "is_dropped"], as_dict=True
+		)
+		if not applicant or not applicant.pipeline_stage:
+			return False
+		if applicant.is_dropped:
+			return True  # in a pipeline but nothing to offer
+
+		frappe.msgprint(
+			_("Do you want to move {0} to the next stage?").format(frappe.bold(applicant.applicant_name)),
+			title=_("Update Job Applicant"),
+			primary_action={
+				"label": _("Move to Next Stage"),
+				"server_action": "hrms.ats.pipeline.advance_applicant",
+				"args": {"job_applicant": self.job_applicant, "source": "Interview"},
+			},
+		)
+		return True
 
 	def get_job_applicant_status(self) -> str | None:
 		status_map = {"Cleared": "Accepted", "Rejected": "Rejected"}

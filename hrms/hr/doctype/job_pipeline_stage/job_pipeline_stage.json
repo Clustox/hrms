@@ -11,7 +11,7 @@
   "color",
   "maps_to_status",
   "auto_email_template",
-  "require_reason"
+  "required_fields"
  ],
  "fields": [
   {
@@ -56,9 +56,10 @@
    "options": "Email Template"
   },
   {
-   "fieldname": "require_reason",
-   "fieldtype": "Check",
-   "label": "Require Reason on Entry"
+   "fieldname": "required_fields",
+   "fieldtype": "Small Text",
+   "label": "Required Fields",
+   "description": "Job Applicant fields that must be filled before a candidate can enter this stage, separated by commas. Example: phone_number, resume_attachment"
   }
  ],
  "index_web_pages_for_search": 1,

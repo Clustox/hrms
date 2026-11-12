@@ -43,7 +43,7 @@ Legend: **Exists**, **Modify**, **Add**, **Done** (already on the branch).
 | Jobs list/board, filters, pagination | Exists | Desk list and Kanban |
 | Jobs columns (location, headcount, salary, owner, stage) | Modify | List columns plus cached counters |
 | Job owner, team, Negotiable | Done | Fields on Job Opening |
-| Headcount and Job Stage badge | Add | Counters updated by the stage hook. Rule needs HR confirmation |
+| Headcount (positions - filled, e.g. 3 - 1) and Job Stage badge | Add | Counters updated by the stage hook. Headcount follows the document. The badge rule needs HR confirmation |
 | Job detail header and counters | Add | Hired / In pipeline / Dropped on the form |
 | Per-job stages, templates | Add | Stage table on Job Opening, Pipeline Template copied in |
 | Kanban, counts, drag and drop, filter | Exists | Frappe Kanban, one generated board per job on text field `pipeline_stage` |
@@ -102,15 +102,11 @@ Production customisations not seen; card time-in-stage; board columns edited dir
 
 ## 9. Questions for HR
 
-1. Headcount "565 - 1": is the first number the applicant count?
-2. Job Stage badge: "last stage in pipeline order that holds a candidate"?
-3. Recruiter scope: all jobs or own and team jobs?
-4. Hired counter with an empty Offer Accepted column.
-5. Guest visibility: current stage or ever reached.
-6. Dropped vs rejected definition.
-7. Unexplained icons (orange "!", list icon, "$", green stage icon, progress bar).
-8. Production boards, fields or screens not seen here.
-9. Email replies: ATS threads only or whole inbox.
-10. Google: Internal Workspace app and public HTTPS address.
-11. Migration source and bulk resume access.
-12. Legacy Hold applicants and Staffing Plan rule for ATS jobs.
+1. Job Stage badge: "last stage in pipeline order that holds a candidate"?
+2. Recruiter scope: all jobs or own and team jobs?
+3. Hired counter with an empty Offer Accepted column.
+4. Guest visibility: current stage or ever reached.
+5. Dropped vs rejected definition.
+6. Email replies: ATS threads only or whole inbox.
+7. Google: Internal Workspace app and public HTTPS address.
+8. Legacy Hold applicants and Staffing Plan rule for ATS jobs.

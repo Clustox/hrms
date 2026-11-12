@@ -14,7 +14,7 @@ class TestDropReason(IntegrationTestCase):
 
 	def test_seeding_twice_changes_nothing(self):
 		before = frappe.db.count("Drop Reason")
-		seed_drop_reasons()
+		seed_drop_reasons(commit=False)
 		self.assertEqual(frappe.db.count("Drop Reason"), before)
 
 	def test_reason_is_unique(self):
