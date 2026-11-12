@@ -738,6 +738,45 @@ class TestLeaveApplication(HRMSTestSuite):
 		self.assertRaises(frappe.ValidationError, leave_application.insert)
 
 	@assign_holiday_list("_Test Holiday List", "_Test Company")
+	def test_max_continuous_days_ignores_own_saved_dates_on_edit(self):
+		employee = get_employee()
+		leave_type = frappe.get_doc(
+			leave_type_name="Test Own Dates Leave Type",
+			doctype="Leave Type",
+			max_continuous_days_allowed=1,
+		).insert()
+		make_allocation_record(
+			employee=employee.name, leave_type=leave_type.name, from_date="2013-01-01", to_date="2013-12-31"
+		)
+		leave_application = frappe.get_doc(
+			doctype="Leave Application",
+			employee=employee.name,
+			leave_type=leave_type.name,
+			from_date="2013-03-13",
+			to_date="2013-03-13",
+			company="_Test Company",
+			status="Pending",
+		).insert()
+
+		# moving the one-day leave to the day before must not count its own saved dates
+		leave_application.from_date = leave_application.to_date = "2013-03-12"
+		leave_application.save()
+		self.assertEqual(str(leave_application.from_date), "2013-03-12")
+
+		# a real neighbour still counts
+		frappe.get_doc(
+			doctype="Leave Application",
+			employee=employee.name,
+			leave_type=leave_type.name,
+			from_date="2013-03-14",
+			to_date="2013-03-14",
+			company="_Test Company",
+			status="Pending",
+		).insert()
+		leave_application.from_date = leave_application.to_date = "2013-03-13"
+		self.assertRaises(frappe.ValidationError, leave_application.save)
+
+	@assign_holiday_list("_Test Holiday List", "_Test Company")
 	def test_max_consecutive_leaves_across_leave_applications(self):
 		employee = get_employee()
 		leave_type = frappe.get_doc(
