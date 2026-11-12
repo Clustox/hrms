@@ -66,3 +66,4 @@ hrms.patches.v16_0.refresh_ats_board_cards #2026-11-10
 hrms.patches.v16_0.fill_ats_card_dates #2026-11-11
 hrms.patches.v16_0.extract_ats_resume_text #2026-11-11
 hrms.patches.v16_0.renormalize_ats_candidate_emails #2026-11-12
+hrms.patches.v16_0.remove_ats_rejected_stages #2026-11-12

@@ -89,7 +89,7 @@ class GuestFixture(IntegrationTestCase):
 
 		self.visible = applicant(self.job_a, "Technical Assessment")  # stage ticked for guests
 		self.hidden_stage = applicant(self.job_a)  # New Candidates: not ticked
-		self.rejected = applicant(self.job_a, "Rejected after Final Interview")
+		self.rejected = applicant(self.job_a, "On Hold")  # a stage that is not ticked for guests
 		self.dropped = applicant(self.job_a, "Final Interview")
 		drop_applicant(self.dropped, "Candidate withdrew")
 		self.other_job = applicant(self.job_b, "Final Interview")
@@ -193,7 +193,7 @@ class TestVisibilityFollowsTheCandidate(GuestFixture):
 
 	def test_a_candidate_rejected_after_being_visible_disappears(self):
 		self.assertIn(self.visible, names(self.guest, "Job Applicant"))
-		move_stage(self.visible, "Rejected after Final Interview")
+		drop_applicant(self.visible, "Rejected by recruiter")
 		self.assertNotIn(self.visible, names(self.guest, "Job Applicant"))
 		self.assertFalse(can_read(self.guest, "Job Applicant", self.visible))
 		self.assertEqual(names(self.guest, "Candidate"), [])

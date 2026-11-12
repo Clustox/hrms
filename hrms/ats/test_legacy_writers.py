@@ -32,13 +32,14 @@ class TestJobOfferWriter(IntegrationTestCase):
 		self.assertEqual((doc.pipeline_stage, doc.status), ("Offer Accepted", "Accepted"))
 		self.assertEqual(history(name)[-1], ("Offer Placed", "Offer Accepted"))
 
-	def test_declined_offer_ends_in_offer_rejected_and_is_not_dropped(self):
+	def test_declined_offer_drops_the_candidate_at_the_offer_stage(self):
 		job = make_job("_Test Offer Declined").insert()
 		name = new_applicant(job, "offer.decline@example.com").name
 		move_stage(name, "Offer Placed")
 		update_job_applicant("Rejected", name)
 		doc = frappe.get_doc("Job Applicant", name)
-		self.assertEqual((doc.pipeline_stage, doc.status, doc.is_dropped), ("Offer Rejected", "Rejected", 0))
+		self.assertEqual((doc.pipeline_stage, doc.status, doc.is_dropped), ("Offer Placed", "Rejected", 1))
+		self.assertEqual((doc.drop_reason, doc.dropped_at_stage), ("Candidate withdrew", "Offer Placed"))
 
 	def test_other_offer_statuses_do_nothing(self):
 		job = make_job("_Test Offer Other").insert()

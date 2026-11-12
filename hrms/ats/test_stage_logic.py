@@ -57,7 +57,7 @@ class TestStagePlacementAndMoves(IntegrationTestCase):
 		self.assertEqual(history(applicant.name)[-1], ("New Candidates", "Technical Assessment"))
 
 		self.assertEqual(move_stage(applicant.name, "Offer Accepted").status, "Accepted")
-		self.assertEqual(move_stage(applicant.name, "Offer Rejected").status, "Rejected")
+		self.assertEqual(move_stage(applicant.name, "On Hold").status, "Hold")
 
 	def test_other_edits_do_not_touch_stage_time_or_history(self):
 		applicant = new_applicant(self.job, "other.edit@example.com")
@@ -122,13 +122,12 @@ class TestLegacyStatusWrites(IntegrationTestCase):
 		self.assertEqual(doc.drop_reason, DEFAULT_REJECT_REASON)
 		self.assertEqual(doc.dropped_at_stage, "Technical Assessment")
 
-	def test_declined_offer_moves_to_the_last_rejected_stage(self):
+	def test_declined_offer_drops_the_candidate_in_place_with_a_reason(self):
 		name = new_applicant(self.job, "legacy.declined@example.com").name
 		move_stage(name, "Offer Placed")
 		doc = self.set_status(name, "Rejected", source="Offer")
-		self.assertEqual(doc.pipeline_stage, "Offer Rejected")
-		self.assertEqual(doc.is_dropped, 0)
-		self.assertEqual(history(name)[-1], ("Offer Placed", "Offer Rejected"))
+		self.assertEqual((doc.pipeline_stage, doc.is_dropped, doc.drop_reason), ("Offer Placed", 1, "Candidate withdrew"))
+		self.assertEqual(history(name)[-1], ("New Candidates", "Offer Placed"))  # no stage move was made
 
 	def test_hold_and_replied_never_move_the_candidate(self):
 		name = new_applicant(self.job, "legacy.hold@example.com").name

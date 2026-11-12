@@ -43,7 +43,7 @@ class TestHiringPipelineBoard(IntegrationTestCase):
 	def test_every_active_candidate_of_a_job_appears_in_a_column(self):
 		create_kanban_board("_Test Hiring Board 3")
 		job = make_job("_Test Board Job").insert()
-		stages = ["New Candidates", "Technical Assessment", "Final Interview", "Hired", "On Hold", "Rejected after Final Interview"]
+		stages = ["New Candidates", "Technical Assessment", "Final Interview", "Hired", "On Hold"]
 		for i, stage in enumerate(stages):
 			name = new_applicant(job, f"board.{i}@example.com").name
 			move_stage(name, stage)
@@ -170,3 +170,14 @@ class TestJobBoard(IntegrationTestCase):
 				get_job_board(job.name)
 		finally:
 			frappe.set_user("Administrator")
+
+	def test_the_shared_board_drops_columns_the_default_pipeline_no_longer_has(self):
+		from hrms.ats.board import BOARD_NAME, default_columns, sync_hiring_pipeline_columns
+
+		create_kanban_board(BOARD_NAME)
+		board = frappe.get_doc("Kanban Board", BOARD_NAME)
+		board.append("columns", {"column_name": "Rejected after Final Interview", "status": "Active"})
+		board.save(ignore_permissions=True)
+		self.assertTrue(sync_hiring_pipeline_columns())
+		self.assertEqual([c.column_name for c in frappe.get_doc("Kanban Board", BOARD_NAME).columns], default_columns())
+		self.assertFalse(sync_hiring_pipeline_columns())  # nothing left to do

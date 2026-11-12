@@ -10,8 +10,8 @@ DEFAULT_STATUS_BY_TYPE = {"Hired": "Accepted", "Rejected": "Rejected"}
 
 DEFAULT_TEMPLATE_NAME = "Default Hiring Pipeline"
 
-# (name, type, status, visible_to_guests). Order follows the reference screenshots:
-# the two "Rejected after ..." stages sit before "Ready to Offer".
+# (name, type, status, visible_to_guests). There are no "Rejected" stages: a candidate who is turned
+# down, or who turns an offer down, is dropped with a reason instead (see drop_applicant).
 DEFAULT_STAGES = [
 	("New Candidates", "Active", "Open", 0),
 	("Technical Profile Review", "Active", "Open", 0),
@@ -20,8 +20,6 @@ DEFAULT_STAGES = [
 	("1st Technical Interview", "Active", "Shortlisted", 1),
 	("2nd Technical Interview", "Active", "Shortlisted", 1),
 	("Final Interview", "Active", "Shortlisted", 1),
-	("Rejected after Technical Interview", "Rejected", "Rejected", 0),
-	("Rejected after Final Interview", "Rejected", "Rejected", 0),
 	# Ready to Offer / Offer Placed map to Accepted so the existing Job Offer and
 	# onboarding flow (gated on Accepted) keeps working before the offer is accepted.
 	("Ready to Offer", "Active", "Accepted", 0),
@@ -30,7 +28,6 @@ DEFAULT_STAGES = [
 	# Hired is its own stage after Offer Accepted (the candidate has joined / is onboarding);
 	# the Hired counter counts the people in it.
 	("Hired", "Hired", "Accepted", 0),
-	("Offer Rejected", "Rejected", "Rejected", 0),
 	# On Hold is a stage of its own, kept at the end so "next stage" never lands on it.
 	("On Hold", "Active", "Hold", 0),
 ]
@@ -179,6 +176,7 @@ def delete_applicant_stage_log(doc, method=None):
 
 
 DEFAULT_REJECT_REASON = "Rejected by recruiter"
+DECLINED_OFFER_REASON = "Candidate withdrew"
 
 # Statuses written by older code (Desk buttons, Interview, Job Offer, Employee) that should move
 # the stage. Open, Replied and Hold never move a candidate.
@@ -268,7 +266,8 @@ def reconcile_status(doc, stages, by_name):
 			move(doc, last_rejected.stage_name, stages)  # an offer turned down ends in the last rejected stage
 		elif not doc.is_dropped:
 			doc.is_dropped = 1
-			doc.drop_reason = doc.drop_reason or DEFAULT_REJECT_REASON
+			# an offer the candidate turned down is them withdrawing; any other rejection is the recruiter's
+			doc.drop_reason = doc.drop_reason or (DECLINED_OFFER_REASON if declined_offer else DEFAULT_REJECT_REASON)
 		return
 
 	current = by_name.get(doc.pipeline_stage)
