@@ -89,7 +89,8 @@ Mail to candidates is then sent from the recruiter's own address and recorded on
 * Scheduling creates the event; rescheduling moves it; cancelling or discarding removes it and Google sends the cancellation.
 * A reschedule made in Google Calendar by the organiser moves the interview too.
 * The candidate's answer (Yes, No, Maybe) is read every hour and shown on the interview as Candidate Response.
-* When an interviewer is already busy (another interview, or something Frappe's own Google sync pulled for them) a warning shows on save. It does not block.
+* Availability uses Google's free/busy data through the recruiter's connected Google Calendar. A warning shows on save when an interviewer is busy at that time (another interview, something Frappe synced, or a busy block in their Google Calendar). It does not block.
+* **Check Availability** on the Interview form lists every busy slot of each interviewer on the interview's day, from Frappe and from Google, so the free time between is visible. Google shows free/busy only for calendars it lets the recruiter see (normally people in the same Workspace); other calendars are listed as "Google would not show this calendar". Without a connected Google Calendar only Frappe events are shown, and Google being unreachable never stops scheduling.
 
 ## 8. Guests
 
