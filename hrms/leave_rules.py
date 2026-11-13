@@ -4,7 +4,6 @@ Application / Leave Allocation, applied everywhere (/hrms PWA, desk, API).
 Registered via hooks.py `doc_events`. Rules that the policy states but Frappe
 does not enforce natively are implemented here:
 
-  * advance-notice period (Marriage 45)
   * gender restriction (Maternity = Female, Paternity = Male)
   * "once in employment" (Hajj/Umrah)
   * probation (first 90 days): Casual blocked, Sick capped at 2
@@ -17,10 +16,9 @@ does not enforce natively are implemented here:
 
 Enforcement = HARD BLOCK. Users holding an HR/override role bypass the rules
 only when applying on ANOTHER employee's behalf (approved exceptions /
-emergencies); their OWN leave always follows the policy. Emergencies applied
-on/for the same day or a past date are exempt from the advance-notice rule.
-(Annual Leave and Hajj/Umrah have NO advance-notice requirement — removed
-per HR; Hajj still keeps its once-in-employment rule.)
+emergencies); their OWN leave always follows the policy. No leave type has an
+advance-notice requirement: leave can be applied for any time before its start
+date and up to 7 days after it (see validate_backdate_limit).
 """
 
 import frappe
@@ -38,7 +36,6 @@ CASUAL = "Casual Leave"
 COMP_OFF = "Compensatory Off"
 
 GENDER_REQUIRED = {"Maternity Leave": "Female", "Paternity Leave": "Male"}
-FIXED_NOTICE_DAYS = {"Marriage Leave": 45}
 ONCE_TYPES = {"Hajj Umrah Leave"}
 
 
@@ -144,15 +141,9 @@ def validate_leave_application(doc, method=None):
     }):
         frappe.throw(_("{0} can be availed only once during employment.").format(lt))
 
-    # 3) advance notice. Only Marriage Leave keeps a notice period, and only for a
-    #    FUTURE start (same-day / backdated stays exempt for emergencies). Annual,
-    #    Hajj/Umrah and Religious have NO advance-notice requirement (removed per HR).
-    needed = FIXED_NOTICE_DAYS.get(lt)
-    if needed and frm > getdate(today()):
-        earliest = add_days(getdate(today()), needed)
-        if frm < earliest:
-            frappe.throw(_("{0} requires at least {1} days notice. "
-                           "Earliest start date is {2}.").format(lt, needed, earliest))
+    # 3) (no advance-notice rule: no leave type needs a minimum notice period. An
+    #    employee may apply any time before the start date, and up to
+    #    BACKDATE_LIMIT_DAYS after it -- see validate_backdate_limit.)
 
     # 4) probation (first 90 days from joining, unless confirmed earlier)
     doj = getdate(emp.date_of_joining) if emp.get("date_of_joining") else None
@@ -218,8 +209,7 @@ def validate_backdate_limit(doc, method=None):
     which is therefore turned OFF for this site -- if that setting is ever turned
     back on it would block employees before this rule runs.
 
-    Annual Leave is separately blocked from ANY backdating by the advance-notice
-    rule in validate_leave_application; this window applies to the other types."""
+    The window is the same for every leave type."""
     if not doc.get("from_date"):
         return
     if set(frappe.get_roles()) & OVERRIDE_ROLES:
