@@ -48,6 +48,10 @@ class OverlapError(frappe.ValidationError):
 	pass
 
 
+# Left on an Attendance that a half-day leave turned from Present into Half Day (see create_or_update_attendance).
+WAS_PRESENT_NOTE = "Half-day leave {application} applied on a day that was Present (was Present)"
+
+
 class AttendanceAlreadyMarkedError(frappe.ValidationError):
 	pass
 
@@ -348,6 +352,9 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		if attendance_name:
 			# update existing attendance, change absent to on leave or half day
 			doc = frappe.get_doc("Attendance", attendance_name)
+			if status == "Half Day" and doc.status == "Present":
+				# kept as a plain (untranslated) note: cancel_attendance reads it to put the Present back
+				doc.add_comment("Info", WAS_PRESENT_NOTE.format(application=self.name))
 			half_day_status = None if status == "On Leave" else "Present"
 			modify_half_day_status = 1 if doc.status == "Absent" and status == "Half Day" else 0
 			doc.db_set(
@@ -392,7 +399,43 @@ class LeaveApplication(Document, PWANotificationsMixin):
 				)
 			).run(as_dict=1)
 			for name in attendance:
+				if self.restore_present_attendance(name.name):
+					continue
 				frappe.db.set_value("Attendance", name, "docstatus", 2)
+
+	def restore_present_attendance(self, attendance_name: str) -> bool:
+		"""A half-day leave taken on a day that was already Present turned that attendance into a Half Day.
+		When the leave is cancelled the day goes back to Present, instead of the day's attendance being
+		cancelled with it (which would leave the employee unmarked for a day they worked)."""
+		if not self.half_day:
+			return False
+		if not frappe.db.exists(
+			"Attendance", {"name": attendance_name, "leave_application": self.name, "status": "Half Day"}
+		):
+			return False
+		if not frappe.db.exists(
+			"Comment",
+			{
+				"reference_doctype": "Attendance",
+				"reference_name": attendance_name,
+				"comment_type": "Info",
+				"content": WAS_PRESENT_NOTE.format(application=self.name),
+			},
+		):
+			return False
+
+		frappe.db.set_value(
+			"Attendance",
+			attendance_name,
+			{
+				"status": "Present",
+				"leave_type": None,
+				"leave_application": None,
+				"half_day_status": None,
+				"modify_half_day_status": 0,
+			},
+		)
+		return True
 
 	def validate_salary_processed_days(self):
 		if not frappe.db.get_value("Leave Type", self.leave_type, "is_lwp"):
@@ -700,9 +743,21 @@ class LeaveApplication(Document, PWANotificationsMixin):
 				# day to On Leave), so they must not block the application here.
 				["attendance_request", "is", "not set"],
 			],
-			fields=["name", "attendance_date"],
+			fields=["name", "attendance_date", "status"],
 			order_by="attendance_date",
 		)
+
+		# A half-day leave is taken on a day the employee also works, so a real Present attendance on that
+		# day is not a clash: on approval it becomes a Half Day (update_attendance), and cancelling the leave
+		# puts the Present back (cancel_attendance). Full-day leaves and every other date still block.
+		half_day_date = self.half_day_date or (self.from_date if self.from_date == self.to_date else None)
+		if cint(self.half_day) and half_day_date:
+			attendance_dates = [
+				a
+				for a in attendance_dates
+				if not (a.status == "Present" and getdate(a.attendance_date) == getdate(half_day_date))
+			]
+
 		if attendance_dates:
 			frappe.throw(
 				_("Attendance for employee {0} is already marked for the following dates: {1}").format(

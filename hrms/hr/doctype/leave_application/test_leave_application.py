@@ -1371,6 +1371,68 @@ class TestLeaveApplication(HRMSTestSuite):
 		# filters out old CF leaves (15 i.e total 45)
 		self.assertEqual(details[leave_type.name]["total_leaves_allocated"], 30.0)
 
+	def test_half_day_leave_allowed_on_a_day_marked_present(self):
+		"""A half-day leave is taken on a day the employee also works: a real Present attendance on that day is
+		not a clash. Full-day leaves, and a multi-day leave covering a Present day, are still blocked."""
+		from hrms.hr.doctype.leave_application.leave_application import AttendanceAlreadyMarkedError
+
+		date = "2023-01-04"
+		mark_attendance("_T-Employee-00001", date, "Present")
+
+		def draft(**kwargs):
+			la = frappe.new_doc("Leave Application")
+			la.employee = "_T-Employee-00001"
+			la.from_date = la.to_date = date
+			la.update(kwargs)
+			return la
+
+		draft(half_day=1, half_day_date=date).validate_attendance()  # half day on the Present day: allowed
+		draft(half_day=1).validate_attendance()  # half_day_date is only filled in later: still allowed
+		self.assertRaises(AttendanceAlreadyMarkedError, draft().validate_attendance)  # full day: blocked
+		# two days, half day on the second: the first day is still Present, so blocked
+		self.assertRaises(
+			AttendanceAlreadyMarkedError,
+			draft(to_date=add_days(date, 1), half_day=1, half_day_date=add_days(date, 1)).validate_attendance,
+		)
+
+	def test_half_day_leave_on_present_day_becomes_half_day_and_cancel_restores_present(self):
+		date = "2023-01-04"
+		mark_attendance("_T-Employee-00001", date, "Present")
+		make_allocation_record(from_date="2023-01-01", to_date="2023-12-31")
+
+		application = self.get_application(self.leave_application)
+		application.status = "Approved"
+		application.from_date = application.to_date = date
+		application.half_day = 1
+		application.half_day_date = date
+		application.submit()
+
+		attendance_name = frappe.db.get_value("Attendance", {"attendance_date": date}, "name")
+		attendance = frappe.db.get_value(
+			"Attendance",
+			attendance_name,
+			["status", "half_day_status", "leave_type", "leave_application", "docstatus"],
+			as_dict=True,
+		)
+		self.assertEqual(attendance.status, "Half Day")
+		self.assertEqual(attendance.half_day_status, "Present")
+		self.assertEqual(attendance.leave_application, application.name)
+		self.assertEqual(attendance.docstatus, 1)
+
+		# cancelling the leave must not take the day's real attendance with it
+		application.cancel()
+		attendance = frappe.db.get_value(
+			"Attendance",
+			attendance_name,
+			["status", "half_day_status", "leave_type", "leave_application", "docstatus"],
+			as_dict=True,
+		)
+		self.assertEqual(attendance.status, "Present")
+		self.assertIsNone(attendance.half_day_status)
+		self.assertFalse(attendance.leave_type)
+		self.assertFalse(attendance.leave_application)
+		self.assertEqual(attendance.docstatus, 1)
+
 	def test_modifying_attendance_when_half_day_exists_from_checkins(self):
 		employee = get_employee()
 		leave_type = create_leave_type(
