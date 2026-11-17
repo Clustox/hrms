@@ -7,7 +7,7 @@ const routes = [
 	{
 		name: "ExpenseRequestFormView",
 		path: "/expense-requests/new",
-		component: () => import("@/views/expenses/ExpenseRequestForm.vue"),
+		component: () => import("@/views/expenses/ExpenseRequestMultiForm.vue"),
 	},
 	{
 		name: "ExpenseRequestDetailView",
