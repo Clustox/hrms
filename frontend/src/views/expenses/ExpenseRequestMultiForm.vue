@@ -53,7 +53,7 @@
 								</Button>
 							</div>
 
-							<div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+							<div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
 								<FormField
 									fieldtype="Select"
 									fieldname="expense_type"
@@ -72,6 +72,15 @@
 									:options="fieldsByName.beneficiary.options"
 									v-model="row.beneficiary"
 									:readOnly="Boolean(row.created)"
+								/>
+								<FormField
+									fieldtype="Date"
+									fieldname="expense_date"
+									:label="fieldsByName.expense_date.label"
+									v-model="row.expense_date"
+									:readOnly="Boolean(row.created)"
+									:maxDate="today"
+									reqd
 								/>
 								<FormField
 									fieldtype="Currency"
@@ -186,6 +195,7 @@ import { FileAttachment } from "@/composables"
 
 const __ = inject("$translate")
 const employee = inject("$employee")
+const dayjs = inject("$dayjs")
 const router = useRouter()
 
 const DOCTYPE = "Expense Request"
@@ -194,11 +204,14 @@ const MEDICAL_TYPES = ["OPD", "IPD"]
 // One request per row, so keep a sensible ceiling on a single submission.
 const MAX_ROWS = 20
 
+const today = dayjs().format("YYYY-MM-DD")
+
 let rowSeq = 0
 function newRow() {
 	return {
 		key: ++rowSeq,
 		expense_type: "",
+		expense_date: today,
 		beneficiary: "",
 		amount: "",
 		reason: "",
@@ -262,6 +275,7 @@ function removeFile(row, file) {
 // What is wrong with this row before anything is created (same rules as the single form).
 function rowProblem(row) {
 	if (!row.expense_type) return __("Select the expense type.")
+	if (!row.expense_date) return __("Select the expense date.")
 	if (!(Number(row.amount) > 0)) return __("Amount must be greater than zero.")
 	if (!String(row.reason || "").trim()) return __("Enter the reason.")
 	if (!row.files.length) return attachmentHint(row)
@@ -287,6 +301,7 @@ async function processRow(row, sendForApproval) {
 				doctype: DOCTYPE,
 				employee: employee.data.name,
 				expense_type: row.expense_type,
+				expense_date: row.expense_date,
 				beneficiary: isMedical(row) ? row.beneficiary || "Self" : null,
 				amount: Number(row.amount),
 				reason: String(row.reason).trim(),
