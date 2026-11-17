@@ -6,7 +6,7 @@
 				class="flex flex-col h-full w-full lg:h-auto lg:min-h-screen lg:bg-air-bg lg:pl-[250px] lg:pt-[68px] lg:pb-12"
 			>
 				<div
-					class="w-full h-full bg-white sm:w-96 flex flex-col lg:h-auto lg:w-full lg:max-w-[900px] lg:mx-auto lg:mt-8 lg:rounded-air lg:border lg:border-air-line lg:shadow-air lg:overflow-hidden"
+					class="w-full h-full bg-white sm:w-96 flex flex-col lg:h-auto lg:w-full lg:max-w-[1100px] lg:mx-auto lg:mt-8 lg:rounded-air lg:border lg:border-air-line lg:shadow-air lg:overflow-hidden"
 				>
 					<header
 						class="flex flex-row bg-white shadow-sm py-4 px-3 items-center sticky top-0 z-[1000] lg:static lg:bg-transparent lg:shadow-none lg:border-b lg:border-air-line-2 lg:px-7 lg:py-5"
@@ -30,106 +30,173 @@
 							}}
 						</p>
 
-						<div
-							v-for="(row, index) in rows"
-							:key="row.key"
-							class="flex flex-col gap-4 rounded-lg border p-4"
-							:class="row.error ? 'border-red-300 bg-red-50/40' : 'border-gray-200'"
-						>
-							<div class="flex flex-row items-center justify-between">
-								<span class="text-sm font-semibold text-gray-800">
-									{{ __("Request {0}", [index + 1]) }}
-								</span>
-								<span v-if="row.created" class="text-xs text-gray-600">
-									{{ __("Created as {0}", [row.created]) }}
-								</span>
-								<Button
-									v-else-if="rows.length > 1"
-									variant="ghost"
-									:disabled="busy"
-									@click="removeRow(row)"
-								>
-									<FeatherIcon name="trash-2" class="h-4 w-4 text-gray-700" />
-								</Button>
-							</div>
-
-							<div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
-								<FormField
-									fieldtype="Select"
-									fieldname="expense_type"
-									:label="fieldsByName.expense_type.label"
-									:options="fieldsByName.expense_type.options"
-									:modelValue="row.expense_type"
-									:readOnly="Boolean(row.created)"
-									reqd
-									@update:modelValue="(v) => setType(row, v)"
-								/>
-								<FormField
-									v-if="isMedical(row)"
-									fieldtype="Select"
-									fieldname="beneficiary"
-									:label="fieldsByName.beneficiary.label"
-									:options="fieldsByName.beneficiary.options"
-									v-model="row.beneficiary"
-									:readOnly="Boolean(row.created)"
-								/>
-								<FormField
-									fieldtype="Date"
-									fieldname="expense_date"
-									:label="fieldsByName.expense_date.label"
-									v-model="row.expense_date"
-									:readOnly="Boolean(row.created)"
-									:maxDate="today"
-									reqd
-								/>
-								<FormField
-									fieldtype="Currency"
-									fieldname="amount"
-									:label="fieldsByName.amount.label"
-									v-model="row.amount"
-									:readOnly="Boolean(row.created)"
-									reqd
-								/>
-							</div>
-
-							<FormField
-								fieldtype="Small Text"
-								fieldname="reason"
-								:label="fieldsByName.reason.label"
-								v-model="row.reason"
-								:readOnly="Boolean(row.created)"
-								reqd
-							/>
-
-							<div>
+						<!-- the table: a header row, then one line per expense -->
+						<div class="lg:overflow-x-auto lg:rounded lg:border lg:bg-white">
+							<div class="exp-table flex flex-col gap-3 lg:gap-0">
 								<div
-									v-if="!row.files.length"
-									class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5"
+									class="hidden lg:grid exp-grid items-center border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600"
+									:class="{ 'with-beneficiary': showBeneficiary }"
 								>
-									<FeatherIcon
-										name="paperclip"
-										class="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
-									/>
-									<span class="text-[13px] leading-5 text-amber-800">
-										{{ attachmentHint(row) }}
-									</span>
+									<span>{{ __("No.") }}</span>
+									<span>{{ fieldsByName.expense_date.label }} <i class="not-italic text-red-600">*</i></span>
+									<span>{{ fieldsByName.expense_type.label }} <i class="not-italic text-red-600">*</i></span>
+									<span v-if="showBeneficiary">{{ fieldsByName.beneficiary.label }}</span>
+									<span>{{ fieldsByName.reason.label }} <i class="not-italic text-red-600">*</i></span>
+									<span>{{ fieldsByName.amount.label }} <i class="not-italic text-red-600">*</i></span>
+									<span>{{ __("Attachments") }} <i class="not-italic text-red-600">*</i></span>
+									<span></span>
 								</div>
-								<FileUploaderView
-									v-model="row.files"
-									required
-									@handleFileSelect="(e) => addFiles(row, e)"
-									@handleFileDelete="(file) => removeFile(row, file)"
-								/>
-							</div>
 
-							<p v-if="row.error" class="text-sm text-red-600 whitespace-pre-line">
-								{{ row.error }}
-							</p>
+								<div
+									v-for="(row, index) in rows"
+									:key="row.key"
+									class="exp-row rounded border p-3.5 lg:rounded-none lg:border-0 lg:border-b lg:px-3 lg:py-2.5 lg:last:border-b-0"
+									:class="row.error ? 'border-red-300 bg-red-50/40' : 'border-gray-200 bg-white'"
+								>
+									<div class="exp-grid items-start" :class="{ 'with-beneficiary': showBeneficiary }">
+										<div class="flex flex-row items-center justify-between lg:justify-start lg:pt-2.5">
+											<span class="text-sm text-gray-500">{{ index + 1 }}</span>
+											<span v-if="row.created" class="text-xs text-gray-600 lg:hidden">
+												{{ __("Created as {0}", [row.created]) }}
+											</span>
+											<Button
+												v-else-if="rows.length > 1"
+												class="lg:hidden"
+												variant="ghost"
+												:disabled="busy"
+												@click="removeRow(row)"
+											>
+												<FeatherIcon name="trash-2" class="h-4 w-4 text-gray-700" />
+											</Button>
+										</div>
+
+										<div class="exp-cell min-w-0">
+											<FormField
+												fieldtype="Date"
+												fieldname="expense_date"
+												:label="fieldsByName.expense_date.label"
+												v-model="row.expense_date"
+												:readOnly="Boolean(row.created)"
+												:maxDate="today"
+												reqd
+											/>
+										</div>
+
+										<div class="exp-cell min-w-0">
+											<FormField
+												fieldtype="Select"
+												fieldname="expense_type"
+												:label="fieldsByName.expense_type.label"
+												:options="fieldsByName.expense_type.options"
+												:modelValue="row.expense_type"
+												:readOnly="Boolean(row.created)"
+												reqd
+												@update:modelValue="(v) => setType(row, v)"
+											/>
+										</div>
+
+										<div
+											v-if="showBeneficiary"
+											class="exp-cell min-w-0"
+											:class="isMedical(row) ? '' : 'hidden lg:block'"
+										>
+											<FormField
+												v-if="isMedical(row)"
+												fieldtype="Select"
+												fieldname="beneficiary"
+												:label="fieldsByName.beneficiary.label"
+												:options="fieldsByName.beneficiary.options"
+												v-model="row.beneficiary"
+												:readOnly="Boolean(row.created)"
+											/>
+											<span v-else class="hidden lg:block pt-2 text-gray-400">&mdash;</span>
+										</div>
+
+										<div class="exp-cell min-w-0">
+											<FormField
+												fieldtype="Data"
+												fieldname="reason"
+												:label="fieldsByName.reason.label"
+												v-model="row.reason"
+												:readOnly="Boolean(row.created)"
+												reqd
+											/>
+										</div>
+
+										<div class="exp-cell min-w-0">
+											<FormField
+												fieldtype="Currency"
+												fieldname="amount"
+												:label="fieldsByName.amount.label"
+												v-model="row.amount"
+												:readOnly="Boolean(row.created)"
+												reqd
+											/>
+										</div>
+
+										<div class="exp-cell min-w-0 flex flex-col gap-1.5">
+											<span class="text-sm leading-5 text-gray-700 lg:hidden">
+												{{ __("Attachments") }} <i class="not-italic text-red-600">*</i>
+											</span>
+											<label
+												class="flex cursor-pointer items-center justify-center gap-1.5 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+												:class="row.created ? 'pointer-events-none opacity-50' : ''"
+											>
+												<FeatherIcon name="paperclip" class="h-4 w-4" />
+												{{ row.files.length ? __("{0} file(s)", [row.files.length]) : __("Attach") }}
+												<input
+													class="hidden"
+													type="file"
+													multiple
+													accept="*"
+													@change="(e) => addFiles(row, e)"
+												/>
+											</label>
+										</div>
+
+										<div class="hidden lg:flex flex-row items-center justify-end pt-1.5">
+											<span v-if="row.created" :title="row.created">
+												<FeatherIcon name="check" class="h-4 w-4 text-green-600" />
+											</span>
+											<Button
+												v-else-if="rows.length > 1"
+												variant="ghost"
+												:title="__('Delete')"
+												:disabled="busy"
+												@click="removeRow(row)"
+											>
+												<FeatherIcon name="trash-2" class="h-4 w-4 text-gray-600" />
+											</Button>
+										</div>
+									</div>
+
+									<!-- files chosen for this row -->
+									<ul v-if="row.files.length" class="mt-2 flex flex-wrap gap-2 lg:pl-10">
+										<li
+											v-for="file in row.files"
+											:key="file.name + file.size"
+											class="flex items-center gap-1.5 rounded bg-gray-100 px-2 py-1 text-xs text-gray-700"
+										>
+											<span class="max-w-[16rem] truncate">{{ file.name }}</span>
+											<FeatherIcon
+												v-if="!row.created"
+												name="x"
+												class="h-3.5 w-3.5 cursor-pointer"
+												@click="removeFile(row, file)"
+											/>
+										</li>
+									</ul>
+
+									<p v-if="row.error" class="mt-2 text-sm text-red-600 whitespace-pre-line lg:pl-10">
+										{{ row.error }}
+									</p>
+								</div>
+							</div>
 						</div>
 
 						<Button
 							variant="outline"
-							class="w-full"
+							class="w-full lg:w-auto lg:self-start"
 							:disabled="busy || rows.length >= MAX_ROWS"
 							@click="addRow()"
 						>
@@ -189,7 +256,6 @@ import { computed, inject, ref } from "vue"
 import { useRouter } from "vue-router"
 
 import DesktopShell from "@/components/DesktopShell.vue"
-import FileUploaderView from "@/components/FileUploaderView.vue"
 import FormField from "@/components/FormField.vue"
 import { FileAttachment } from "@/composables"
 
@@ -240,6 +306,8 @@ const fieldsByName = computed(() => {
 })
 
 const isMedical = (row) => MEDICAL_TYPES.includes(row.expense_type)
+// the Beneficiary column exists only while at least one row is a medical (OPD / IPD) expense
+const showBeneficiary = computed(() => rows.value.some(isMedical))
 
 function setType(row, type) {
 	row.expense_type = type || ""
@@ -377,3 +445,28 @@ async function submitAll(sendForApproval) {
 	showError.value = true
 }
 </script>
+
+<style scoped>
+/* one row = one grid: stacked on a phone, lined up under the header on a desktop */
+.exp-grid {
+	display: grid;
+	gap: 0.75rem;
+	grid-template-columns: 1fr;
+}
+@media (min-width: 1024px) {
+	.exp-grid {
+		gap: 0.5rem;
+		grid-template-columns: 2rem 8.5rem 11.5rem minmax(10rem, 1fr) 7.5rem 7.5rem 2.5rem;
+	}
+	.exp-grid.with-beneficiary {
+		grid-template-columns: 2rem 8.5rem 11.5rem 8rem minmax(10rem, 1fr) 7.5rem 7.5rem 2.5rem;
+	}
+	.exp-table {
+		min-width: 50rem;
+	}
+	/* the column titles are in the header row, so hide each field's own label here */
+	.exp-row .exp-cell > :deep(div) > span:first-child {
+		display: none;
+	}
+}
+</style>
