@@ -91,6 +91,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		from_date: DF.Date
 		half_day: DF.Check
 		half_day_date: DF.Date | None
+		half_day_session: DF.Literal["", "First Half", "Second Half"]
 		leave_approver: DF.Link | None
 		leave_approver_name: DF.Data | None
 		leave_balance: DF.Float
@@ -801,6 +802,10 @@ class LeaveApplication(Document, PWANotificationsMixin):
 
 		if self.half_day == 0:
 			self.half_day_date = None
+
+		# which half of the day is off; applications made without a choice (API, old
+		# records) keep working and default to the first half
+		self.half_day_session = (self.half_day_session or "First Half") if self.half_day else None
 
 	def notify_employee(self):
 		employee_email = get_employee_email(self.employee)

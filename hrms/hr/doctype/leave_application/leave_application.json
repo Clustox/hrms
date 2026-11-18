@@ -20,6 +20,7 @@
   "to_date",
   "half_day",
   "half_day_date",
+  "half_day_session",
   "total_leave_days",
   "column_break1",
   "description",
@@ -128,6 +129,15 @@
    "fieldname": "half_day_date",
    "fieldtype": "Date",
    "label": "Half Day Date"
+  },
+  {
+   "depends_on": "eval:doc.half_day",
+   "description": "Which half of the day is taken off",
+   "fieldname": "half_day_session",
+   "fieldtype": "Select",
+   "label": "Half Day Session",
+   "no_copy": 1,
+   "options": "\nFirst Half\nSecond Half"
   },
   {
    "fieldname": "total_leave_days",
