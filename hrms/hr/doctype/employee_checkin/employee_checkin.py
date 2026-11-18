@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, get_datetime
+from frappe.utils import add_days, cint, get_datetime, getdate
 
 from hrms.hr.doctype.shift_assignment.shift_assignment import get_actual_start_end_datetime_of_shift
 from hrms.hr.utils import (
@@ -119,12 +119,37 @@ class EmployeeCheckin(Document):
 			self.shift_end = shift_actual_timings.end_datetime
 			self.overtime_type = shift_actual_timings.overtime_type or None
 
+	def is_working_remotely(self) -> bool:
+		if frappe.db.get_value("Employee", self.employee, "custom_allow_portal_checkin"):
+			return True
+		punch_date = getdate(self.time)
+		# a post-midnight check-out of an overnight WFH day is covered by the previous day's request
+		return bool(
+			frappe.db.exists(
+				"Attendance Request",
+				{
+					"employee": self.employee,
+					"reason": "Work From Home",
+					"status": "Approved",
+					"docstatus": 1,
+					"from_date": ["<=", punch_date],
+					"to_date": [">=", add_days(punch_date, -1)],
+				},
+			)
+		)
+
 	def validate_distance_from_shift_location(self):
 		if not frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking"):
 			return
 
 		if not (self.latitude or self.longitude):
 			frappe.throw(_("Latitude and longitude values are required for checking in."))
+
+		# Working remotely: the portal check-in is offered only on an approved WFH
+		# day (or to employees flagged for portal check-in), so the shift-location
+		# radius can't apply to them.
+		if self.is_working_remotely():
+			return
 
 		assignment_locations = frappe.get_all(
 			"Shift Assignment",
