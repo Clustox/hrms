@@ -309,6 +309,11 @@ doc_events = {
 	# Clustox: stage emails as an Expense Request moves through the approval
 	# workflow (manager -> HR inbox -> Accounts inbox -> requester).
 	"Expense Request": {"on_update": "hrms.expense_request_notify.notify_on_state_change"},
+	# Clustox: cap an incomplete/forgotten-check-out session at 18h (see
+	# hrms/attendance_cap.py) -- stops the overnight check-out buffer from
+	# producing an implausible 18h+ working day. Keep this the ONLY "Attendance"
+	# key in doc_events (dict last-key-wins silently drops earlier duplicates).
+	"Attendance": {"validate": "hrms.attendance_cap.cap_long_session"},
 	"Attendance Request": {
 		# Clustox: notify the employee's manager when a request is raised, and
 		# the employee when their manager approves it (see attendance_request_notify).

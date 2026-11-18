@@ -46,6 +46,8 @@ const isLocating = ref(false)
 // A forgotten check-out shouldn't keep offering "Check Out" indefinitely: a
 // check-in older than this is treated as a MISSED check-out, so the dashboard
 // stops offering the check-out and lets the employee check in for the new day.
+// 18h (HR policy): an incomplete session auto-resets after 18 hours so the
+// previous day's missing check-out never blocks a new check-in.
 // `checkinClock` ticks every minute so the switch also happens on a page left
 // open across the 18h boundary, not only on reload.
 const STALE_CHECKIN_HOURS = 18
