@@ -91,6 +91,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		from_date: DF.Date
 		half_day: DF.Check
 		half_day_date: DF.Date | None
+		half_day_session: DF.Literal["", "First Half", "Second Half"]
 		leave_approver: DF.Link | None
 		leave_approver_name: DF.Data | None
 		leave_balance: DF.Float
@@ -801,6 +802,22 @@ class LeaveApplication(Document, PWANotificationsMixin):
 
 		if self.half_day == 0:
 			self.half_day_date = None
+
+		self.validate_half_day_session()
+
+	def validate_half_day_session(self):
+		"""Which half of the day is off is mandatory for a half-day leave. Existing
+		half-day records from before this field existed carry no value; they are
+		defaulted to the first half so approving or editing them still works."""
+		if not self.half_day:
+			self.half_day_session = None
+		elif not self.half_day_session:
+			if self.is_new():
+				frappe.throw(
+					_("Select the Half Day Session: First Half or Second Half."),
+					title=_("Half Day Session is required"),
+				)
+			self.half_day_session = "First Half"
 
 	def notify_employee(self):
 		employee_email = get_employee_email(self.employee)
