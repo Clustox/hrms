@@ -387,6 +387,25 @@ def _working_days(employee: str, from_date, to_date) -> int:
 	return weekdays
 
 
+# A punch within this many hours of the session's SHIFT START (falling back to
+# the first punch when the log has no shift) belongs to that session, so an
+# overnight shift's post-midnight check-out is linked to the previous day's
+# check-in. A later punch starts a new session, so an incomplete session is
+# auto-reset and can't block the next check-in.
+SESSION_MAX_HOURS = 18
+
+
+def _session_date(sessions: dict, emp, when, shift_start=None):
+	"""Return the attendance date (ISO str) a punch belongs to for `emp`.
+	`sessions` is {emp: session anchor datetime}; feed punches in ascending time
+	order per employee. The anchor is the shift start of the session's first punch
+	(or that punch's time if it has no shift)."""
+	anchor = sessions.get(emp)
+	if anchor is None or (when - anchor).total_seconds() > SESSION_MAX_HOURS * 3600:
+		sessions[emp] = anchor = shift_start or when
+	return getdate(anchor).isoformat()
+
+
 def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
 	"""Group check-ins (sorted by employee, then time) into per-employee, per-day
 	rows: the FIRST punch of a day is the check-in and the LAST is the check-out
@@ -394,13 +413,15 @@ def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
 	ignored. Returns {employee: [ {attendance_date, in_time, out_time,
 	working_hours, shift_start, shift_end}, ... ]}."""
 	by_key = {}
+	sessions = {}
 
-	def row_for(emp, when):
-		key = (emp, getdate(when).isoformat())
+	def row_for(emp, when, shift_start=None):
+		date_str = _session_date(sessions, emp, when, shift_start)
+		key = (emp, date_str)
 		return by_key.setdefault(
 			key,
 			{
-				"attendance_date": getdate(when).isoformat(),
+				"attendance_date": date_str,
 				"in_time": None,
 				"out_time": None,
 				"working_hours": None,
@@ -411,7 +432,7 @@ def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
 
 	for log in checkins:  # sorted by employee, then time asc
 		emp = log["employee"]
-		row = row_for(emp, log["time"])
+		row = row_for(emp, log["time"], log.get("shift_start"))
 		if row["in_time"] is None:
 			row["in_time"] = log["time"]
 			row["shift_start"] = log.get("shift_start")
@@ -426,6 +447,13 @@ def _pair_checkins_by_employee_day(checkins: list[dict]) -> dict:
 	for (emp, _date), row in by_key.items():
 		out.setdefault(emp, []).append(row)
 	return out
+
+
+def _clip_days_to_range(days_by_emp: dict, from_date, to_date) -> dict:
+	lo, hi = str(from_date), str(to_date)
+	return {
+		emp: [r for r in rows if lo <= r["attendance_date"] <= hi] for emp, rows in days_by_emp.items()
+	}
 
 
 @frappe.whitelist()
@@ -471,11 +499,14 @@ def get_timesheet_overview(
 
 	checkins = frappe.get_all(
 		"Employee Checkin",
-		filters={"employee": ["in", emp_ids], "time": ["between", [from_date, f"{to_date} 23:59:59"]]},
+		filters={
+			"employee": ["in", emp_ids],
+			"time": ["between", [add_days(from_date, -1), f"{add_days(to_date, 1)} 23:59:59"]],
+		},
 		fields=["employee", "log_type", "time", "shift_start", "shift_end"],
 		order_by="employee asc, time asc",
 	)
-	days_by_emp = _pair_checkins_by_employee_day(checkins)
+	days_by_emp = _clip_days_to_range(_pair_checkins_by_employee_day(checkins), from_date, to_date)
 
 	# Approved leave days overlapping the range, per employee.
 	leave_days = {}
@@ -555,7 +586,11 @@ def get_employee_checkin_history(from_date: str, to_date: str) -> list[dict]:
 def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[dict]:
 	logs = frappe.get_all(
 		"Employee Checkin",
-		filters={"employee": employee, "time": ["between", [from_date, f"{to_date} 23:59:59"]]},
+		# pad by a day each side so a session spilling over midnight is grouped whole
+		filters={
+			"employee": employee,
+			"time": ["between", [add_days(from_date, -1), f"{add_days(to_date, 1)} 23:59:59"]],
+		},
 		fields=["log_type", "time", "shift", "shift_start", "shift_end", "latitude", "longitude", "device_id"],
 		order_by="time asc",
 	)
@@ -585,10 +620,12 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 	# the summary. Hours = last - first. The device's IN/OUT flag is deliberately
 	# IGNORED -- it is unreliable (a re-check-in was being read as a check-out, so
 	# a real end-of-day punch was dropped). A single punch leaves check-out empty.
-	# (Assumes same-day shifts, which holds for Clustox -- no overnight rosters.)
+	# Overnight shifts: punches within SESSION_MAX_HOURS of the first punch belong to
+	# that session, so a post-midnight check-out stays with the previous day.
 	days = {}
+	sessions = {}
 	for log in logs:  # ordered by time asc
-		row = _row(getdate(log.time).isoformat())
+		row = _row(_session_date(sessions, "me", log.time, log.shift_start))
 		if row["in_time"] is None:
 			row["in_time"] = log.time
 			row["shift"] = log.shift
@@ -605,7 +642,7 @@ def _group_checkins_by_day(employee: str, from_date: str, to_date: str) -> list[
 			row["out_device_id"] = log.device_id
 			row["working_hours"] = round((log.time - row["in_time"]).total_seconds() / 3600, 2)
 
-	rows = list(days.values())
+	rows = [r for r in days.values() if str(from_date) <= r["attendance_date"] <= str(to_date)]
 	rows.sort(key=lambda r: r["attendance_date"], reverse=True)
 	return rows
 

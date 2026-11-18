@@ -49,7 +49,7 @@ const isLocating = ref(false)
 // 18h (HR policy): an incomplete session auto-resets after 18 hours so the
 // previous day's missing check-out never blocks a new check-in.
 // `checkinClock` ticks every minute so the switch also happens on a page left
-// open across the boundary, not only on reload.
+// open across the 18h boundary, not only on reload.
 const STALE_CHECKIN_HOURS = 18
 const checkinClock = ref(Date.now())
 
@@ -99,7 +99,7 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 	scope.run(() => {
 		checkins = createListResource({
 			doctype: DOCTYPE,
-			fields: ["name", "employee", "employee_name", "log_type", "time", "device_id"],
+			fields: ["name", "employee", "employee_name", "log_type", "time", "shift_start", "device_id"],
 			filters: {
 				employee: employee.data.name,
 			},
@@ -115,14 +115,15 @@ function initCheckin({ socket, employee: emp, dayjs: dj, translate }) {
 			return lastLog?.value?.log_type === "IN" ? "check-in" : "check-out"
 		})
 
-		// Currently checked in = last log is an IN still within the 24h window.
+		// Currently checked in = last log is an IN still within the 18h window.
 		// An older IN is a forgotten check-out, so treat the employee as checked
 		// out (missed check-out) -- they can start the new day's check-in.
 		isCheckedIn = computed(() => {
 			const log = lastLog?.value
 			if (log?.log_type !== "IN" || !log?.time) return false
 			void checkinClock.value // reactive tick so this re-evaluates over time
-			return dayjs().diff(dayjs(log.time), "hour") < STALE_CHECKIN_HOURS
+			// 18h counts from the shift start (falls back to the punch time)
+			return dayjs().diff(dayjs(log.shift_start || log.time), "hour") < STALE_CHECKIN_HOURS
 		})
 
 		nextAction = computed(() => {
