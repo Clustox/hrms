@@ -97,6 +97,30 @@ class TestNoAdvanceNotice(FrappeTestCase):
             validate_backdate_limit(self._app(leave_type, -1))
             validate_backdate_limit(self._app(leave_type, 5))  # before the start: allowed
 
+    def test_saving_an_existing_application_is_not_blocked_by_the_backdate_window(self):
+        # a manager approving an old request re-saves it: the start date is unchanged
+        from unittest.mock import patch
+
+        from hrms.leave_rules import validate_backdate_limit
+
+        doc = self._app("Casual Leave", -20)
+        with patch.object(type(doc), "is_new", return_value=False), patch.object(
+            type(doc), "has_value_changed", return_value=False
+        ):
+            validate_backdate_limit(doc)  # must not raise
+
+    def test_changing_the_start_date_of_an_existing_application_is_still_blocked(self):
+        from unittest.mock import patch
+
+        from hrms.leave_rules import validate_backdate_limit
+
+        doc = self._app("Casual Leave", -20)
+        with patch.object(type(doc), "is_new", return_value=False), patch.object(
+            type(doc), "has_value_changed", return_value=True
+        ):
+            with self.assertRaises(frappe.ValidationError):
+                validate_backdate_limit(doc)
+
     def test_more_than_7_days_after_the_start_date_is_still_blocked(self):
         from hrms.leave_rules import validate_backdate_limit
 

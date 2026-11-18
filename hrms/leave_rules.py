@@ -209,10 +209,17 @@ def validate_backdate_limit(doc, method=None):
     which is therefore turned OFF for this site -- if that setting is ever turned
     back on it would block employees before this rule runs.
 
-    The window is the same for every leave type."""
+    The window is the same for every leave type.
+
+    It applies when the application is created or its start date is changed --
+    NOT when an existing application is saved for any other reason. A manager
+    approving/rejecting their team's request (which saves the doc) must be able
+    to do so at any time after it was requested, however old the start date."""
     if not doc.get("from_date"):
         return
     if set(frappe.get_roles()) & OVERRIDE_ROLES:
+        return
+    if not doc.is_new() and not doc.has_value_changed("from_date"):
         return
     days_back = date_diff(getdate(today()), getdate(doc.from_date))
     if days_back > BACKDATE_LIMIT_DAYS:
