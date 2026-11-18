@@ -103,3 +103,40 @@ class TestNoAdvanceNotice(FrappeTestCase):
         for leave_type in frappe.get_all("Leave Type", pluck="name"):
             with self.assertRaises(frappe.ValidationError, msg=leave_type):
                 validate_backdate_limit(self._app(leave_type, -8))
+
+
+class TestBackdateApproverBypass(FrappeTestCase):
+    """A manager/approver acting on someone else's request is never blocked by the
+    backdate window, so they can approve at any time after the leave was raised."""
+
+    def setUp(self):
+        self.emp = frappe.get_all("Employee", filters={"status": "Active"}, limit=1)[0].name
+        from unittest.mock import patch
+
+        # a plain (non-override) approver -- an HR role would bypass for other reasons
+        patcher = patch("frappe.get_roles", return_value=["Employee"])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _app(self, starts_in):
+        from frappe.utils import add_days, today
+
+        start = add_days(today(), starts_in)
+        return frappe.get_doc({
+            "doctype": "Leave Application", "employee": self.emp, "leave_type": "Casual Leave",
+            "from_date": start, "to_date": start, "total_leave_days": 1,
+        })
+
+    def test_approver_not_blocked_by_backdate(self):
+        from hrms.leave_rules import validate_backdate_limit
+
+        # applicant is someone OTHER than the current (approver) session user
+        frappe.db.set_value("Employee", self.emp, "user_id", "not-the-approver@example.com")
+        validate_backdate_limit(self._app(-10))  # 10 days back -- must NOT raise for the approver
+
+    def test_applicant_still_blocked_by_backdate(self):
+        from hrms.leave_rules import validate_backdate_limit
+
+        frappe.db.set_value("Employee", self.emp, "user_id", frappe.session.user)  # applicant == saver
+        with self.assertRaises(frappe.ValidationError):
+            validate_backdate_limit(self._app(-10))

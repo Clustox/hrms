@@ -203,8 +203,12 @@ def validate_backdate_limit(doc, method=None):
     after the fact -- but no further back. Start dates older than the window are
     hard-blocked.
 
-    HR / System Manager / Administrator are exempt and may backdate any number
-    of days (corrections on anyone's behalf). This is a fixed-window replacement
+    Only the applicant applying for their OWN leave is limited. An approver /
+    manager (or HR) acting on someone else's request is never blocked, so a
+    manager can approve a team member's leave at any time after it was raised,
+    even once it has aged past the window. HR / System Manager / Administrator
+    are additionally exempt for their own corrections. This is a fixed-window
+    replacement
     for Frappe's all-or-nothing `restrict_backdated_leave_application` setting,
     which is therefore turned OFF for this site -- if that setting is ever turned
     back on it would block employees before this rule runs.
@@ -212,8 +216,17 @@ def validate_backdate_limit(doc, method=None):
     The window is the same for every leave type."""
     if not doc.get("from_date"):
         return
-    if set(frappe.get_roles()) & OVERRIDE_ROLES:
+    # Apply-time rule: it limits the EMPLOYEE applying for their OWN leave. An
+    # approver / manager / HR acting on someone else's request is never blocked --
+    # approval happens later than the request, so "today" has moved on, and a
+    # manager must be able to approve their team's requests at any time after they
+    # were raised (HR request, Faryal 2026-11-18). Without this, a request that was
+    # within the window when raised became un-approvable once it aged past 7 days.
+    owner_user = frappe.db.get_value("Employee", doc.employee, "user_id")
+    if owner_user != frappe.session.user:
         return
+    if set(frappe.get_roles()) & OVERRIDE_ROLES:
+        return  # HR / Admin may backdate their own corrections too, unchanged
     days_back = date_diff(getdate(today()), getdate(doc.from_date))
     if days_back > BACKDATE_LIMIT_DAYS:
         earliest = add_days(getdate(today()), -BACKDATE_LIMIT_DAYS)
