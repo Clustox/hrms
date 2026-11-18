@@ -347,7 +347,7 @@ function setHalfDayDate(half_day) {
 	half_day_date.hidden = !half_day
 	half_day_date.reqd = half_day
 
-	// First half / second half choice
+	// First half / second half choice: required, and deliberately not pre-selected
 	const half_day_session = formFields.data.find(
 		(field) => field.fieldname === "half_day_session"
 	)
@@ -359,9 +359,6 @@ function setHalfDayDate(half_day) {
 	if (!half_day) {
 		leaveApplication.value.half_day_session = null
 		return
-	}
-	if (!leaveApplication.value.half_day_session) {
-		leaveApplication.value.half_day_session = "First Half"
 	}
 
 	if (leaveApplication.value.from_date === leaveApplication.value.to_date) {

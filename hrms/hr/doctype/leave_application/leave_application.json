@@ -136,6 +136,7 @@
    "fieldname": "half_day_session",
    "fieldtype": "Select",
    "label": "Half Day Session",
+   "mandatory_depends_on": "eval:doc.half_day",
    "no_copy": 1,
    "options": "\nFirst Half\nSecond Half"
   },
