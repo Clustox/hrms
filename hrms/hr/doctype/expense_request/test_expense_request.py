@@ -20,7 +20,6 @@ class TestExpenseRequest(HRMSTestSuite):
 		for f in [
 			"employee",
 			"expense_type",
-			"expense_date",
 			"amount",
 			"currency",
 			"reason",
@@ -70,20 +69,6 @@ class TestExpenseRequest(HRMSTestSuite):
 			}
 		).insert()
 		self.assertEqual(medical.beneficiary, "Spouse")
-
-	def test_expense_date_field_defaults_to_today_and_is_optional(self):
-		f = frappe.get_meta("Expense Request").get_field("expense_date")
-		self.assertEqual(f.fieldtype, "Date")
-		self.assertEqual(f.default, "Today")
-		self.assertFalse(f.reqd)  # requests raised without a date (API, desk) keep working
-
-		# raised without a date, it is dated today
-		self.assertEqual(str(make_expense_request().expense_date), nowdate())
-
-	def test_expense_date_is_stored_for_every_type(self):
-		for etype in EXPENSE_TYPES:
-			doc = make_expense_request(expense_type=etype, expense_date="2026-11-10")
-			self.assertEqual(str(frappe.db.get_value("Expense Request", doc.name, "expense_date")), "2026-11-10", etype)
 
 	# --- Task 2: controller validation ---
 

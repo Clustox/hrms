@@ -38,7 +38,6 @@
 									:class="{ 'with-beneficiary': showBeneficiary }"
 								>
 									<span>{{ __("No.") }}</span>
-									<span>{{ fieldsByName.expense_date.label }} <i class="not-italic text-red-600">*</i></span>
 									<span>{{ fieldsByName.expense_type.label }} <i class="not-italic text-red-600">*</i></span>
 									<span v-if="showBeneficiary">{{ fieldsByName.beneficiary.label }}</span>
 									<span>{{ fieldsByName.reason.label }} <i class="not-italic text-red-600">*</i></span>
@@ -68,18 +67,6 @@
 											>
 												<FeatherIcon name="trash-2" class="h-4 w-4 text-gray-700" />
 											</Button>
-										</div>
-
-										<div class="exp-cell min-w-0">
-											<FormField
-												fieldtype="Date"
-												fieldname="expense_date"
-												:label="fieldsByName.expense_date.label"
-												v-model="row.expense_date"
-												:readOnly="Boolean(row.created)"
-												:maxDate="today"
-												reqd
-											/>
 										</div>
 
 										<div class="exp-cell min-w-0">
@@ -261,7 +248,6 @@ import { FileAttachment } from "@/composables"
 
 const __ = inject("$translate")
 const employee = inject("$employee")
-const dayjs = inject("$dayjs")
 const router = useRouter()
 
 const DOCTYPE = "Expense Request"
@@ -270,14 +256,11 @@ const MEDICAL_TYPES = ["OPD", "IPD"]
 // One request per row, so keep a sensible ceiling on a single submission.
 const MAX_ROWS = 20
 
-const today = dayjs().format("YYYY-MM-DD")
-
 let rowSeq = 0
 function newRow() {
 	return {
 		key: ++rowSeq,
 		expense_type: "",
-		expense_date: today,
 		beneficiary: "",
 		amount: "",
 		reason: "",
@@ -343,7 +326,6 @@ function removeFile(row, file) {
 // What is wrong with this row before anything is created (same rules as the single form).
 function rowProblem(row) {
 	if (!row.expense_type) return __("Select the expense type.")
-	if (!row.expense_date) return __("Select the expense date.")
 	if (!(Number(row.amount) > 0)) return __("Amount must be greater than zero.")
 	if (!String(row.reason || "").trim()) return __("Enter the reason.")
 	if (!row.files.length) return attachmentHint(row)
@@ -369,7 +351,6 @@ async function processRow(row, sendForApproval) {
 				doctype: DOCTYPE,
 				employee: employee.data.name,
 				expense_type: row.expense_type,
-				expense_date: row.expense_date,
 				beneficiary: isMedical(row) ? row.beneficiary || "Self" : null,
 				amount: Number(row.amount),
 				reason: String(row.reason).trim(),
@@ -456,10 +437,10 @@ async function submitAll(sendForApproval) {
 @media (min-width: 1024px) {
 	.exp-grid {
 		gap: 0.5rem;
-		grid-template-columns: 2rem 8.5rem 11.5rem minmax(10rem, 1fr) 7.5rem 7.5rem 2.5rem;
+		grid-template-columns: 2rem 11.5rem minmax(10rem, 1fr) 7.5rem 7.5rem 2.5rem;
 	}
 	.exp-grid.with-beneficiary {
-		grid-template-columns: 2rem 8.5rem 11.5rem 8rem minmax(10rem, 1fr) 7.5rem 7.5rem 2.5rem;
+		grid-template-columns: 2rem 11.5rem 8rem minmax(10rem, 1fr) 7.5rem 7.5rem 2.5rem;
 	}
 	.exp-table {
 		min-width: 50rem;
