@@ -3,18 +3,28 @@
 ERPNext's `create_user` checks the caller may edit the Employee, but then inserts
 the User with the caller's own permissions. HR roles do not have Create on the
 User doctype (only System Manager does), so the button fails with "No permission
-for User". This override keeps the same Employee write check and creates the User
-as the system, with the Employee role only -- HR cannot hand out any other role
-through it, and still has no general access to the User doctype.
+for User". This override creates the User as the system instead, with the Employee
+role only -- HR cannot hand out any other role through it, and still has no general
+access to the User doctype.
+
+It requires an explicit HR role (ALLOWED_ROLES) on top of the Employee write check.
+That matters: Employee Self Service users also have write access on Employee (their
+own record, via user permissions), and ERPNext's version was only safe because the
+User insert then failed. With the insert no longer permission-checked, being able to
+edit an Employee is not enough.
 """
 import frappe
 from frappe import _
 from frappe.permissions import add_user_permission
 from frappe.utils import cint, validate_email_address
 
+# who may create an employee's login from the Employee form
+ALLOWED_ROLES = ("HR User", "HR Manager", "System Manager")
+
 
 @frappe.whitelist(methods=["POST"])
 def create_user(employee: str, email: str | None = None, create_user_permission: int = 0) -> str:
+	frappe.only_for(ALLOWED_ROLES)
 	emp = frappe.get_doc("Employee", employee)
 	emp.check_permission("write")
 	if emp.user_id:
