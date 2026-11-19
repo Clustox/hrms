@@ -25,6 +25,11 @@ def _ensure_user(employee_doc) -> str:
 	email = employee_doc.company_email or employee_doc.personal_email
 	if not email:
 		frappe.throw(_("Employee has no company or personal email to create a login."))
+	# Link Employee.user_id first: erpnext's User.validate hook (validate_employee_role)
+	# strips "Employee"/"Employee Self Service" roles whenever no Employee record maps
+	# to the user yet, so the link must land before the role is granted.
+	if employee_doc.user_id != email:
+		employee_doc.db_set("user_id", email)
 	if not frappe.db.exists("User", email):
 		user = frappe.get_doc({
 			"doctype": "User", "email": email,
@@ -33,12 +38,11 @@ def _ensure_user(employee_doc) -> str:
 			"send_welcome_email": 0, "user_type": "System User",
 		})
 		user.flags.no_welcome_mail = True
+		# Insert WITH the role. Inserting a System User with no roles makes Frappe pop up
+		# "No Roles Specified" with an "Add Roles" button that does nothing outside the
+		# User form, although the role was added a moment later.
+		user.append_roles("Employee Self Service")
 		user.insert(ignore_permissions=True)
-	# Link Employee.user_id before granting the role: erpnext's User.validate hook
-	# (validate_employee_role) strips "Employee"/"Employee Self Service" roles whenever
-	# no Employee record maps to this user yet, so the link must land first.
-	if employee_doc.user_id != email:
-		employee_doc.db_set("user_id", email)
 	user = frappe.get_doc("User", email)
 	# add_roles() calls user.save(), which runs under the CALLER's permissions.
 	# HR Manager / HR User have no write access to the User doctype, so an HR
