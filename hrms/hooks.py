@@ -442,6 +442,10 @@ global_search_doctypes = {
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "hrms.event.get_events"
 # }
+override_whitelisted_methods = {
+	# Clustox: HR can create an employee's login without Create permission on User
+	"erpnext.setup.doctype.employee.employee.create_user": "hrms.overrides.employee_user.create_user",
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
