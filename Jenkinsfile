@@ -190,5 +190,25 @@ pipeline {
                 '''
             }
         }
+        stage('Backup database') {
+            // A recoverable snapshot taken RIGHT BEFORE migrate: patches can edit
+            // data, so a bad one can be rolled back from this backup. If the backup
+            // fails the pipeline stops here and migrate does NOT run (fail-safe).
+            // bench runs as the container's `frappe` user (never root). The backup
+            // lands in sites/hrms.localhost/private/backups inside the container.
+            steps {
+                sh 'docker exec docker-frappe-1 bash -lc "cd ~/frappe-bench && bench --site hrms.localhost backup"'
+            }
+        }
+        stage('Run migrations') {
+            // Applies DocType schema changes and runs any pending patches listed in
+            // hrms/patches.txt. Idempotent -- only patches not already in the site's
+            // Patch Log run -- so this is safe to run on every deploy. This is the
+            // step the Jenkins deploy used to skip, which is why patches had to be
+            // run by hand.
+            steps {
+                sh 'docker exec docker-frappe-1 bash -lc "cd ~/frappe-bench && bench --site hrms.localhost migrate"'
+            }
+        }
     }
 }
