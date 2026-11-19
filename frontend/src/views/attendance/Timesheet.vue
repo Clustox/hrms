@@ -674,6 +674,8 @@ const STATUS_BADGE_CLASS = {
 	"Half Day": "bg-orange-50 text-orange-700 ring-1 ring-orange-600/20",
 	Absent: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
 	"On Leave": "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
+	"Checked In": "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
+	"Missing Punch": "bg-orange-50 text-orange-700 ring-1 ring-orange-600/20",
 }
 const statusBadgeClass = (status) =>
 	STATUS_BADGE_CLASS[status] || "bg-gray-100 text-gray-700 ring-1 ring-gray-400/20"

@@ -354,6 +354,8 @@ scheduler_events = {
 	],
 	"hourly": [
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.trigger_emails",
+		# Clustox: a post-midnight check-out arriving after the day's Attendance was made
+		"hrms.overnight_attendance.reconcile_recent",
 	],
 	"hourly_long": [
 		"hrms.hr.doctype.shift_type.shift_type.update_last_sync_of_checkin",

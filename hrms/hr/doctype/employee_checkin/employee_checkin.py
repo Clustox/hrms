@@ -94,6 +94,9 @@ class EmployeeCheckin(Document):
 			shift_actual_timings := get_actual_start_end_datetime_of_shift(
 				self.employee, get_datetime(self.time), True
 			)
+			# outside every shift's own window, but within 18h of the previous shift's
+			# start: a post-midnight check-out of that shift, not a new day's check-in
+			or self.previous_session_timings()
 		):
 			self.shift = None
 			self.offshift = 1
@@ -118,6 +121,15 @@ class EmployeeCheckin(Document):
 			self.shift_start = shift_actual_timings.start_datetime
 			self.shift_end = shift_actual_timings.end_datetime
 			self.overtime_type = shift_actual_timings.overtime_type or None
+
+	def previous_session_timings(self):
+		from hrms.overnight_attendance import SESSION_MAX_HOURS, previous_session_shift
+
+		shift = previous_session_shift(self.employee, self.time)
+		if shift:
+			# the session lasts until 18h after the shift start
+			shift.actual_end = shift.start_datetime + timedelta(hours=SESSION_MAX_HOURS)
+		return shift
 
 	def validate_distance_from_shift_location(self):
 		if not frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking"):

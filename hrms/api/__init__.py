@@ -5,11 +5,12 @@ from frappe import _
 from frappe.model import get_permitted_fields
 from frappe.model.workflow import get_workflow_name
 from frappe.query_builder import Order
-from frappe.utils import add_days, cint, date_diff, getdate, strip_html
+from frappe.utils import add_days, cint, date_diff, get_datetime, getdate, now_datetime, strip_html
 
 from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
 
 from hrms.hr.utils import get_checkin_location_labels
+from hrms.overnight_attendance import SESSION_MAX_HOURS
 
 SUPPORTED_FIELD_TYPES = [
 	"Link",
@@ -263,6 +264,7 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 		status = status_by_date.get(date_str)
 		if not status and date_str in leave_dates:
 			status = "On Leave"
+		status = _missing_punch_status(day, status)
 		rows.append(
 			{
 				"attendance_date": date_str,
@@ -278,6 +280,18 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 		)
 
 	return sorted(rows, key=lambda r: str(r["attendance_date"]), reverse=True)
+
+
+def _missing_punch_status(day: dict, status: str | None) -> str | None:
+	"""A day with a check-in but no check-out is not Absent. While the session (18h from
+	the shift start) is still open it is "Checked In"; after that it is a "Missing Punch".
+	Only an Absent / no-status day is relabelled; Present, Half Day, leave etc. are kept."""
+	if not day.get("in_time") or day.get("out_time") or status not in (None, "Absent"):
+		return status
+	anchor = get_datetime(day.get("shift_start") or day["in_time"])
+	if (now_datetime() - anchor).total_seconds() <= SESSION_MAX_HOURS * 3600:
+		return "Checked In"
+	return "Missing Punch"
 
 
 def _get_approved_leave_dates(employee: str, from_date: str, to_date: str) -> set[str]:
@@ -392,7 +406,6 @@ def _working_days(employee: str, from_date, to_date) -> int:
 # overnight shift's post-midnight check-out is linked to the previous day's
 # check-in. A later punch starts a new session, so an incomplete session is
 # auto-reset and can't block the next check-in.
-SESSION_MAX_HOURS = 18
 
 
 def _session_date(sessions: dict, emp, when, shift_start=None):

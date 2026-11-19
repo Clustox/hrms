@@ -80,6 +80,8 @@ const statusColorMap = {
 	"Half Day": "orange",
 	Absent: "red",
 	"On Leave": "blue",
+	"Checked In": "blue",
+	"Missing Punch": "orange",
 }
 
 const formatWorkedTime = (hours) => {
