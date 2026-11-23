@@ -55,7 +55,8 @@ const REIMBURSEMENT_FIELDS = [
 	"reference_no",
 	"paid_by",
 ]
-const REJECTION_FIELDS = ["rejection_reason", "rejection_note"]
+// "state_section" is the "Approval" heading above them: no heading without the fields
+const REJECTION_FIELDS = ["state_section", "rejection_reason", "rejection_note"]
 const REIMBURSEMENT_STATES = ["Pending Accounts", "Completed"]
 const REJECTION_STATES = ["Pending Manager", "Pending HR", "Pending Accounts", "Rejected"]
 
@@ -74,8 +75,13 @@ const visibleFields = computed(() => {
 	if (!props.id)
 		return data.filter((f) => CREATE_FIELDS.includes(f.fieldname)).filter(gateBeneficiary)
 	const state = expenseRequest.value.workflow_state
-	const showReimb = REIMBURSEMENT_STATES.includes(state)
-	const showReject = REJECTION_STATES.includes(state)
+	// The rejection and payment fields are the approvers' to fill in. The requester only sees them once
+	// they are a result: the rejection after the request is rejected, the payment once it is completed.
+	const isRequester =
+		Boolean(expenseRequest.value.employee) && expenseRequest.value.employee === employee.data?.name
+	const showReimb =
+		state === "Completed" || (REIMBURSEMENT_STATES.includes(state) && !isRequester)
+	const showReject = state === "Rejected" || (REJECTION_STATES.includes(state) && !isRequester)
 	return data
 		.filter((f) => {
 			if (REIMBURSEMENT_FIELDS.includes(f.fieldname)) return showReimb
