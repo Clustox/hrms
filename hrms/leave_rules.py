@@ -5,7 +5,6 @@ Registered via hooks.py `doc_events`. Rules that the policy states but Frappe
 does not enforce natively are implemented here:
 
   * gender restriction (Maternity = Female, Paternity = Male)
-  * "once in employment" (Hajj/Umrah)
   * probation (first 90 days): Casual blocked, Sick capped at 2
   * no leave during the notice/resignation period
   * Casual cannot be combined with another leave or an adjacent holiday
@@ -36,7 +35,6 @@ CASUAL = "Casual Leave"
 COMP_OFF = "Compensatory Off"
 
 GENDER_REQUIRED = {"Maternity Leave": "Female", "Paternity Leave": "Male"}
-ONCE_TYPES = {"Hajj Umrah Leave"}
 
 
 def _bypass(doc) -> bool:
@@ -133,13 +131,6 @@ def validate_leave_application(doc, method=None):
     req_gender = GENDER_REQUIRED.get(lt)
     if req_gender and (emp.get("gender") or "") != req_gender:
         frappe.throw(_("{0} is only available to {1} employees.").format(lt, req_gender))
-
-    # 2) once in employment
-    if lt in ONCE_TYPES and frappe.db.exists("Leave Application", {
-        "employee": doc.employee, "leave_type": lt,
-        "docstatus": ["<", 2], "name": ["!=", doc.name or "new"],
-    }):
-        frappe.throw(_("{0} can be availed only once during employment.").format(lt))
 
     # 3) (no advance-notice rule: no leave type needs a minimum notice period. An
     #    employee may apply any time before the start date, and up to
