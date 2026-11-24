@@ -4,6 +4,7 @@ import TabbedView from "@/views/TabbedView.vue"
 import attendanceRoutes from "./attendance"
 import leaveRoutes from "./leaves"
 import wfhRequestRoutes from "./wfh_requests"
+import jobRequisitionRoutes from "./job_requisitions"
 import claimRoutes from "./claims"
 import employeeAdvanceRoutes from "./advances"
 import salarySlipRoutes from "./salary_slips"
@@ -87,6 +88,7 @@ const routes = [
 	...attendanceRoutes,
 	...leaveRoutes,
 	...wfhRequestRoutes,
+	...jobRequisitionRoutes,
 	...claimRoutes,
 	...employeeAdvanceRoutes,
 	...salarySlipRoutes,

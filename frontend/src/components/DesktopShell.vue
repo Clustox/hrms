@@ -34,6 +34,24 @@
 				/>
 				{{ item.title }}
 			</router-link>
+
+			<router-link
+				v-if="canRequestJobRequisition"
+				to="/job-requisitions"
+				class="flex items-center gap-3 rounded-[11px] px-3 py-2.5 text-[14.5px] transition-colors duration-200 ease-air"
+				:class="
+					route.path.startsWith('/job-requisitions')
+						? 'bg-air-surface-2 font-semibold text-air-ink'
+						: 'font-medium text-air-ink-2 hover:bg-air-surface-2'
+				"
+			>
+				<FeatherIcon
+					name="briefcase"
+					class="h-[19px] w-[19px] shrink-0"
+					:class="route.path.startsWith('/job-requisitions') ? 'text-air-blue' : 'text-air-muted'"
+				/>
+				{{ __("Job Requisition") }}
+			</router-link>
 		</nav>
 
 		<router-link
@@ -126,6 +144,10 @@ const navItems = getNavItems(__)
 function isActive(item) {
 	return route.path === item.route || route.path.startsWith(item.route + "/")
 }
+
+const canRequestJobRequisition = computed(() =>
+	Boolean(user.data?.roles?.includes("Requisition Requester")),
+)
 
 const activeItem = computed(() => navItems.find(isActive))
 const pageTitle = computed(() => activeItem.value?.title || __("Frappe HR"))
