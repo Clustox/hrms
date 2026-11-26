@@ -222,20 +222,17 @@ const monthLabel = computed(() => firstOfMonth.value.format("MMM"))
 const stats = computed(() => {
 	const rows = (monthAttendance.data || []).filter((r) => !r.is_holiday)
 	const count = (re) => rows.filter((r) => re.test(r.status || "")).length
-	// A half-day LEAVE (other half worked) is a full present day; only a half day
-	// from short hours keeps the 0.5 weighting in the percentage.
-	const halfLeave = rows.filter((r) => r.status === "Half Day" && r.is_half_leave).length
-	const present = count(/^(Present|Work From Home)$/) + halfLeave
-	const half = count(/^Half Day$/) - halfLeave
+	// A Half Day (half-day leave or short hours) counts as a full present day.
+	const present = count(/^(Present|Work From Home|Half Day)$/)
 	const absent = count(/^Absent$/)
-	const counted = present + half + absent
+	const counted = present + absent
 	const hours = rows.reduce((n, r) => n + (Number(r.working_hours) || 0), 0)
 	const hoursDays = rows.filter((r) => Number(r.working_hours) > 0).length
 	return {
 		counted,
-		daysPresent: present + half,
+		daysPresent: present,
 		absent,
-		pct: counted ? ((present + half * 0.5) / counted) * 100 : null,
+		pct: counted ? (present / counted) * 100 : null,
 		hours,
 		avgHours: hoursDays ? hours / hoursDays : 0,
 	}

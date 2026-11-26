@@ -227,15 +227,9 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 			"attendance_date": ["between", [from_date, to_date]],
 			"docstatus": 1,
 		},
-		fields=["attendance_date", "status", "leave_application"],
+		fields=["attendance_date", "status"],
 	)
 	status_by_date = {d["attendance_date"].isoformat(): d["status"] for d in attendance_rows}
-	# Half Day attendance created by a half-day leave (worked the other half)
-	half_leave_dates = {
-		d["attendance_date"].isoformat()
-		for d in attendance_rows
-		if d["status"] == "Half Day" and d.get("leave_application")
-	}
 
 	# Nothing on this site auto-creates an Attendance record from an approved
 	# leave either, so a leave day otherwise has no row at all (no checkin, no
@@ -280,8 +274,6 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 				"status": status,
 				# weekend / holiday per the employee's holiday list (not a working day)
 				"is_holiday": str(date_str) in holidays,
-				# Half Day from a half-day leave: counts as a full present day
-				"is_half_leave": date_str in half_leave_dates,
 				"late_entry": late_entry,
 				"early_exit": early_exit,
 				"in_location": in_location,

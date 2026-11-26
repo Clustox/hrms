@@ -174,13 +174,10 @@ const attendance = computed(() => {
 	// days on leave ("On Leave") are excluded from the percentage's denominator.
 	const rows = (monthAttendance.data || []).filter((r) => !r.is_holiday)
 	const count = (re) => rows.filter((r) => re.test(r.status || "")).length
-	// A half-day LEAVE (other half worked) is a full present day; only a half day
-	// from short hours keeps the 0.5 weighting in the percentage.
-	const halfLeave = rows.filter((r) => r.status === "Half Day" && r.is_half_leave).length
-	const present = count(/^(Present|Work From Home)$/) + halfLeave
-	const half = count(/^Half Day$/) - halfLeave
+	// A Half Day (half-day leave or short hours) counts as a full present day.
+	const present = count(/^(Present|Work From Home|Half Day)$/)
 	const absent = count(/^Absent$/)
-	const counted = present + half + absent
+	const counted = present + absent
 	if (!counted) {
 		return {
 			pct: null,
@@ -188,10 +185,10 @@ const attendance = computed(() => {
 		}
 	}
 	return {
-		pct: ((present + half * 0.5) / counted) * 100,
+		pct: (present / counted) * 100,
 		note: absent
-			? __("{0} present · {1} absent", [present + half, absent])
-			: __("{0} days present", [present + half]),
+			? __("{0} present · {1} absent", [present, absent])
+			: __("{0} days present", [present]),
 	}
 })
 const attendanceShown = useCountUp(() => attendance.value.pct)
