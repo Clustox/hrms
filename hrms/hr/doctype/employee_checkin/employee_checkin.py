@@ -131,8 +131,54 @@ class EmployeeCheckin(Document):
 			shift.actual_end = shift.start_datetime + timedelta(hours=SESSION_MAX_HOURS)
 		return shift
 
+	def is_working_from_home(self) -> bool:
+		"""True if this log belongs to a Work From Home day: the employee has an
+		approved WFH request covering it, or is flagged for portal check-in without
+		a WFH request. A check-out after midnight belongs to the session it closes,
+		so it follows the date of that session's check-in (e.g. IN 26 Nov 20:00,
+		OUT 27 Nov 03:00 on a WFH request for 26 Nov)."""
+		if frappe.db.get_value("Employee", self.employee, "custom_allow_portal_checkin"):
+			return True
+
+		log_time = get_datetime(self.time)
+		days = {log_time.date()}
+		if self.log_type == "OUT":
+			session_in = frappe.db.get_value(
+				"Employee Checkin",
+				{
+					"employee": self.employee,
+					"log_type": "IN",
+					"time": ["between", [log_time - timedelta(hours=18), log_time]],
+				},
+				"time",
+				order_by="time desc",
+			)
+			if session_in:
+				days.add(get_datetime(session_in).date())
+
+		return any(self._has_approved_wfh_on(day) for day in days)
+
+	def _has_approved_wfh_on(self, day) -> bool:
+		return bool(
+			frappe.db.exists(
+				"Attendance Request",
+				{
+					"employee": self.employee,
+					"reason": "Work From Home",
+					"status": "Approved",
+					"docstatus": 1,
+					"from_date": ["<=", day],
+					"to_date": [">=", day],
+				},
+			)
+		)
+
 	def validate_distance_from_shift_location(self):
 		if not frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking"):
+			return
+
+		# Work From Home: no location is required or checked
+		if self.is_working_from_home():
 			return
 
 		if not (self.latitude or self.longitude):

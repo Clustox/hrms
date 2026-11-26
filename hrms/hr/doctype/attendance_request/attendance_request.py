@@ -2,10 +2,21 @@
 # For license information, please see license.txt
 
 
+from datetime import timedelta
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, date_diff, format_date, get_link_to_form, getdate, nowdate
+from frappe.utils import (
+	add_days,
+	date_diff,
+	format_date,
+	get_datetime,
+	get_link_to_form,
+	getdate,
+	now_datetime,
+	nowdate,
+)
 
 from erpnext.setup.doctype.employee.employee import is_holiday
 
@@ -488,20 +499,36 @@ def has_approved_wfh_today(employee: str | None = None) -> bool:
 	if frappe.db.get_value("Employee", employee, "custom_allow_portal_checkin"):
 		return True
 
-	today = nowdate()
-	return bool(
-		frappe.db.exists(
-			"Attendance Request",
-			{
-				"employee": employee,
-				"reason": "Work From Home",
-				"status": "Approved",
-				"docstatus": 1,
-				"from_date": ["<=", today],
-				"to_date": [">=", today],
-			},
+	def covered(day) -> bool:
+		return bool(
+			frappe.db.exists(
+				"Attendance Request",
+				{
+					"employee": employee,
+					"reason": "Work From Home",
+					"status": "Approved",
+					"docstatus": 1,
+					"from_date": ["<=", day],
+					"to_date": [">=", day],
+				},
+			)
 		)
+
+	if covered(nowdate()):
+		return True
+
+	# Overnight shift: after midnight the open session (check-in within the last
+	# 18h, not yet checked out) still belongs to the previous day's WFH request.
+	now = now_datetime()
+	last = frappe.db.get_value(
+		"Employee Checkin",
+		{"employee": employee, "time": ["between", [now - timedelta(hours=18), now]]},
+		["log_type", "time"],
+		order_by="time desc",
 	)
+	if last and last[0] == "IN":
+		return covered(get_datetime(last[1]).date())
+	return False
 
 
 def _can_decide(doc) -> bool:
