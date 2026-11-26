@@ -230,7 +230,7 @@ const stats = computed(() => {
 	const hoursDays = rows.filter((r) => Number(r.working_hours) > 0).length
 	return {
 		counted,
-		daysPresent: present + half,
+		daysPresent: present + half * 0.5,
 		absent,
 		pct: counted ? ((present + half * 0.5) / counted) * 100 : null,
 		hours,
@@ -276,7 +276,7 @@ const tiles = computed(() => {
 			type: "present",
 			label: __("Days present"),
 			available: has,
-			value: Math.round(presentShown.value),
+			value: Number.isInteger(stats.value.daysPresent) ? Math.round(presentShown.value) : presentShown.value.toFixed(1),
 			note: has
 				? stats.value.absent
 					? __("{0} absent", [stats.value.absent])

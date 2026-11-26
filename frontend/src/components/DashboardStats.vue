@@ -102,10 +102,14 @@ const RING = 2 * Math.PI * 21 // circumference of the r=21 ring
 // Rings start empty and fill once mounted (CSS transition; disabled for reduced motion).
 const armed = ref(false)
 onMounted(() => requestAnimationFrame(() => requestAnimationFrame(() => (armed.value = true))))
-// monthAttendance is auto:false and shared; fetch it here so the Home
-// attendance tile loads even when the attendance dashboard hasn't mounted.
+// monthAttendance is auto:false and SHARED with the Attendance dashboard, which
+// lets the user page through other months. Always load the current month here --
+// reusing whatever is cached would show another month's days on the Home tile.
 onMounted(() => {
-	if (!monthAttendance.data && !monthAttendance.loading) monthAttendance.fetch()
+	monthAttendance.fetch({
+		from_date: dayjs().startOf("month").format("YYYY-MM-DD"),
+		to_date: dayjs().endOf("month").format("YYYY-MM-DD"),
+	})
 })
 
 const monthLabel = computed(() => dayjs().format("MMM"))
@@ -178,11 +182,13 @@ const attendance = computed(() => {
 			note: monthAttendance.loading ? __("Loading...") : __("No records this month"),
 		}
 	}
+	// A half day counts as half a day present (same weighting as the percentage).
+	const daysPresent = present + half * 0.5
 	return {
-		pct: ((present + half * 0.5) / counted) * 100,
+		pct: (daysPresent / counted) * 100,
 		note: absent
-			? __("{0} present · {1} absent", [present + half, absent])
-			: __("{0} days present", [present + half]),
+			? __("{0} present · {1} absent", [daysPresent, absent])
+			: __("{0} days present", [daysPresent]),
 	}
 })
 const attendanceShown = useCountUp(() => attendance.value.pct)
