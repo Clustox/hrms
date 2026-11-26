@@ -220,10 +220,13 @@ const monthLabel = computed(() => firstOfMonth.value.format("MMM"))
 
 // ---- This month (hrms.api.get_attendance_timesheet via monthAttendance) ----
 const stats = computed(() => {
-	const rows = monthAttendance.data || []
+	const rows = (monthAttendance.data || []).filter((r) => !r.is_holiday)
 	const count = (re) => rows.filter((r) => re.test(r.status || "")).length
-	const present = count(/^(Present|Work From Home)$/)
-	const half = count(/^Half Day$/)
+	// A half-day LEAVE (other half worked) is a full present day; only a half day
+	// from short hours keeps the 0.5 weighting in the percentage.
+	const halfLeave = rows.filter((r) => r.status === "Half Day" && r.is_half_leave).length
+	const present = count(/^(Present|Work From Home)$/) + halfLeave
+	const half = count(/^Half Day$/) - halfLeave
 	const absent = count(/^Absent$/)
 	const counted = present + half + absent
 	const hours = rows.reduce((n, r) => n + (Number(r.working_hours) || 0), 0)

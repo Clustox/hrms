@@ -220,17 +220,21 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 		d["attendance_date"]: d for d in _group_checkins_by_day(employee, from_date, to_date)
 	}
 
-	status_by_date = {
-		d["attendance_date"].isoformat(): d["status"]
-		for d in frappe.get_all(
-			"Attendance",
-			filters={
-				"employee": employee,
-				"attendance_date": ["between", [from_date, to_date]],
-				"docstatus": 1,
-			},
-			fields=["attendance_date", "status"],
-		)
+	attendance_rows = frappe.get_all(
+		"Attendance",
+		filters={
+			"employee": employee,
+			"attendance_date": ["between", [from_date, to_date]],
+			"docstatus": 1,
+		},
+		fields=["attendance_date", "status", "leave_application"],
+	)
+	status_by_date = {d["attendance_date"].isoformat(): d["status"] for d in attendance_rows}
+	# Half Day attendance created by a half-day leave (worked the other half)
+	half_leave_dates = {
+		d["attendance_date"].isoformat()
+		for d in attendance_rows
+		if d["status"] == "Half Day" and d.get("leave_application")
 	}
 
 	# Nothing on this site auto-creates an Attendance record from an approved
@@ -258,6 +262,8 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 		]
 	)
 
+	holidays = {str(h) for h in get_holidays_for_calendar(employee, from_date, to_date)}
+
 	rows = []
 	for date_str, day, in_location, out_location in zip(dates, days, in_locations, out_locations):
 		late_entry, early_exit = _late_early_flags(day, grace_periods.get(day.get("shift")))
@@ -272,6 +278,10 @@ def _get_employee_attendance_timesheet(employee: str, from_date: str, to_date: s
 				"out_time": day.get("out_time"),
 				"working_hours": day.get("working_hours"),
 				"status": status,
+				# weekend / holiday per the employee's holiday list (not a working day)
+				"is_holiday": str(date_str) in holidays,
+				# Half Day from a half-day leave: counts as a full present day
+				"is_half_leave": date_str in half_leave_dates,
 				"late_entry": late_entry,
 				"early_exit": early_exit,
 				"in_location": in_location,

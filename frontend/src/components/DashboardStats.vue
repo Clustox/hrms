@@ -102,10 +102,14 @@ const RING = 2 * Math.PI * 21 // circumference of the r=21 ring
 // Rings start empty and fill once mounted (CSS transition; disabled for reduced motion).
 const armed = ref(false)
 onMounted(() => requestAnimationFrame(() => requestAnimationFrame(() => (armed.value = true))))
-// monthAttendance is auto:false and shared; fetch it here so the Home
-// attendance tile loads even when the attendance dashboard hasn't mounted.
+// monthAttendance is auto:false and SHARED with the Attendance dashboard, which
+// lets the user page through other months. Always load the current month here --
+// reusing whatever is cached would show another month's days on the Home tile.
 onMounted(() => {
-	if (!monthAttendance.data && !monthAttendance.loading) monthAttendance.fetch()
+	monthAttendance.fetch({
+		from_date: dayjs().startOf("month").format("YYYY-MM-DD"),
+		to_date: dayjs().endOf("month").format("YYYY-MM-DD"),
+	})
 })
 
 const monthLabel = computed(() => dayjs().format("MMM"))
@@ -166,10 +170,15 @@ function leaveTile(key, target, shownVal, fallbackLabel, idx) {
 
 // ---- Attendance (real data: hrms.api.get_attendance_timesheet, this month) ----
 const attendance = computed(() => {
-	const rows = monthAttendance.data || []
+	// Working days only: weekends/holidays are neither present nor absent, and
+	// days on leave ("On Leave") are excluded from the percentage's denominator.
+	const rows = (monthAttendance.data || []).filter((r) => !r.is_holiday)
 	const count = (re) => rows.filter((r) => re.test(r.status || "")).length
-	const present = count(/^(Present|Work From Home)$/)
-	const half = count(/^Half Day$/)
+	// A half-day LEAVE (other half worked) is a full present day; only a half day
+	// from short hours keeps the 0.5 weighting in the percentage.
+	const halfLeave = rows.filter((r) => r.status === "Half Day" && r.is_half_leave).length
+	const present = count(/^(Present|Work From Home)$/) + halfLeave
+	const half = count(/^Half Day$/) - halfLeave
 	const absent = count(/^Absent$/)
 	const counted = present + half + absent
 	if (!counted) {
