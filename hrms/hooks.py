@@ -253,6 +253,11 @@ doc_events = {
 		],
 		"on_trash": "hrms.overrides.company.handle_linked_docs",
 	},
+	# Keeps the department dropdown on the Job Requisition web form current.
+	"Department": {
+		"on_update": "hrms.hr.doctype.job_requisition.job_requisition.sync_web_form_departments",
+		"on_trash": "hrms.hr.doctype.job_requisition.job_requisition.sync_web_form_departments",
+	},
 	"Holiday List": {
 		"on_update": "hrms.utils.holiday_list.invalidate_cache",
 		"on_trash": "hrms.utils.holiday_list.invalidate_cache",
@@ -292,6 +297,7 @@ doc_events = {
 		"on_update": [
 			"hrms.overrides.employee_master.update_approver_role",
 			"hrms.overrides.employee_master.publish_update",
+			"hrms.hr.doctype.job_requisition.job_requisition.sync_web_form_departments",
 		],
 		"after_insert": [
 			"hrms.overrides.employee_master.update_job_applicant_and_offer",

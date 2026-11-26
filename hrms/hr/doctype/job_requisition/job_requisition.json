@@ -28,6 +28,14 @@
   "column_break_15",
   "expected_by",
   "time_to_fill",
+  "approval_tab",
+  "approved_salary_lower",
+  "approved_salary_upper",
+  "column_break_appr",
+  "decided_by",
+  "decided_on",
+  "rejection_reason",
+  "hold_reason",
   "job_description_tab",
   "description",
   "reason_for_requesting",
@@ -65,6 +73,7 @@
   },
   {
    "fieldname": "status",
+   "default": "Pending",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
@@ -195,6 +204,64 @@
   {
    "fieldname": "column_break_qkna",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approval_tab",
+   "fieldtype": "Tab Break",
+   "label": "Approval"
+  },
+  {
+   "description": "Required when approving",
+   "fieldname": "approved_salary_lower",
+   "fieldtype": "Currency",
+   "label": "Approved Salary (From)",
+   "non_negative": 1,
+   "options": "Company:company:default_currency",
+   "permlevel": 2
+  },
+  {
+   "description": "Required when approving",
+   "fieldname": "approved_salary_upper",
+   "fieldtype": "Currency",
+   "label": "Approved Salary (To)",
+   "non_negative": 1,
+   "options": "Company:company:default_currency",
+   "permlevel": 2
+  },
+  {
+   "fieldname": "column_break_appr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "decided_by",
+   "fieldtype": "Link",
+   "label": "Decided By",
+   "no_copy": 1,
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "decided_on",
+   "fieldtype": "Datetime",
+   "label": "Decided On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Required when rejecting",
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason",
+   "no_copy": 1,
+   "permlevel": 1
+  },
+  {
+   "description": "Required when putting on hold",
+   "fieldname": "hold_reason",
+   "fieldtype": "Small Text",
+   "label": "Hold Reason",
+   "no_copy": 1,
+   "permlevel": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -238,6 +305,49 @@
    "role": "HR Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "create": 1,
+   "if_owner": 1,
+   "read": 1,
+   "role": "Requisition Requester"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "HR Manager"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "HR User"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Requisition Requester"
+  },
+  {
+   "permlevel": 2,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 2,
+   "read": 1,
+   "role": "HR Manager"
+  },
+  {
+   "permlevel": 2,
+   "read": 1,
+   "role": "HR User"
   }
  ],
  "row_format": "Dynamic",
