@@ -131,8 +131,33 @@ class EmployeeCheckin(Document):
 			shift.actual_end = shift.start_datetime + timedelta(hours=SESSION_MAX_HOURS)
 		return shift
 
+	def is_working_from_home(self) -> bool:
+		"""True if the employee has an approved Work From Home request covering the
+		day of this log, or is flagged for portal check-in without a WFH request."""
+		if frappe.db.get_value("Employee", self.employee, "custom_allow_portal_checkin"):
+			return True
+
+		log_date = get_datetime(self.time).date()
+		return bool(
+			frappe.db.exists(
+				"Attendance Request",
+				{
+					"employee": self.employee,
+					"reason": "Work From Home",
+					"status": "Approved",
+					"docstatus": 1,
+					"from_date": ["<=", log_date],
+					"to_date": [">=", log_date],
+				},
+			)
+		)
+
 	def validate_distance_from_shift_location(self):
 		if not frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking"):
+			return
+
+		# Work From Home: no location is required or checked
+		if self.is_working_from_home():
 			return
 
 		if not (self.latitude or self.longitude):

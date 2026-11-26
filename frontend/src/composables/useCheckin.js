@@ -171,10 +171,16 @@ const fetchLocation = () => {
 	}
 }
 
+// Location is only collected when tracking is on AND the employee is not
+// working from home (WFH check-ins need no location).
+const needsLocation = computed(
+	() => Boolean(settings.data?.allow_geolocation_tracking) && !hasApprovedWfh.data
+)
+
 const handleEmployeeCheckin = () => {
 	checkinTimestamp.value = dayjs().format("YYYY-MM-DD HH:mm:ss")
 
-	if (settings.data?.allow_geolocation_tracking) {
+	if (needsLocation.value) {
 		// Reset before fetching, not after -- otherwise a previous check-in's
 		// coordinates (or a previous failed fetch's 0,0) would make this new
 		// one look "ready" for the instant between opening the modal and
@@ -190,7 +196,7 @@ const handleEmployeeCheckin = () => {
 // used to keep the Confirm button disabled so a click can't submit a
 // checkin with no real coordinates.
 const locationNotReady = computed(
-	() => Boolean(settings.data?.allow_geolocation_tracking) && (isLocating.value || (!latitude.value && !longitude.value))
+	() => needsLocation.value && (isLocating.value || (!latitude.value && !longitude.value))
 )
 
 /**
@@ -260,6 +266,7 @@ export function useCheckin() {
 		locationStatus,
 		hasApprovedWfh,
 		isLocating,
+		needsLocation,
 		locationNotReady,
 		fetchLocation,
 		handleEmployeeCheckin,

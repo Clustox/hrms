@@ -85,7 +85,7 @@
 						</div>
 					</div>
 
-					<template v-if="settings.data?.allow_geolocation_tracking">
+					<template v-if="needsLocation">
 						<span v-if="locationStatus" class="text-sm font-medium text-air-muted">
 							{{ locationStatus }}
 						</span>
@@ -143,6 +143,7 @@ const {
 	longitude,
 	locationStatus,
 	hasApprovedWfh,
+	needsLocation,
 	locationNotReady,
 	handleEmployeeCheckin,
 	submitLog,
