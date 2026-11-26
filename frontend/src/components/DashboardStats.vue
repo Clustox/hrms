@@ -182,13 +182,11 @@ const attendance = computed(() => {
 			note: monthAttendance.loading ? __("Loading...") : __("No records this month"),
 		}
 	}
-	// A half day counts as half a day present (same weighting as the percentage).
-	const daysPresent = present + half * 0.5
 	return {
-		pct: (daysPresent / counted) * 100,
+		pct: ((present + half * 0.5) / counted) * 100,
 		note: absent
-			? __("{0} present · {1} absent", [daysPresent, absent])
-			: __("{0} days present", [daysPresent]),
+			? __("{0} present · {1} absent", [present + half, absent])
+			: __("{0} days present", [present + half]),
 	}
 })
 const attendanceShown = useCountUp(() => attendance.value.pct)
